@@ -1,0 +1,8 @@
+"use client";
+import { ReportWorkspace } from "@/components/charts/report-layout";
+import { GlassErrorState, GlassSkeleton } from "@/components/feedback/glass-feedback";
+import { GlassStatsCard } from "@/components/glass/glass-primitives";
+import { GlassTable } from "@/components/tables/glass-table";
+import { useOperationalReport } from "@/presentation/query/dashboard-hooks";
+const request = { command: { businessId: "demo-biz", actorUserId: "demo-user", startsOn: new Date("2026-05-01T00:00:00.000Z"), endsOn: new Date("2026-05-31T23:59:59.999Z") } };
+export default function Page() { const { data, isLoading, error } = useOperationalReport<any>("/api/reports/purchase", "purchase", request); if (isLoading) return <GlassSkeleton className="h-72" />; if (error || !data) return <GlassErrorState title="Purchase report unavailable" description="Unable to load purchase report." />; const report = data.data; return <ReportWorkspace title="Purchase report"><section className="grid gap-4 md:grid-cols-4"><GlassStatsCard title="Orders" value={String(report.orderCount)} detail="In range" /><GlassStatsCard title="Receipts" value={String(report.receiptCount)} detail="Received" /><GlassStatsCard title="Net received" value={report.netReceivedCost.toString()} detail="After returns" /><GlassStatsCard title="Ordered" value={report.orderedAmount.toString()} detail="Procurement" /></section><GlassTable columns={[{ key: "metric", header: "Metric" }, { key: "value", header: "Value" }]} rows={[{ metric: "Ordered amount", value: report.orderedAmount.toString() }, { metric: "Received cost", value: report.receivedCost.toString() }, { metric: "Returned cost", value: report.returnedCost.toString() }]} /></ReportWorkspace>; }

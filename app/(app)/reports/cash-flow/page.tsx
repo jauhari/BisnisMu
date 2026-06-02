@@ -1,0 +1,10 @@
+"use client";
+import { ActivityBarChart } from "@/components/charts/financial-charts";
+import { ReportWorkspace } from "@/components/charts/report-layout";
+import { GlassErrorState, GlassSkeleton } from "@/components/feedback/glass-feedback";
+import { GlassStatsCard } from "@/components/glass/glass-primitives";
+import { GlassTable } from "@/components/tables/glass-table";
+import { useCashFlowReport } from "@/presentation/query/dashboard-hooks";
+const request = { command: { businessId: "demo-biz", actorUserId: "demo-user", startsOn: new Date("2026-05-01T00:00:00.000Z"), endsOn: new Date("2026-05-31T23:59:59.999Z") } };
+const trend = [{ label: "Mon", value: 8100000 }, { label: "Tue", value: -1200000 }, { label: "Wed", value: -500000 }];
+export default function Page() { const { data, isLoading, error } = useCashFlowReport(request); if (isLoading) return <GlassSkeleton className="h-72" />; if (error || !data) return <GlassErrorState title="Cash Flow unavailable" description="Unable to load cash flow." />; const report = data.data; return <ReportWorkspace title="Cash Flow"><section className="grid gap-4 md:grid-cols-4"><GlassStatsCard title="Beginning cash" value={report.beginningCashBalance.toString()} detail="Before period" /><GlassStatsCard title="Operating" value={report.operatingActivities.total.toString()} detail="Net" /><GlassStatsCard title="Financing" value={report.financingActivities.total.toString()} detail="Net" /><GlassStatsCard title="Ending cash" value={report.endingCashBalance.toString()} detail="Cash + bank" /></section><ActivityBarChart data={trend} title="Cash movement by day" /><GlassTable columns={[{ key: "activity", header: "Activity" }, { key: "account", header: "Account" }, { key: "amount", header: "Amount" }]} rows={[...report.operatingActivities.lines, ...report.investingActivities.lines, ...report.financingActivities.lines].map((line) => ({ activity: line.activity, account: line.accountName, amount: line.amount.toString() }))} /></ReportWorkspace>; }

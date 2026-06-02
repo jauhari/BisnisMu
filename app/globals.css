@@ -1,0 +1,37 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: Inter, Geist, system-ui, sans-serif;
+  --background: 210 40% 98%;
+  --foreground: 222 47% 11%;
+  --muted: 215 16% 47%;
+  --border: 214 32% 91%;
+  --ring: 217 91% 60%;
+  --surface: 0 0% 100%;
+  --accent: 217 91% 60%;
+  --success: 158 64% 40%;
+  --warning: 38 92% 50%;
+  --danger: 347 77% 50%;
+}
+
+.dark {
+  --background: 222 47% 7%;
+  --foreground: 210 40% 98%;
+  --muted: 215 20% 65%;
+  --border: 217 33% 18%;
+  --ring: 213 94% 68%;
+  --surface: 222 47% 10%;
+  --accent: 213 94% 68%;
+  --success: 154 60% 50%;
+  --warning: 43 96% 56%;
+  --danger: 351 83% 61%;
+}
+
+* { box-sizing: border-box; }
+html { min-height: 100%; background: hsl(var(--background)); color: hsl(var(--foreground)); }
+body { min-height: 100vh; margin: 0; font-family: var(--font-sans); letter-spacing: 0; }
+button, input, textarea { font: inherit; }
+:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
+::selection { background: hsl(var(--accent) / 0.22); }

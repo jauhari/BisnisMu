@@ -1,0 +1,8 @@
+"use client";
+import { ReportWorkspace } from "@/components/charts/report-layout";
+import { GlassErrorState, GlassSkeleton } from "@/components/feedback/glass-feedback";
+import { GlassStatsCard } from "@/components/glass/glass-primitives";
+import { GlassTable } from "@/components/tables/glass-table";
+import { useOperationalReport } from "@/presentation/query/dashboard-hooks";
+const request = { command: { businessId: "demo-biz", actorUserId: "demo-user", startsOn: new Date("2026-05-01T00:00:00.000Z"), endsOn: new Date("2026-05-31T23:59:59.999Z") } };
+export default function Page() { const { data, isLoading, error } = useOperationalReport<any>("/api/reports/sales", "sales", request); if (isLoading) return <GlassSkeleton className="h-72" />; if (error || !data) return <GlassErrorState title="Sales report unavailable" description="Unable to load sales report." />; const report = data.data; return <ReportWorkspace title="Sales report"><section className="grid gap-4 md:grid-cols-4"><GlassStatsCard title="Orders" value={String(report.orderCount)} detail="In range" /><GlassStatsCard title="Items" value={report.itemCount.toString()} detail="Sold" /><GlassStatsCard title="Total" value={report.totalAmount.toString()} detail="Gross" /><GlassStatsCard title="Outstanding" value={report.outstandingAmount.toString()} detail="Unpaid" /></section><GlassTable columns={[{ key: "status", header: "Status" }, { key: "count", header: "Count" }, { key: "total", header: "Total" }]} rows={Object.entries(report.byStatus).map(([status, row]: any) => ({ status, count: String(row.count), total: row.totalAmount.toString() }))} /></ReportWorkspace>; }
