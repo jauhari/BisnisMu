@@ -120,7 +120,7 @@ function AccountDrilldown({ account, onClose }: { account: any; onClose: () => v
 
 export default function Page() {
   const { data: biz, isLoading: bizLoading } = useActiveBusiness();
-  const { startsOn, endsOn, setStartsOn, setEndsOn } = useReportRange();
+  const { startsOn, endsOn, setStartsOn, setEndsOn, activePreset, setActivePreset } = useReportRange();
   const [showEmpty, setShowEmpty] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<any | null>(null);
 
@@ -150,7 +150,7 @@ export default function Page() {
       <ReportWorkspace
         title="Buku Besar"
         startsOn={startsOn} endsOn={endsOn}
-        onStartsOnChange={setStartsOn} onEndsOnChange={setEndsOn}
+        onStartsOnChange={setStartsOn} onEndsOnChange={setEndsOn} activePreset={activePreset} onPresetChange={setActivePreset}
         onExportPdf={() => exportGeneralLedgerPdf(report, biz.name, startsOn, endsOn)}
         onExportExcel={() => exportGeneralLedgerExcel(report, biz.name, startsOn, endsOn)}
       >

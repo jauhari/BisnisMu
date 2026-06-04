@@ -36,10 +36,13 @@ const now = new Date();
 const DEFAULT_STARTS = new Date(now.getFullYear(), now.getMonth(), 1);
 const DEFAULT_ENDS = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
+export type PresetKey = "week" | "month" | "3m" | "6m" | "year" | "custom";
+
 export function useReportRange() {
   const [startsOn, setStartsOn] = useState<Date>(DEFAULT_STARTS);
   const [endsOn, setEndsOn] = useState<Date>(DEFAULT_ENDS);
-  return { startsOn, endsOn, setStartsOn, setEndsOn };
+  const [activePreset, setActivePreset] = useState<PresetKey>("month");
+  return { startsOn, endsOn, setStartsOn, setEndsOn, activePreset, setActivePreset };
 }
 
 export function buildRequest(businessId: string, startsOn: Date, endsOn: Date) {

@@ -13,7 +13,7 @@ const n = (v: any) => Number(v ?? 0);
 
 export default function Page() {
   const { data: biz, isLoading: bizLoading } = useActiveBusiness();
-  const { startsOn, endsOn, setStartsOn, setEndsOn } = useReportRange();
+  const { startsOn, endsOn, setStartsOn, setEndsOn, activePreset, setActivePreset } = useReportRange();
   const { data, isLoading, error } = useBalanceSheetReport(
     biz ? buildRequest(biz.id, startsOn, endsOn) : buildRequest("__placeholder__", startsOn, endsOn)
   );
@@ -52,7 +52,7 @@ export default function Page() {
     <ReportWorkspace
       title="Neraca"
       startsOn={startsOn} endsOn={endsOn}
-      onStartsOnChange={setStartsOn} onEndsOnChange={setEndsOn}
+      onStartsOnChange={setStartsOn} onEndsOnChange={setEndsOn} activePreset={activePreset} onPresetChange={setActivePreset}
       onExportPdf={() => exportBalanceSheetPdf(report, biz.name, startsOn, endsOn)}
       onExportExcel={() => exportBalanceSheetExcel(report, biz.name, startsOn, endsOn)}
     >

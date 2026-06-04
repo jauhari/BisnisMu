@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
+import type { PresetKey } from "@/presentation/query/report-hooks";
 import { FileDown } from "lucide-react";
 import { GlassPanel } from "../glass/glass-primitives";
 import { GlassDatePicker } from "@/components/forms/glass-form";
@@ -11,11 +12,11 @@ interface ReportRange {
   endsOn?: Date;
   onStartsOnChange?: (d: Date) => void;
   onEndsOnChange?: (d: Date) => void;
+  activePreset?: PresetKey;
+  onPresetChange?: (key: PresetKey) => void;
 }
 
 // ─── Period Presets ──────────────────────────────────────────────────────────
-
-type PresetKey = "week" | "month" | "3m" | "6m" | "year" | "custom";
 
 const PRESETS: { key: PresetKey; label: string }[] = [
   { key: "week",   label: "Minggu Ini" },
@@ -123,16 +124,33 @@ export function ReportWorkspace({ title, children, onExportPdf, onExportExcel, .
   return <div className="grid gap-6"><ReportFilterBar title={title} onExportPdf={onExportPdf} onExportExcel={onExportExcel} {...range} />{children}</div>;
 }
 
-export function ReportFilterBar({ title, startsOn, endsOn, onStartsOnChange, onEndsOnChange, onExportPdf, onExportExcel }: { title: string } & ReportRange & ExportActions) {
-  const [activePreset, setActivePreset] = useState<PresetKey>("month");
+export function ReportFilterBar({ title, startsOn, endsOn, onStartsOnChange, onEndsOnChange, onExportPdf, onExportExcel, activePreset = "month", onPresetChange }: { title: string } & ReportRange & ExportActions) {
+  // Buffer untuk custom mode — hanya apply ke parent saat kedua tanggal sudah diisi
+  const [customStart, setCustomStart] = useState(toDateInput(startsOn));
+  const [customEnd,   setCustomEnd]   = useState(toDateInput(endsOn));
 
   function selectPreset(key: PresetKey) {
-    setActivePreset(key);
-    if (key === "custom") return;
+    onPresetChange?.(key);
+    if (key === "custom") {
+      // Reset buffer ke nilai aktif saat ini
+      setCustomStart(toDateInput(startsOn));
+      setCustomEnd(toDateInput(endsOn));
+      return;
+    }
     const range = computePreset(key);
     if (!range) return;
     onStartsOnChange?.(range.startsOn);
     onEndsOnChange?.(range.endsOn);
+  }
+
+  function applyCustom(start: string, end: string) {
+    setCustomStart(start);
+    setCustomEnd(end);
+    // Baru apply ke parent kalau KEDUA tanggal sudah terisi
+    if (start && end && start <= end) {
+      onStartsOnChange?.(new Date(start + "T00:00:00"));
+      onEndsOnChange?.(new Date(end + "T23:59:59"));
+    }
   }
 
   return (
@@ -161,17 +179,17 @@ export function ReportFilterBar({ title, startsOn, endsOn, onStartsOnChange, onE
 
         {/* Custom date pickers — hanya tampil saat Custom dipilih */}
         {activePreset === "custom" && onStartsOnChange && onEndsOnChange && (
-          <div className="flex items-center gap-2 rounded-lg border border-accent/40 bg-accent/5 px-3 py-1">
+          <div className="flex items-center gap-2 rounded-lg border border-accent/40 bg-accent/5 px-3 py-1.5">
             <span className="text-xs text-muted">Dari</span>
             <GlassDatePicker
-              value={toDateInput(startsOn)}
-              onChange={(v) => onStartsOnChange(new Date(v + "T00:00:00"))}
+              value={customStart}
+              onChange={(v) => applyCustom(v, customEnd)}
               className="h-8"
             />
             <span className="text-xs text-muted">s/d</span>
             <GlassDatePicker
-              value={toDateInput(endsOn)}
-              onChange={(v) => onEndsOnChange(new Date(v + "T23:59:59"))}
+              value={customEnd}
+              onChange={(v) => applyCustom(customStart, v)}
               className="h-8"
             />
           </div>

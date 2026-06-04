@@ -15,7 +15,7 @@ const hasActivity = (row: any) => n(row.debit) !== 0 || n(row.credit) !== 0;
 
 export default function Page() {
   const { data: biz, isLoading: bizLoading } = useActiveBusiness();
-  const { startsOn, endsOn, setStartsOn, setEndsOn } = useReportRange();
+  const { startsOn, endsOn, setStartsOn, setEndsOn, activePreset, setActivePreset } = useReportRange();
   const [showEmpty, setShowEmpty] = useState(false);
 
   const { data, isLoading, error } = useTrialBalanceReport(
@@ -43,7 +43,7 @@ export default function Page() {
     <ReportWorkspace
       title="Neraca Saldo"
       startsOn={startsOn} endsOn={endsOn}
-      onStartsOnChange={setStartsOn} onEndsOnChange={setEndsOn}
+      onStartsOnChange={setStartsOn} onEndsOnChange={setEndsOn} activePreset={activePreset} onPresetChange={setActivePreset}
       onExportPdf={() => exportTrialBalancePdf(report, biz.name, startsOn, endsOn)}
       onExportExcel={() => exportTrialBalanceExcel(report, biz.name, startsOn, endsOn)}
     >

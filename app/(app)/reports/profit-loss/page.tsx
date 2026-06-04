@@ -19,7 +19,7 @@ function pct(part: number, total: number): string {
 
 export default function Page() {
   const { data: biz, isLoading: bizLoading } = useActiveBusiness();
-  const { startsOn, endsOn, setStartsOn, setEndsOn } = useReportRange();
+  const { startsOn, endsOn, setStartsOn, setEndsOn, activePreset, setActivePreset } = useReportRange();
   const { data, isLoading, error } = useProfitLossReport(
     biz ? buildRequest(biz.id, startsOn, endsOn) : buildRequest("__placeholder__", startsOn, endsOn)
   );
@@ -87,7 +87,7 @@ export default function Page() {
     <ReportWorkspace
       title="Laba Rugi"
       startsOn={startsOn} endsOn={endsOn}
-      onStartsOnChange={setStartsOn} onEndsOnChange={setEndsOn}
+      onStartsOnChange={setStartsOn} onEndsOnChange={setEndsOn} activePreset={activePreset} onPresetChange={setActivePreset}
       onExportPdf={() => exportProfitLossPdf(report, biz.name, startsOn, endsOn)}
       onExportExcel={() => exportProfitLossExcel(report, biz.name, startsOn, endsOn)}
     >
