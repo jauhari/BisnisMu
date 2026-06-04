@@ -7,7 +7,7 @@ import { GlassDataSelect, GlassDatePicker, GlassInput } from "@/components/forms
 import { MoneyField } from "@/components/forms/financial-inputs";
 import { useListQuery } from "@/presentation/query/dashboard-hooks";
 import { apiRequest } from "@/presentation/api/client";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Camera, Upload, X, Plus, Trash2, CheckCircle, AlertCircle, Loader2, ScanLine } from "lucide-react";
 import { ContactPicker } from "@/components/shared/contact-picker";
 import { toast } from "sonner";
@@ -76,6 +76,9 @@ export default function Page() {
   const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const accounts = useListQuery<any[]>("/api/accounting/chart-of-accounts", ["list", "accounting-coa"]);
+  const settings = useQuery({ queryKey: ["settings", "business"], queryFn: () => apiRequest<{ data: any }>("/api/settings") });
+  const bizSettings   = (settings.data as any)?.data?.settings ?? {};
+  const defaultCustId: string = bizSettings?.defaultCustomerContactId ?? "";
   const flat = flattenAccounts(accounts.data?.data ?? []);
   const cashOptions    = flat.filter((a) => a.groupCode === 1 && a.isPostingAllowed && String(a.code).startsWith("11"));
   const revenueOptions = flat.filter((a) => a.groupCode === 4 && a.isPostingAllowed);
@@ -154,12 +157,24 @@ export default function Page() {
         }
       }
 
-      // Map income items ke akun
-      setIncomeItems(data.pemasukan.map((item) => ({
-        nama:      item.nama,
-        jumlah:    String(item.jumlah),
-        accountId: byCode(matchAccount(item.nama, INCOME_KEYWORD_MAP)),
-      })));
+      // Cari nama default customer dari cache kontak
+      const cachedContacts: any[] = (qc.getQueryData(["contacts-search", ""]) as any)?.data ?? [];
+      const defaultCustName = cachedContacts.find((c: any) => c.id === defaultCustId)?.name ?? "Pelanggan Umum";
+
+      // Map income items ke akun — tiket/paket auto-isi default contact
+      const ticketCodes = ["410001", "410004"];
+      setIncomeItems(data.pemasukan.map((item) => {
+        const matchedCode = matchAccount(item.nama, INCOME_KEYWORD_MAP);
+        const accountId   = byCode(matchedCode);
+        const isTicket    = ticketCodes.includes(matchedCode);
+        return {
+          nama:        item.nama,
+          jumlah:      String(item.jumlah),
+          accountId,
+          contactId:   isTicket && defaultCustId ? defaultCustId : undefined,
+          contactName: isTicket && defaultCustId ? defaultCustName : undefined,
+        };
+      }));
 
       // Map expense items ke akun
       setExpenseItems(data.pengeluaran.map((item) => ({

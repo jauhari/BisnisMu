@@ -1,7 +1,7 @@
 "use client";
 
 import type { FormHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CalendarDays, Check, ChevronDown, Clock3, Search } from "lucide-react";
 import { cn } from "@/presentation/theme/cn";
@@ -37,7 +37,10 @@ function DropdownPortal({ children, rect, minWidth, portalRef }: { children: Rea
 
 export function GlassForm({ children, className, ...props }: { children: ReactNode; className?: string } & FormHTMLAttributes<HTMLFormElement>) { return <form className={cn("grid gap-5", className)} noValidate {...props}>{children}</form>; }
 export function GlassField({ label, error, children }: { label: string; error?: string; children: ReactNode }) { return <label className="group grid gap-2"><span className="text-xs font-medium uppercase tracking-wide text-muted">{label}</span>{children}{error ? <span className="text-sm text-danger">{error}</span> : null}</label>; }
-export function GlassInput({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) { return <input className={cn(glassTokens.focus, "h-11 rounded-md border border-border bg-white/60 px-3 text-sm tabular-nums shadow-sm backdrop-blur dark:bg-white/8", className)} {...props} />; }
+export const GlassInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
+  ({ className, ...props }, ref) => <input ref={ref} className={cn(glassTokens.focus, "h-11 rounded-md border border-border bg-white/60 px-3 text-sm tabular-nums shadow-sm backdrop-blur dark:bg-white/8", className)} {...props} />
+);
+GlassInput.displayName = "GlassInput";
 
 function useDismissible(
   open: boolean,
