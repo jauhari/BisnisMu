@@ -1,12 +1,11 @@
-import { PrismaClient } from "@prisma/client";
 import { DashboardEngine } from "@/features/dashboard";
+import { prisma } from "@/presentation/api/prisma";
 import { serverServices } from "@/presentation/api/server-services";
 import { handleApi } from "@/presentation/api/route-handler";
 import { dashboardRequestSchema } from "@/presentation/api/request-schemas";
 import { parseAndValidate } from "@/presentation/api/validation";
 import { requireTenantContext } from "@/presentation/auth/session";
 
-const prisma = new PrismaClient();
 const engine = new DashboardEngine();
 
 export async function POST(request: Request) {

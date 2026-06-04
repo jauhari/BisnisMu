@@ -7,14 +7,15 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "dev": "next dev --port 3333",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "npm run prisma:migrations:check && next start",
     "prisma:migrate:dev": "prisma migrate dev --schema prisma/schema.prisma",
     "prisma:migrate:deploy": "prisma migrate deploy --schema prisma/schema.prisma",
     "prisma:migrate:status": "prisma migrate status --schema prisma/schema.prisma",
     "prisma:migrations:check": "node scripts/check-prisma-migrations.mjs",
     "prisma:migrations:verify": "node scripts/verify-prisma-migrations.mjs",
-    "db:seed:dev": "node scripts/seed-dev-owner.mjs"
+    "db:seed:dev": "node scripts/seed-dev-owner.mjs",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@better-auth/core": "^1.6.13",

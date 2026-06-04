@@ -1,8 +1,7 @@
 import { handleApi } from "@/presentation/api/route-handler";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/presentation/api/prisma";
 import { requireTenantContext } from "@/presentation/auth/session";
 
-const prisma = new PrismaClient();
 
 export async function GET(request: Request) {
   return handleApi(async () => {

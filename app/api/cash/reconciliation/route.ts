@@ -1,10 +1,9 @@
 import { handleApi } from "@/presentation/api/route-handler";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/presentation/api/prisma";
 import { requireTenantContext } from "@/presentation/auth/session";
 import { serverServices } from "@/presentation/api/server-services";
 import { z } from "zod";
 
-const prisma = new PrismaClient();
 
 const schema = z.object({
   sessionId: z.string().uuid(),

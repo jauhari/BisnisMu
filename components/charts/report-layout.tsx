@@ -13,6 +13,44 @@ interface ReportRange {
   onEndsOnChange?: (d: Date) => void;
 }
 
+// ─── Period Presets ──────────────────────────────────────────────────────────
+
+type PresetKey = "week" | "month" | "3m" | "6m" | "year" | "custom";
+
+const PRESETS: { key: PresetKey; label: string }[] = [
+  { key: "week",   label: "Minggu Ini" },
+  { key: "month",  label: "Bulan Ini"  },
+  { key: "3m",     label: "3 Bulan"    },
+  { key: "6m",     label: "6 Bulan"    },
+  { key: "year",   label: "Tahun Ini"  },
+  { key: "custom", label: "Custom"     },
+];
+
+function computePreset(key: PresetKey): { startsOn: Date; endsOn: Date } | null {
+  if (key === "custom") return null;
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  const endOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59);
+
+  switch (key) {
+    case "week": {
+      const dow = now.getDay() === 0 ? 6 : now.getDay() - 1; // 0=Mon…6=Sun
+      const mon = new Date(y, m, now.getDate() - dow);
+      const sun = new Date(y, m, now.getDate() - dow + 6);
+      return { startsOn: mon, endsOn: endOfDay(sun) };
+    }
+    case "month":
+      return { startsOn: new Date(y, m, 1), endsOn: new Date(y, m + 1, 0, 23, 59, 59) };
+    case "3m":
+      return { startsOn: new Date(y, m - 2, 1), endsOn: endOfDay(now) };
+    case "6m":
+      return { startsOn: new Date(y, m - 5, 1), endsOn: endOfDay(now) };
+    case "year":
+      return { startsOn: new Date(y, 0, 1), endsOn: new Date(y, 11, 31, 23, 59, 59) };
+  }
+}
+
 interface ExportActions {
   onExportPdf?: (() => void) | undefined;
   onExportExcel?: (() => void) | undefined;
@@ -86,24 +124,66 @@ export function ReportWorkspace({ title, children, onExportPdf, onExportExcel, .
 }
 
 export function ReportFilterBar({ title, startsOn, endsOn, onStartsOnChange, onEndsOnChange, onExportPdf, onExportExcel }: { title: string } & ReportRange & ExportActions) {
+  const [activePreset, setActivePreset] = useState<PresetKey>("month");
+
+  function selectPreset(key: PresetKey) {
+    setActivePreset(key);
+    if (key === "custom") return;
+    const range = computePreset(key);
+    if (!range) return;
+    onStartsOnChange?.(range.startsOn);
+    onEndsOnChange?.(range.endsOn);
+  }
+
   return (
-    <GlassPanel className="relative z-20 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-      <div><p className="text-sm text-muted">Report</p><h1 className="text-2xl font-semibold">{title}</h1></div>
-      <div className="flex flex-wrap items-center gap-2">
-        {onStartsOnChange ? (
-          <label className="flex items-center gap-1 text-xs text-muted">
-            Dari
-            <GlassDatePicker value={toDateInput(startsOn)} onChange={(v) => onStartsOnChange(new Date(v + "T00:00:00"))} className="h-9" />
-          </label>
-        ) : null}
-        {onEndsOnChange ? (
-          <label className="flex items-center gap-1 text-xs text-muted">
-            S/d
-            <GlassDatePicker value={toDateInput(endsOn)} onChange={(v) => onEndsOnChange(new Date(v + "T23:59:59"))} className="h-9" />
-          </label>
-        ) : null}
+    <GlassPanel className="relative z-20 grid gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div><p className="text-sm text-muted">Laporan</p><h1 className="text-2xl font-semibold">{title}</h1></div>
         <ExportDropdown onExportPdf={onExportPdf} onExportExcel={onExportExcel} />
       </div>
+
+      {/* Preset period buttons */}
+      <div className="flex flex-wrap items-center gap-2">
+        {PRESETS.map((p) => (
+          <button
+            key={p.key}
+            type="button"
+            onClick={() => selectPreset(p.key)}
+            className={`h-8 rounded-lg px-3 text-sm transition ${
+              activePreset === p.key
+                ? "bg-accent text-white font-medium"
+                : "border border-border text-muted hover:border-accent/60 hover:text-foreground"
+            }`}
+          >
+            {p.label}
+          </button>
+        ))}
+
+        {/* Custom date pickers — hanya tampil saat Custom dipilih */}
+        {activePreset === "custom" && onStartsOnChange && onEndsOnChange && (
+          <div className="flex items-center gap-2 rounded-lg border border-accent/40 bg-accent/5 px-3 py-1">
+            <span className="text-xs text-muted">Dari</span>
+            <GlassDatePicker
+              value={toDateInput(startsOn)}
+              onChange={(v) => onStartsOnChange(new Date(v + "T00:00:00"))}
+              className="h-8"
+            />
+            <span className="text-xs text-muted">s/d</span>
+            <GlassDatePicker
+              value={toDateInput(endsOn)}
+              onChange={(v) => onEndsOnChange(new Date(v + "T23:59:59"))}
+              className="h-8"
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Info periode aktif */}
+      <p className="text-xs text-muted">
+        Periode: <span className="font-medium text-foreground">
+          {toDateInput(startsOn)} → {toDateInput(endsOn)}
+        </span>
+      </p>
     </GlassPanel>
   );
 }

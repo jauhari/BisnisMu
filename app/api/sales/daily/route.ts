@@ -1,9 +1,8 @@
 import { handleApi } from "@/presentation/api/route-handler";
+import { prisma } from "@/presentation/api/prisma";
 import { requireTenantContext } from "@/presentation/auth/session";
-import { PrismaClient } from "@prisma/client";
 import { z } from "zod";
 
-const prisma = new PrismaClient();
 
 const dailySaleSchema = z.object({
   saleDate:     z.string().regex(/^\d{4}-\d{2}-\d{2}/),
@@ -107,7 +106,7 @@ export async function POST(request: Request) {
           journalId:      journal.id,
           createdByUserId: actorUserId,
           items: {
-            create: body.items.map((it, idx) => ({
+            create: (body.items.map((it, idx) => ({
               revenueAccountId: it.revenueAccountId,
               description:      it.description ?? null,
               amount:           BigInt(it.amount),
@@ -121,7 +120,7 @@ export async function POST(request: Request) {
                     })),
                   }
                 : undefined,
-            })),
+            })) as any),
           },
         },
         include: { items: { include: { contacts: true } } },
