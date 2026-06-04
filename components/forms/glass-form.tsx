@@ -57,7 +57,8 @@ export function GlassDatePicker({ value, onChange, placeholder = "Pilih tanggal"
   function handleOpen() {
     if (!open && triggerRef.current) {
       const r = triggerRef.current.getBoundingClientRect();
-      setRect({ top: r.bottom + window.scrollY + 4, left: r.left + window.scrollX, width: r.width });
+      // fixed positioning pakai viewport coords — jangan tambah scrollY/scrollX
+      setRect({ top: r.bottom + 4, left: r.left, width: r.width });
     }
     setOpen((v) => !v);
   }
