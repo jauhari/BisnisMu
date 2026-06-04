@@ -9,13 +9,14 @@ import { useListQuery } from "@/presentation/query/dashboard-hooks";
 import { apiRequest } from "@/presentation/api/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { Camera, Upload, X, Plus, Trash2, CheckCircle, AlertCircle, Loader2, ScanLine } from "lucide-react";
+import { ContactPicker } from "@/components/shared/contact-picker";
 import { toast } from "sonner";
 import { formatRupiah } from "@/presentation/format/number";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface OcrItem  { nama: string; jumlah: number; }
 interface OcrResult { hari?: string; tanggal?: string; pemasukan: OcrItem[]; pengeluaran: OcrItem[]; }
-interface ReviewItem { nama: string; jumlah: string; accountId: string; pelanggan?: string; keterangan?: string; }
+interface ReviewItem { nama: string; jumlah: string; accountId: string; contactId?: string | undefined; contactName?: string | undefined; keterangan?: string | undefined; }
 
 function flattenAccounts(nodes: any[]): any[] {
   return nodes.flatMap((n) => [n, ...flattenAccounts(n.children ?? [])]);
@@ -211,7 +212,7 @@ export default function Page() {
               revenueAccountId: it.accountId,
               description:      it.keterangan ? `${it.nama} — ${it.keterangan}` : it.nama,
               amount:           parseInt(it.jumlah),
-              contactName:      it.pelanggan || undefined,
+              contacts:         it.contactId ? [{ contactId: it.contactId, amount: parseInt(it.jumlah) }] : [],
             })),
           }),
         });
@@ -395,14 +396,15 @@ export default function Page() {
                     </div>
                     {/* Baris tambahan untuk Tiket/Paket */}
                     {isTicket && (
-                      <div className="ml-0 grid items-end gap-2 sm:grid-cols-[1fr_1fr] pl-1 border-l-2 border-accent/30">
+                      <div className="grid items-end gap-2 sm:grid-cols-[1fr_1fr] pl-2 border-l-2 border-accent/30">
                         <label className="grid gap-1">
                           <span className="text-[10px] text-accent uppercase tracking-wide">Pelanggan</span>
-                          <GlassInput
-                            value={item.pelanggan ?? ""}
-                            onChange={(e) => updateIncome(i, { pelanggan: e.target.value })}
-                            placeholder="Nama / instansi (opsional)"
-                            className="h-8 text-sm"
+                          <ContactPicker
+                            value={item.contactId}
+                            valueName={item.contactName}
+                            onChange={(id, name) => updateIncome(i, { contactId: id, contactName: name })}
+                            onClear={() => updateIncome(i, { contactId: "", contactName: "" })}
+                            placeholder="Cari / tambah pelanggan…"
                           />
                         </label>
                         <label className="grid gap-1">
