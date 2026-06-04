@@ -23,12 +23,12 @@ function useDropdownRect(open: boolean, triggerRef: React.RefObject<HTMLElement 
 }
 
 // Portal wrapper — render children langsung ke body agar bebas dari stacking context parent
-function DropdownPortal({ children, rect, minWidth }: { children: ReactNode; rect: { top: number; left: number; width: number }; minWidth?: number }) {
+function DropdownPortal({ children, rect, minWidth, portalRef }: { children: ReactNode; rect: { top: number; left: number; width: number }; minWidth?: number; portalRef?: React.RefObject<HTMLDivElement | null> }) {
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
   if (!mounted) return null;
   return createPortal(
-    <div style={{ position: "fixed", top: rect.top, left: rect.left, minWidth: minWidth ?? rect.width, zIndex: 9999 }}>
+    <div ref={portalRef} style={{ position: "fixed", top: rect.top, left: rect.left, minWidth: minWidth ?? rect.width, zIndex: 9999 }}>
       {children}
     </div>,
     document.body
@@ -39,14 +39,23 @@ export function GlassForm({ children, className, ...props }: { children: ReactNo
 export function GlassField({ label, error, children }: { label: string; error?: string; children: ReactNode }) { return <label className="group grid gap-2"><span className="text-xs font-medium uppercase tracking-wide text-muted">{label}</span>{children}{error ? <span className="text-sm text-danger">{error}</span> : null}</label>; }
 export function GlassInput({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) { return <input className={cn(glassTokens.focus, "h-11 rounded-md border border-border bg-white/60 px-3 text-sm tabular-nums shadow-sm backdrop-blur dark:bg-white/8", className)} {...props} />; }
 
-function useDismissible(open: boolean, setOpen: (value: boolean) => void) {
+function useDismissible(
+  open: boolean,
+  setOpen: (value: boolean) => void,
+  portalRef?: React.RefObject<HTMLElement | null>
+) {
   const ref = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     function onKey(event: KeyboardEvent) { if (event.key === "Escape") setOpen(false); }
-    function onPointer(event: MouseEvent) { if (ref.current && !ref.current.contains(event.target as Node)) setOpen(false); }
+    function onPointer(event: MouseEvent) {
+      const target = event.target as Node;
+      const insideTrigger = ref.current?.contains(target);
+      const insidePortal = portalRef?.current?.contains(target);
+      if (!insideTrigger && !insidePortal) setOpen(false);
+    }
     if (open) { document.addEventListener("keydown", onKey); document.addEventListener("mousedown", onPointer); }
     return () => { document.removeEventListener("keydown", onKey); document.removeEventListener("mousedown", onPointer); };
-  }, [open, setOpen]);
+  }, [open, setOpen, portalRef]);
   return ref;
 }
 
@@ -78,7 +87,8 @@ export function GlassDatePicker({ value, onChange, placeholder = "Pilih tanggal"
 }) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLDivElement | null>(null);
-  const rootRef = useDismissible(open, setOpen);
+  const portalRef = useRef<HTMLDivElement | null>(null);
+  const rootRef = useDismissible(open, setOpen, portalRef);
   const rect = useDropdownRect(open, triggerRef);
   const dateObj = value ? new Date(value + "T00:00:00") : undefined;
 
@@ -98,7 +108,7 @@ export function GlassDatePicker({ value, onChange, placeholder = "Pilih tanggal"
         </Trigger>
       </div>
       {open && rect && (
-        <DropdownPortal rect={rect}>
+        <DropdownPortal rect={rect} portalRef={portalRef}>
           <div className="drop-shadow-xl">
             <GlassCalendar {...(dateObj ? { value: dateObj } : {})} onSelect={handleSelect} />
           </div>
@@ -192,7 +202,8 @@ export function GlassDataSelect({ value, onChange, options, placeholder = "Pilih
 }) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const rootRef = useDismissible(open, setOpen);
+  const portalRef = useRef<HTMLDivElement | null>(null);
+  const rootRef = useDismissible(open, setOpen, portalRef);
   const rect = useDropdownRect(open, triggerRef);
   const selected = options.find((o) => o.value === value);
   return (
@@ -208,7 +219,7 @@ export function GlassDataSelect({ value, onChange, options, placeholder = "Pilih
         <ChevronDown className={cn("ml-2 h-4 w-4 shrink-0 text-muted transition-transform", open && "rotate-180")} />
       </button>
       {open && !disabled && rect && (
-        <DropdownPortal rect={rect}>
+        <DropdownPortal rect={rect} portalRef={portalRef}>
           <div className="max-h-60 overflow-auto rounded-lg border border-border bg-white/90 py-1 shadow-lg backdrop-blur dark:bg-slate-950/90">
             {options.length === 0 && <p className="px-3 py-2 text-sm text-muted">Tidak ada pilihan</p>}
             {options.map((opt) => (
