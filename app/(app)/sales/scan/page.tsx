@@ -333,7 +333,7 @@ export default function Page() {
                   value={cashAccountId}
                   onChange={setCashAccountId}
                   placeholder="Pilih akun kas…"
-                  options={cashOptions.map((a) => ({ value: a.id, label: `${a.code} | ${a.name}` }))}
+                  options={cashOptions.map((a) => ({ value: a.id, label: a.name }))}
                   className="h-9"
                 />
               </label>
@@ -366,7 +366,7 @@ export default function Page() {
                       value={item.accountId}
                       onChange={(v) => updateIncome(i, { accountId: v })}
                       placeholder={item.accountId ? "" : "Pilih akun…"}
-                      options={revenueOptions.map((a) => ({ value: a.id, label: `${a.code} | ${a.name}` }))}
+                      options={revenueOptions.map((a) => ({ value: a.id, label: a.name }))}
                       className={`h-8 text-sm ${!item.accountId ? "border-warning/60" : ""}`}
                     />
                   </label>
@@ -424,7 +424,7 @@ export default function Page() {
                       value={item.accountId}
                       onChange={(v) => updateExpense(i, { accountId: v })}
                       placeholder={item.accountId ? "" : "Pilih akun…"}
-                      options={expenseOptions.map((a) => ({ value: a.id, label: `${a.code} | ${a.name}` }))}
+                      options={expenseOptions.map((a) => ({ value: a.id, label: a.name }))}
                       className={`h-8 text-sm ${!item.accountId ? "border-warning/60" : ""}`}
                     />
                   </label>
