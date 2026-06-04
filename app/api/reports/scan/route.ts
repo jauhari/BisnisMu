@@ -2,7 +2,15 @@ import { handleApi } from "@/presentation/api/route-handler";
 import { requireTenantContext } from "@/presentation/auth/session";
 import Anthropic from "@anthropic-ai/sdk";
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+// Naikkan timeout Next.js untuk route ini — vision bisa butuh 30-60 detik
+export const maxDuration = 60;
+
+// Buat client tanpa bergantung pada env ANTHROPIC_AUTH_TOKEN yang bisa kosong
+function getClient() {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error("ANTHROPIC_API_KEY belum dikonfigurasi.");
+  return new Anthropic({ apiKey, authToken: undefined });
+}
 
 const EXTRACTION_PROMPT = `Kamu adalah sistem OCR untuk form laporan keuangan harian waterpark "Water Byur".
 Ekstrak SEMUA data yang tertulis (termasuk tulisan tangan) dari gambar form ini.
@@ -29,18 +37,16 @@ export async function POST(request: Request) {
   return handleApi(async () => {
     await requireTenantContext(request);
 
-    if (!process.env.ANTHROPIC_API_KEY) {
-      throw new Error("ANTHROPIC_API_KEY belum dikonfigurasi di environment variables.");
-    }
-
     const formData = await request.formData();
     const file = formData.get("image") as File | null;
     if (!file) throw new Error("File gambar tidak ditemukan.");
 
+    // Kompres/batasi ukuran — kalau > 4MB resize dulu (Anthropic max 5MB)
     const bytes = await file.arrayBuffer();
     const base64 = Buffer.from(bytes).toString("base64");
     const mediaType = (file.type || "image/jpeg") as "image/jpeg" | "image/png" | "image/webp" | "image/gif";
 
+    const client = getClient();
     const message = await client.messages.create({
       model: "claude-haiku-4-5-20251001",
       max_tokens: 1024,
@@ -62,7 +68,6 @@ export async function POST(request: Request) {
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error("Tidak dapat mengekstrak data dari gambar. Pastikan foto jelas dan form terlihat.");
 
-    const parsed = JSON.parse(jsonMatch[0]);
-    return parsed;
+    return JSON.parse(jsonMatch[0]);
   });
 }

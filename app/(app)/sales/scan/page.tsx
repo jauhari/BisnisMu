@@ -130,13 +130,16 @@ export default function Page() {
     try {
       const fd = new FormData();
       fd.append("image", imageFile);
-      const res = await fetch("/api/reports/scan", {
-        method: "POST",
-        body: fd,
-        credentials: "include",
-      });
+
+      // Timeout 55 detik — vision API bisa lambat untuk gambar besar
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 55_000);
+      let res: Response;
+      try {
+        res = await fetch("/api/reports/scan", { method: "POST", body: fd, credentials: "include", signal: controller.signal });
+      } finally { clearTimeout(timer); }
       const json = await res.json();
-      if (!res.ok) throw new Error(json.message ?? "Gagal scan.");
+      if (!res.ok) throw new Error(json?.error?.message ?? json?.message ?? "Gagal scan.");
       const data: OcrResult = json.data;
 
       // Set tanggal dari OCR jika ada
