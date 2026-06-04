@@ -49,8 +49,19 @@ export function GlassDatePicker({ value, onChange, placeholder = "Pilih tanggal"
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const [rect, setRect] = useState<{ top: number; left: number; width: number } | null>(null);
+  const triggerRef = useRef<HTMLDivElement | null>(null);
   const rootRef = useDismissible(open, setOpen);
   const dateObj = value ? new Date(value + "T00:00:00") : undefined;
+
+  function handleOpen() {
+    if (!open && triggerRef.current) {
+      const r = triggerRef.current.getBoundingClientRect();
+      setRect({ top: r.bottom + window.scrollY + 4, left: r.left + window.scrollX, width: r.width });
+    }
+    setOpen((v) => !v);
+  }
+
   function handleSelect(date: Date) {
     const y = date.getFullYear();
     const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -60,13 +71,20 @@ export function GlassDatePicker({ value, onChange, placeholder = "Pilih tanggal"
   }
   const triggerProps = className !== undefined ? { className } : {};
   return (
-    <div ref={rootRef} className="relative">
-      <div onClick={() => setOpen((v) => !v)}>
+    <div ref={(el) => { (rootRef as any).current = el; (triggerRef as any).current = el; }} className="relative">
+      <div onClick={handleOpen}>
         <Trigger {...triggerProps} open={open} icon={<CalendarDays className="h-4 w-4" />}>
           {value || <span className="text-muted">{placeholder}</span>}
         </Trigger>
       </div>
-      {open ? <div className="absolute left-0 z-50 mt-2 drop-shadow-xl"><GlassCalendar {...(dateObj ? { value: dateObj } : {})} onSelect={handleSelect} /></div> : null}
+      {open && rect ? (
+        <div
+          style={{ position: "fixed", top: rect.top, left: rect.left, minWidth: rect.width, zIndex: 9999 }}
+          className="drop-shadow-xl"
+        >
+          <GlassCalendar {...(dateObj ? { value: dateObj } : {})} onSelect={handleSelect} />
+        </div>
+      ) : null}
     </div>
   );
 }
