@@ -15,7 +15,7 @@ import { formatRupiah } from "@/presentation/format/number";
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface OcrItem  { nama: string; jumlah: number; }
 interface OcrResult { hari?: string; tanggal?: string; pemasukan: OcrItem[]; pengeluaran: OcrItem[]; }
-interface ReviewItem { nama: string; jumlah: string; accountId: string; }
+interface ReviewItem { nama: string; jumlah: string; accountId: string; pelanggan?: string; keterangan?: string; }
 
 function flattenAccounts(nodes: any[]): any[] {
   return nodes.flatMap((n) => [n, ...flattenAccounts(n.children ?? [])]);
@@ -81,6 +81,11 @@ export default function Page() {
   const expenseOptions = flat.filter((a) => a.groupCode === 6 && a.isPostingAllowed);
 
   const byCode = (code: string) => flat.find((a) => a.code === code)?.id ?? "";
+  // Cek apakah accountId adalah akun tiket/paket (perlu kolom pelanggan & keterangan)
+  const isTicketAccount = (accountId: string) => {
+    const acc = flat.find((a) => a.id === accountId);
+    return acc && (String(acc.code) === "410001" || String(acc.code) === "410004");
+  };
 
   // State
   const [imageUrl,    setImageUrl]    = useState<string | null>(null);
@@ -204,8 +209,9 @@ export default function Page() {
             description: `Laporan Harian ${tanggal}`,
             items: validIncome.map((it) => ({
               revenueAccountId: it.accountId,
-              description:      it.nama,
+              description:      it.keterangan ? `${it.nama} — ${it.keterangan}` : it.nama,
               amount:           parseInt(it.jumlah),
+              contactName:      it.pelanggan || undefined,
             })),
           }),
         });
@@ -353,37 +359,66 @@ export default function Page() {
               <p className="text-center text-xs text-muted py-4">Scan laporan atau tambah manual.</p>
             )}
 
-            <div className="grid gap-2">
-              {incomeItems.map((item, i) => (
-                <div key={i} className="grid items-end gap-2 sm:grid-cols-[1fr_1.2fr_1fr_auto]">
-                  <label className="grid gap-1">
-                    {i === 0 && <span className="text-[10px] text-muted uppercase tracking-wide">Keterangan</span>}
-                    <GlassInput value={item.nama} onChange={(e) => updateIncome(i, { nama: e.target.value })} placeholder="Nama item" className="h-8 text-sm" />
-                  </label>
-                  <label className="grid gap-1">
-                    {i === 0 && <span className="text-[10px] text-muted uppercase tracking-wide">Akun Pendapatan</span>}
-                    <GlassDataSelect
-                      value={item.accountId}
-                      onChange={(v) => updateIncome(i, { accountId: v })}
-                      placeholder={item.accountId ? "" : "Pilih akun…"}
-                      options={revenueOptions.map((a) => ({ value: a.id, label: a.name }))}
-                      className={`h-8 text-sm ${!item.accountId ? "border-warning/60" : ""}`}
-                    />
-                  </label>
-                  <label className="grid gap-1">
-                    {i === 0 && <span className="text-[10px] text-muted uppercase tracking-wide">Nominal (Rp)</span>}
-                    <MoneyField
-                      value={item.jumlah}
-                      onChange={(v) => updateIncome(i, { jumlah: v })}
-                      className="h-8 rounded-md border border-border bg-white/60 px-2 text-sm tabular-nums dark:bg-white/8"
-                      placeholder="0"
-                    />
-                  </label>
-                  <button type="button" onClick={() => removeIncome(i)} className="mb-0.5 h-8 rounded-md border border-border px-2 text-muted hover:text-danger">
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ))}
+            <div className="grid gap-3">
+              {incomeItems.map((item, i) => {
+                const isTicket = isTicketAccount(item.accountId);
+                return (
+                  <div key={i} className="grid gap-1.5">
+                    {/* Baris utama */}
+                    <div className="grid items-end gap-2 sm:grid-cols-[1fr_1.2fr_1fr_auto]">
+                      <label className="grid gap-1">
+                        {i === 0 && <span className="text-[10px] text-muted uppercase tracking-wide">Keterangan</span>}
+                        <GlassInput value={item.nama} onChange={(e) => updateIncome(i, { nama: e.target.value })} placeholder="Nama item" className="h-8 text-sm" />
+                      </label>
+                      <label className="grid gap-1">
+                        {i === 0 && <span className="text-[10px] text-muted uppercase tracking-wide">Akun Pendapatan</span>}
+                        <GlassDataSelect
+                          value={item.accountId}
+                          onChange={(v) => updateIncome(i, { accountId: v })}
+                          placeholder={item.accountId ? "" : "Pilih akun…"}
+                          options={revenueOptions.map((a) => ({ value: a.id, label: a.name }))}
+                          className={`h-8 text-sm ${!item.accountId ? "border-warning/60" : ""}`}
+                        />
+                      </label>
+                      <label className="grid gap-1">
+                        {i === 0 && <span className="text-[10px] text-muted uppercase tracking-wide">Nominal (Rp)</span>}
+                        <MoneyField
+                          value={item.jumlah}
+                          onChange={(v) => updateIncome(i, { jumlah: v })}
+                          className="h-8 rounded-md border border-border bg-white/60 px-2 text-sm tabular-nums dark:bg-white/8"
+                          placeholder="0"
+                        />
+                      </label>
+                      <button type="button" onClick={() => removeIncome(i)} className="mb-0.5 h-8 rounded-md border border-border px-2 text-muted hover:text-danger">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    {/* Baris tambahan untuk Tiket/Paket */}
+                    {isTicket && (
+                      <div className="ml-0 grid items-end gap-2 sm:grid-cols-[1fr_1fr] pl-1 border-l-2 border-accent/30">
+                        <label className="grid gap-1">
+                          <span className="text-[10px] text-accent uppercase tracking-wide">Pelanggan</span>
+                          <GlassInput
+                            value={item.pelanggan ?? ""}
+                            onChange={(e) => updateIncome(i, { pelanggan: e.target.value })}
+                            placeholder="Nama / instansi (opsional)"
+                            className="h-8 text-sm"
+                          />
+                        </label>
+                        <label className="grid gap-1">
+                          <span className="text-[10px] text-accent uppercase tracking-wide">Keterangan Tiket</span>
+                          <GlassInput
+                            value={item.keterangan ?? ""}
+                            onChange={(e) => updateIncome(i, { keterangan: e.target.value })}
+                            placeholder="Mis: 25 dewasa + 5 anak"
+                            className="h-8 text-sm"
+                          />
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             <button type="button" onClick={addIncome} className="mt-3 flex items-center gap-1 text-xs text-muted hover:text-foreground">
