@@ -2,10 +2,38 @@
 
 import type { FormHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { CalendarDays, Check, ChevronDown, Clock3, Search } from "lucide-react";
 import { cn } from "@/presentation/theme/cn";
 import { glassTokens } from "@/presentation/theme/tokens";
 import { GlassCalendar } from "./glass-calendar";
+
+// Hook: hitung posisi dropdown berdasarkan trigger element
+function useDropdownRect(open: boolean, triggerRef: React.RefObject<HTMLElement | null>) {
+  const [rect, setRect] = useState<{ top: number; left: number; width: number } | null>(null);
+  useEffect(() => {
+    if (open && triggerRef.current) {
+      const r = triggerRef.current.getBoundingClientRect();
+      setRect({ top: r.bottom + 4, left: r.left, width: r.width });
+    } else {
+      setRect(null);
+    }
+  }, [open, triggerRef]);
+  return rect;
+}
+
+// Portal wrapper — render children langsung ke body agar bebas dari stacking context parent
+function DropdownPortal({ children, rect, minWidth }: { children: ReactNode; rect: { top: number; left: number; width: number }; minWidth?: number }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+  if (!mounted) return null;
+  return createPortal(
+    <div style={{ position: "fixed", top: rect.top, left: rect.left, minWidth: minWidth ?? rect.width, zIndex: 9999 }}>
+      {children}
+    </div>,
+    document.body
+  );
+}
 
 export function GlassForm({ children, className, ...props }: { children: ReactNode; className?: string } & FormHTMLAttributes<HTMLFormElement>) { return <form className={cn("grid gap-5", className)} noValidate {...props}>{children}</form>; }
 export function GlassField({ label, error, children }: { label: string; error?: string; children: ReactNode }) { return <label className="group grid gap-2"><span className="text-xs font-medium uppercase tracking-wide text-muted">{label}</span>{children}{error ? <span className="text-sm text-danger">{error}</span> : null}</label>; }
@@ -49,19 +77,10 @@ export function GlassDatePicker({ value, onChange, placeholder = "Pilih tanggal"
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [rect, setRect] = useState<{ top: number; left: number; width: number } | null>(null);
   const triggerRef = useRef<HTMLDivElement | null>(null);
   const rootRef = useDismissible(open, setOpen);
+  const rect = useDropdownRect(open, triggerRef);
   const dateObj = value ? new Date(value + "T00:00:00") : undefined;
-
-  function handleOpen() {
-    if (!open && triggerRef.current) {
-      const r = triggerRef.current.getBoundingClientRect();
-      // fixed positioning pakai viewport coords — jangan tambah scrollY/scrollX
-      setRect({ top: r.bottom + 4, left: r.left, width: r.width });
-    }
-    setOpen((v) => !v);
-  }
 
   function handleSelect(date: Date) {
     const y = date.getFullYear();
@@ -72,20 +91,19 @@ export function GlassDatePicker({ value, onChange, placeholder = "Pilih tanggal"
   }
   const triggerProps = className !== undefined ? { className } : {};
   return (
-    <div ref={(el) => { (rootRef as any).current = el; (triggerRef as any).current = el; }} className="relative">
-      <div onClick={handleOpen}>
+    <div ref={(el) => { (rootRef as any).current = el; triggerRef.current = el; }} className="relative">
+      <div onClick={() => setOpen((v) => !v)}>
         <Trigger {...triggerProps} open={open} icon={<CalendarDays className="h-4 w-4" />}>
           {value || <span className="text-muted">{placeholder}</span>}
         </Trigger>
       </div>
-      {open && rect ? (
-        <div
-          style={{ position: "fixed", top: rect.top, left: rect.left, minWidth: rect.width, zIndex: 9999 }}
-          className="drop-shadow-xl"
-        >
-          <GlassCalendar {...(dateObj ? { value: dateObj } : {})} onSelect={handleSelect} />
-        </div>
-      ) : null}
+      {open && rect && (
+        <DropdownPortal rect={rect}>
+          <div className="drop-shadow-xl">
+            <GlassCalendar {...(dateObj ? { value: dateObj } : {})} onSelect={handleSelect} />
+          </div>
+        </DropdownPortal>
+      )}
     </div>
   );
 }
@@ -173,11 +191,14 @@ export function GlassDataSelect({ value, onChange, options, placeholder = "Pilih
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
   const rootRef = useDismissible(open, setOpen);
+  const rect = useDropdownRect(open, triggerRef);
   const selected = options.find((o) => o.value === value);
   return (
     <div ref={rootRef} className="relative">
       <button
+        ref={triggerRef}
         type="button"
         disabled={disabled}
         onClick={() => !disabled && setOpen((v) => !v)}
@@ -186,21 +207,23 @@ export function GlassDataSelect({ value, onChange, options, placeholder = "Pilih
         <span className="flex-1 truncate text-left">{selected?.label ?? placeholder}</span>
         <ChevronDown className={cn("ml-2 h-4 w-4 shrink-0 text-muted transition-transform", open && "rotate-180")} />
       </button>
-      {open && !disabled && (
-        <div className="absolute z-30 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-border bg-white/90 py-1 shadow-lg backdrop-blur dark:bg-slate-950/90">
-          {options.length === 0 && <p className="px-3 py-2 text-sm text-muted">Tidak ada pilihan</p>}
-          {options.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => { onChange(opt.value); setOpen(false); }}
-              className={cn("flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-white/60 dark:hover:bg-white/10", opt.value === value && "font-medium text-accent")}
-            >
-              <Check className={cn("h-3.5 w-3.5 shrink-0", opt.value !== value && "invisible")} />
-              <span className="truncate">{opt.label}</span>
-            </button>
-          ))}
-        </div>
+      {open && !disabled && rect && (
+        <DropdownPortal rect={rect}>
+          <div className="max-h-60 overflow-auto rounded-lg border border-border bg-white/90 py-1 shadow-lg backdrop-blur dark:bg-slate-950/90">
+            {options.length === 0 && <p className="px-3 py-2 text-sm text-muted">Tidak ada pilihan</p>}
+            {options.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => { onChange(opt.value); setOpen(false); }}
+                className={cn("flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-white/60 dark:hover:bg-white/10", opt.value === value && "font-medium text-accent")}
+              >
+                <Check className={cn("h-3.5 w-3.5 shrink-0", opt.value !== value && "invisible")} />
+                <span className="truncate">{opt.label}</span>
+              </button>
+            ))}
+          </div>
+        </DropdownPortal>
       )}
     </div>
   );
