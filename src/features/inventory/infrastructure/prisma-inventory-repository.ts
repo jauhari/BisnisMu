@@ -34,8 +34,23 @@ export class PrismaInventoryRepository implements InventoryRepository {
   }
 
   async listProducts(ctx: TenantContext): Promise<ProductEntity[]> {
-    const rows = await this.prisma.product.findMany({ where: { businessId: ctx.businessId }, orderBy: { name: "asc" } });
-    return rows.map((row) => this.toProduct(row));
+    const [rows, sellPrices, buyPrices, providerProducts] = await Promise.all([
+      this.prisma.product.findMany({ where: { businessId: ctx.businessId }, orderBy: { name: "asc" } }),
+      this.prisma.productPrice.findMany({ where: { businessId: ctx.businessId, priceType: "SELL", isActive: true }, orderBy: [{ priority: "desc" }, { effectiveDate: "desc" }, { createdAt: "desc" }] }),
+      this.prisma.productPrice.findMany({ where: { businessId: ctx.businessId, priceType: "BUY", isActive: true }, orderBy: [{ priority: "desc" }, { effectiveDate: "desc" }, { createdAt: "desc" }] }),
+      this.prisma.providerProduct.findMany({ where: { businessId: ctx.businessId } }),
+    ]);
+    const sellByProduct = new Map<string, bigint>();
+    const buyByProduct = new Map<string, bigint>();
+    const providerByProduct = new Map<string, { providerBuyPrice: bigint | null; providerSellPrice: bigint | null; provider: string; providerCode: string }>();
+    for (const price of sellPrices) if (!sellByProduct.has(price.productId)) sellByProduct.set(price.productId, price.amount);
+    for (const price of buyPrices) if (!buyByProduct.has(price.productId)) buyByProduct.set(price.productId, price.amount);
+    for (const pp of providerProducts) providerByProduct.set(pp.productId, { providerBuyPrice: pp.providerBuyPrice, providerSellPrice: pp.providerSellPrice, provider: pp.provider, providerCode: pp.providerCode });
+    return rows.map((row) => {
+      const provider = providerByProduct.get(row.id);
+      const buyPrice = buyByProduct.get(row.id) ?? provider?.providerBuyPrice ?? null;
+      return { ...this.toProduct(row), sellPrice: sellByProduct.get(row.id) ?? provider?.providerSellPrice ?? null, buyPrice, providerCode: provider?.providerCode ?? null, provider: provider?.provider ?? null };
+    });
   }
 
   async listCategories(ctx: TenantContext): Promise<ProductCategoryEntity[]> {

@@ -1,5 +1,6 @@
 import { prisma } from "./prisma";
 import { JournalPostingService } from "@/features/accounting/application/journal-posting-service";
+import { InstallmentService } from "@/features/installments/application/installment-service";
 import { PrismaJournalRepository } from "@/features/accounting/infrastructure/prisma-journal-repository";
 import { ArApService } from "@/features/ar-ap/application/ar-ap-service";
 import { PrismaArApRepository } from "@/features/ar-ap/infrastructure/prisma-ar-ap-repository";
@@ -44,10 +45,10 @@ const inventoryRepository = new PrismaInventoryRepository(prisma);
 const purchaseRepository = new PrismaPurchaseRepository(prisma);
 const floatRepository = new PrismaFloatRepository(prisma);
 const payment = new PaymentService(paymentRepository, journal);
-const inventory = new InventoryService(inventoryRepository, journal);
+const float = new FloatManagementService(floatRepository, journal);
+const inventory = new InventoryService(inventoryRepository, journal, float);
 const arAp = new ArApService(arApRepository, journal);
 const cashSession = new CashService(cashSessionRepository, journal);
-const float = new FloatManagementService(floatRepository, journal);
 const sales = new SalesService(salesRepository, journal, inventory, payment);
 const posRepository = new PrismaPosRepository(prisma);
 const pos = new PosService(posRepository, sales, payment, cashSession);
@@ -72,5 +73,6 @@ export const serverServices = {
   pos,
   revenue,
   tourism,
+  installments: new InstallmentService(prisma, journal),
   paymentRepository
 };

@@ -7,6 +7,7 @@ import { GlassTable } from "@/components/tables/glass-table";
 import { GlassPanel } from "@/components/glass/glass-primitives";
 import { usePostMutation, useListQuery } from "@/presentation/query/dashboard-hooks";
 import { GlassErrorState, GlassSkeleton } from "@/components/feedback/glass-feedback";
+import { GlassDataSelect, GlassInput } from "@/components/forms/glass-form";
 
 interface Item { productId: string; quantity: string; unitCost: string }
 function flattenAccounts(nodes: any[]): any[] { return nodes.flatMap((n) => [n, ...flattenAccounts(n.children ?? [])]); }
@@ -20,7 +21,7 @@ export default function Page() {
   const flat = useMemo(() => flattenAccounts(accounts.data?.data ?? []), [accounts.data]);
 
   const [supplierId, setSupplierId] = useState("");
-  const [orderDate, setOrderDate] = useState("2026-05-31");
+  const [orderDate, setOrderDate] = useState(() => new Date().toLocaleDateString("en-CA"));
   const [grniAccountId, setGrniAccountId] = useState("");
   const [apAccountId, setApAccountId] = useState("");
   const [items, setItems] = useState<Item[]>([{ productId: "", quantity: "1", unitCost: "" }]);
@@ -50,5 +51,59 @@ export default function Page() {
 
   const rows = ((list.data as any)?.data ?? []).flatMap((order: any) => (order.items ?? []).map((item: any) => ({ product: item.productId, qty: String(item.quantity), received: String(item.receivedQuantity ?? 0), unitCost: String(item.unitCost), total: String(item.lineTotal) })));
 
-  return <div className="grid gap-6"><WorkspaceHeader eyebrow="Purchase" title="Purchase Orders" description="Create, approve, receive, return, and generate vendor bills through PurchaseService." /><DocumentWorkspace summary={<DocumentSummary title="Procurement summary" lines={[{ label: "Orders", value: String(((list.data as any)?.data ?? []).length) }]} />}><GlassPanel><div className="grid gap-4"><div className="grid gap-4 md:grid-cols-2"><label className="grid gap-1"><span className="text-xs text-muted">Supplier</span><select value={supplierId} onChange={(e) => setSupplierId(e.target.value)} className="h-10 rounded-md border border-border bg-white/60 px-2 text-sm dark:bg-white/8"><option value="">{vendorList.length ? "Pilih supplier" : "Belum ada vendor"}</option>{vendorList.map((v: any) => <option key={v.id} value={v.id}>{v.name}</option>)}</select></label><label className="grid gap-1"><span className="text-xs text-muted">Order date</span><input value={orderDate} onChange={(e) => setOrderDate(e.target.value)} className="h-10 rounded-md border border-border bg-white/60 px-2 text-sm dark:bg-white/8" /></label><label className="grid gap-1"><span className="text-xs text-muted">GRNI account (liability)</span><select value={grniAccountId} onChange={(e) => setGrniAccountId(e.target.value)} className="h-10 rounded-md border border-border bg-white/60 px-2 text-sm dark:bg-white/8"><option value="">Pilih akun GRNI</option>{liabilityOptions.map((a: any) => <option key={a.id} value={a.id}>{a.code} {a.name}</option>)}</select></label><label className="grid gap-1"><span className="text-xs text-muted">AP account</span><select value={apAccountId} onChange={(e) => setApAccountId(e.target.value)} className="h-10 rounded-md border border-border bg-white/60 px-2 text-sm dark:bg-white/8"><option value="">Pilih akun utang</option>{apOptions.map((a: any) => <option key={a.id} value={a.id}>{a.code} {a.name}</option>)}</select></label></div><div className="grid gap-3">{items.map((item, i) => <div key={i} className="grid items-end gap-2 md:grid-cols-[2fr_1fr_1fr_auto]"><label className="grid gap-1"><span className="text-xs text-muted">Product</span><select value={item.productId} onChange={(e) => update(i, { productId: e.target.value })} className="h-10 rounded-md border border-border bg-white/60 px-2 text-sm dark:bg-white/8"><option value="">{productList.length ? "Pilih produk" : "Belum ada produk"}</option>{productList.map((p: any) => <option key={p.id} value={p.id}>{p.sku} {p.name}</option>)}</select></label><label className="grid gap-1"><span className="text-xs text-muted">Qty</span><input value={item.quantity} onChange={(e) => update(i, { quantity: e.target.value })} className="h-10 rounded-md border border-border bg-white/60 px-2 text-sm tabular-nums dark:bg-white/8" /></label><label className="grid gap-1"><span className="text-xs text-muted">Unit cost</span><input value={item.unitCost} onChange={(e) => update(i, { unitCost: e.target.value })} className="h-10 rounded-md border border-border bg-white/60 px-2 text-sm tabular-nums dark:bg-white/8" placeholder="0" /></label><button type="button" onClick={() => setItems((prev) => prev.filter((_, idx) => idx !== i))} disabled={items.length <= 1} className="h-10 rounded-md border border-border px-3 text-sm disabled:opacity-40">Hapus</button></div>)}</div><div className="flex gap-2"><button type="button" onClick={() => setItems((prev) => [...prev, { productId: "", quantity: "1", unitCost: "" }])} className="h-10 rounded-md border border-border px-4 text-sm">+ Tambah item</button><button type="button" onClick={() => void submit()} className="h-10 rounded-md bg-foreground px-4 text-sm font-medium text-background">Save purchase order</button></div>{error ? <p role="alert" className="text-sm text-danger">{error}</p> : null}{okMsg ? <p role="status" className="text-sm text-success">{okMsg}</p> : null}</div></GlassPanel><GlassTable columns={[{ key: "product", header: "Product" }, { key: "qty", header: "Qty" }, { key: "received", header: "Received" }, { key: "unitCost", header: "Unit cost" }, { key: "total", header: "Line total" }]} rows={rows} empty="No purchase order items" /></DocumentWorkspace></div>;
+  return (
+    <div className="grid gap-6">
+      <WorkspaceHeader eyebrow="Purchase" title="Purchase Orders" description="Create, approve, receive, return, and generate vendor bills through PurchaseService." />
+      <DocumentWorkspace summary={<DocumentSummary title="Procurement summary" lines={[{ label: "Orders", value: String(((list.data as any)?.data ?? []).length) }]} />}>
+        <GlassPanel>
+          <div className="grid gap-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="grid gap-1">
+                <span className="text-xs text-muted">Supplier</span>
+                <GlassDataSelect value={supplierId} onChange={setSupplierId} placeholder={vendorList.length ? "Pilih supplier" : "Belum ada vendor"} options={vendorList.map((v: any) => ({ value: v.id, label: v.name }))} className="h-10" />
+              </label>
+              <label className="grid gap-1">
+                <span className="text-xs text-muted">Order date</span>
+                <GlassInput value={orderDate} onChange={(e) => setOrderDate(e.target.value)} className="h-10" />
+              </label>
+              <label className="grid gap-1">
+                <span className="text-xs text-muted">GRNI account (liability)</span>
+                <GlassDataSelect value={grniAccountId} onChange={setGrniAccountId} placeholder="Pilih akun GRNI" options={liabilityOptions.map((a: any) => ({ value: a.id, label: `${a.code} ${a.name}` }))} className="h-10" />
+              </label>
+              <label className="grid gap-1">
+                <span className="text-xs text-muted">AP account</span>
+                <GlassDataSelect value={apAccountId} onChange={setApAccountId} placeholder="Pilih akun utang" options={apOptions.map((a: any) => ({ value: a.id, label: `${a.code} ${a.name}` }))} className="h-10" />
+              </label>
+            </div>
+            <div className="grid gap-3">
+              {items.map((item, i) => (
+                <div key={i} className="grid items-end gap-2 md:grid-cols-[2fr_1fr_1fr_auto]">
+                  <label className="grid gap-1">
+                    <span className="text-xs text-muted">Product</span>
+                    <GlassDataSelect value={item.productId} onChange={(v) => update(i, { productId: v })} placeholder={productList.length ? "Pilih produk" : "Belum ada produk"} options={productList.map((p: any) => ({ value: p.id, label: `${p.sku} ${p.name}` }))} className="h-10" />
+                  </label>
+                  <label className="grid gap-1">
+                    <span className="text-xs text-muted">Qty</span>
+                    <GlassInput value={item.quantity} onChange={(e) => update(i, { quantity: e.target.value })} className="h-10" />
+                  </label>
+                  <label className="grid gap-1">
+                    <span className="text-xs text-muted">Unit cost</span>
+                    <GlassInput value={item.unitCost} onChange={(e) => update(i, { unitCost: e.target.value })} placeholder="0" className="h-10" />
+                  </label>
+                  <button type="button" onClick={() => setItems((prev) => prev.filter((_, idx) => idx !== i))} disabled={items.length <= 1} className="h-10 rounded-md border border-border px-3 text-sm disabled:opacity-40">Hapus</button>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setItems((prev) => [...prev, { productId: "", quantity: "1", unitCost: "" }])} className="h-10 rounded-md border border-border px-4 text-sm">+ Tambah item</button>
+              <button type="button" onClick={() => void submit()} className="h-10 rounded-md bg-foreground px-4 text-sm font-medium text-background">Save purchase order</button>
+            </div>
+            {error ? <p role="alert" className="text-sm text-danger">{error}</p> : null}
+            {okMsg ? <p role="status" className="text-sm text-success">{okMsg}</p> : null}
+          </div>
+        </GlassPanel>
+        <GlassTable columns={[{ key: "product", header: "Product" }, { key: "qty", header: "Qty" }, { key: "received", header: "Received" }, { key: "unitCost", header: "Unit cost" }, { key: "total", header: "Line total" }]} rows={rows} empty="No purchase order items" />
+      </DocumentWorkspace>
+    </div>
+  );
 }

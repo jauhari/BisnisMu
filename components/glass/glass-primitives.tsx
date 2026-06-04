@@ -5,6 +5,14 @@ import { useEffect, useId, useRef } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/presentation/theme/cn";
 import { glassTokens } from "@/presentation/theme/tokens";
+import { formatNumber } from "@/presentation/format/number";
+
+// Angka mentah (string/number bulat) diformat ribuan otomatis untuk kartu statistik.
+function autoFormatValue(value: ReactNode): ReactNode {
+  if (typeof value === "number" && Number.isFinite(value)) return formatNumber(value);
+  if (typeof value === "string" && /^-?\d{4,}(\.\d+)?$/.test(value.trim())) return formatNumber(value.trim());
+  return value;
+}
 
 type DivProps = HTMLAttributes<HTMLDivElement> & { children?: ReactNode };
 
@@ -38,7 +46,7 @@ function useOverlayFocus(open: boolean, root: HTMLElement | null) {
 export function GlassCard({ className, ...props }: DivProps) { return <div className={cn(glassTokens.surface, "rounded-lg p-5", className)} {...props} />; }
 export function GlassPanel({ className, ...props }: DivProps) { return <section className={cn(glassTokens.panel, "rounded-lg p-6", className)} {...props} />; }
 export function GlassSheet({ className, ...props }: DivProps) { return <div className={cn(glassTokens.surface, "rounded-lg p-4", className)} {...props} />; }
-export function GlassStatsCard({ title, value, detail, className }: { title: string; value: ReactNode; detail?: ReactNode; className?: string }) { const labelId = useId(); return <GlassCard className={cn("min-h-28", className)} role="group" aria-labelledby={labelId}><p id={labelId} className="text-sm text-muted">{title}</p><div className="mt-3 text-2xl font-semibold tabular-nums">{value}</div>{detail ? <div className="mt-2 text-sm text-muted">{detail}</div> : null}</GlassCard>; }
+export function GlassStatsCard({ title, value, detail, className }: { title: string; value: ReactNode; detail?: ReactNode; className?: string }) { const labelId = useId(); return <GlassCard className={cn("min-h-28", className)} role="group" aria-labelledby={labelId}><p id={labelId} className="text-sm text-muted">{title}</p><div className="mt-3 text-2xl font-semibold tabular-nums">{autoFormatValue(value)}</div>{detail ? <div className="mt-2 text-sm text-muted">{detail}</div> : null}</GlassCard>; }
 export function GlassMetricCard(props: Parameters<typeof GlassStatsCard>[0]) { return <GlassStatsCard {...props} />; }
 export function GlassKpiCard(props: Parameters<typeof GlassStatsCard>[0]) { return <GlassStatsCard {...props} />; }
 export function GlassChartCard({ title, children, className }: DivProps & { title: string }) { const titleId = useId(); return <GlassCard className={cn("min-h-80", className)} role="region" aria-labelledby={titleId}><div className="mb-4 flex items-center justify-between"><h2 id={titleId} className="text-base font-semibold">{title}</h2></div>{children}</GlassCard>; }

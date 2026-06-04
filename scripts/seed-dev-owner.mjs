@@ -4,16 +4,16 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-const email = process.env.SEED_OWNER_EMAIL ?? "admin@akuntansimu.local";
+const email = process.env.SEED_OWNER_EMAIL ?? "admin@bisnismu.local";
 const password = process.env.SEED_OWNER_PASSWORD ?? "Password123!";
-const name = process.env.SEED_OWNER_NAME ?? "AkuntansiMu Owner";
-const businessName = process.env.SEED_BUSINESS_NAME ?? "Demo AkuntansiMu";
+const name = process.env.SEED_OWNER_NAME ?? "BisnisMu Owner";
+const businessName = process.env.SEED_BUSINESS_NAME ?? "Demo BisnisMu";
 
 async function main() {
   const user = await prisma.user.upsert({
     where: { email },
-    update: { name, emailVerified: true },
-    create: { email, name, emailVerified: true },
+    update: { name, emailVerified: true, platformRole: "SUPER_ADMIN" },
+    create: { email, name, emailVerified: true, platformRole: "SUPER_ADMIN" },
   });
 
   const hash = await argon2.hash(password, { type: argon2.argon2id });

@@ -1,6 +1,88 @@
 # Changelog
 
-All notable changes to AkuntansiMu are documented in this file.
+All notable changes to BisnisMu are documented in this file.
+
+## [0.5.0] - 2026-06-03
+
+### Added — UI Compliance (Glass Design System)
+- `GlassDataSelect` — dropdown data-driven baru, tanpa native `<select>`. Dipakai di semua 20+ page
+- `GlassCheckbox` — wrapper checkbox untuk row selection di `glass-table.tsx`
+- `GlassDatePicker`, `GlassDateTimePicker`, `GlassTimePicker` direfactor menjadi **controlled components** (`value`/`onChange` prop)
+- Semua 26 file frontend dibersihkan dari native elements: `<select>`, `<input>`, `<input type="date">`, `<input type="datetime-local">`, `confirm()`
+- `RhfDataSelect` diupdate menggunakan `GlassDataSelect`
+
+### Added — Export PDF & Excel
+- Installed: `jspdf`, `jspdf-autotable`, `xlsx`
+- `src/presentation/export/report-exports.ts` — 8 fungsi export (4 laporan × 2 format)
+- `ExportDropdown` component di `ReportWorkspace` — dropdown "📄 PDF / 📊 Excel (.xlsx)"
+- 4 halaman laporan terhubung: Laba Rugi, Neraca, Buku Besar, Neraca Saldo
+- Dynamic import — library hanya di-load saat tombol diklik (tidak membebani bundle)
+- Nama file otomatis: `laba-rugi-2026-06.pdf`, `neraca-2026-06.xlsx`, dll
+
+### Added — Onboarding Flow
+- `app/(auth)/onboarding/page.tsx` — wizard 3 langkah setelah registrasi
+  - Step 1 & 2 (akun + COA) otomatis selesai, Step 3 (buka fiscal period) oleh user
+  - Pilihan tahun, tombol buka → redirect ke dashboard
+- Register form: tambah field "Jenis usaha" (UMKM/Perorangan/BUMDes/CV/UD)
+- Register API: terima `businessType`, redirect ke `/onboarding` bukan `/dashboard`
+
+### Added — Session Revocation
+- `DELETE /api/auth/sessions` — user logout dari semua perangkat lain (`?all=true` untuk termasuk sekarang)
+- `DELETE /api/admin/users/[id]/sessions` — SUPER_ADMIN/SUPPORT_AGENT force logout user
+- Settings page: section "Keamanan Sesi" dengan tombol "Keluar dari semua perangkat lain"
+- Admin panel: kolom "Aksi" dengan tombol "Force logout" per user
+
+### Added — Error Tracking (Sentry, opt-in)
+- Installed: `@sentry/nextjs@10.56.0`
+- `sentry.client.config.ts`, `sentry.server.config.ts`, `sentry.edge.config.ts`
+- `app/global-error.tsx` — Next.js global error boundary dengan `Sentry.captureException`
+- `next.config.ts` — `withSentryConfig` wrapper kondisional (aktif hanya jika `SENTRY_DSN` di-set)
+- `.env.example` — dokumentasi variabel Sentry (`SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_ORG`, dll)
+
+### Fixed — CI/CD & Connection Pooling
+- `prisma/schema.prisma`: tambah `directUrl = env("DIRECT_URL")`
+- `.env`: hapus `channel_binding=require`, tambah `pgbouncer=true&connection_limit=1`, tambah `DIRECT_URL`
+- `ci.yml`: tambah `DIRECT_URL` di semua job, step `npm run lint`, `NEXT_PUBLIC_SENTRY_DSN: ""`
+- `deploy.yml`: job `check` (typecheck) sebelum migrate, migrate pakai `DIRECT_URL`, `SENTRY_AUTH_TOKEN`
+
+### Fixed — Bugs
+- `GlassCalendar`: header hari duplikat `["Min","Sel","Rab","Kam","Jum","Sab","Min"]` → `["Min","Sen","Sel","Rab","Kam","Jum","Sab"]`
+
+## [0.4.0] - 2026-06-03
+
+### Added — Authentication System
+- `better-auth` dengan Prisma adapter untuk email/password authentication
+- Password hashing menggunakan **argon2id** via `argon2` package
+- Cookie-based sessions (7-day expiry, 1-day sliding update)
+- Prisma models baru: `User`, `Session`, `AuthAccount`, `VerificationToken`
+- `PlatformRole` enum: `USER`, `SUPER_ADMIN`, `SUPPORT_AGENT`, `FINANCE_ADMIN`, `DEVELOPER`
+
+### Added — Authorization & RBAC
+- `middleware.ts` — melindungi semua `/api/*` routes, memvalidasi session token, mengecek business membership
+- `BusinessMember` + `BusinessMemberRole` (OWNER, ADMIN, ACCOUNTANT, EDITOR, CASHIER, VIEWER) di Prisma schema
+- `ROUTE_PERMISSION_RULES` — mapping route pattern → permission yang diperlukan
+- `getAuthenticatedUserContextByToken()` — builds full auth context dari session + BusinessMember; `businessId` dan `actorUserId` tidak lagi dipercaya dari client
+- God Mode: `/api/admin/*` routes hanya bisa diakses `SUPER_ADMIN`, `SUPPORT_AGENT`, `DEVELOPER`
+
+### Added — Rate Limiting
+- `MemoryRateLimiter` untuk development
+- `UpstashRedisRateLimiter` untuk production (auto-detect via env vars)
+- Rules terpisah per endpoint type: auth login (5/min), register (3/min), API read (300/min), write (100/min), reports (30/min), POS checkout (60/min)
+
+### Added — Security Headers
+- Content-Security-Policy, X-Frame-Options (DENY), HSTS (1 year), X-Content-Type-Options, Referrer-Policy, Permissions-Policy
+- Applied via `withSecurityHeaders()` pada semua API responses di middleware
+
+### Added — Auth API Routes
+- `POST /api/auth/register` — registrasi user baru
+- `POST /api/auth/select-business` — pilih active business untuk session
+- `GET  /api/auth/businesses` — list bisnis yang bisa diakses user
+- `POST /api/auth/logout` — invalidate session
+- `POST /api/auth/bootstrap` — seed SUPER_ADMIN pertama (hanya jika belum ada)
+- `POST /api/auth/dev-login` — shortcut login untuk development (disabled di production)
+- `GET/POST /api/admin/users` — God Mode: list dan manage platform users
+- `PATCH /api/admin/users/[id]/platform-role` — assign platform role
+- `GET /api/admin/businesses` — God Mode: list semua bisnis
 
 ## [0.3.0] - 2026-06-01
 

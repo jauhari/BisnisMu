@@ -1,13 +1,28 @@
 "use client";
 
 import type { DragEvent, KeyboardEvent, ReactNode, UIEvent } from "react";
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { flexRender, getCoreRowModel, getSortedRowModel, useReactTable, type ColumnDef, type ColumnOrderState, type ColumnSizingState, type RowSelectionState, type SortingState, type VisibilityState } from "@tanstack/react-table";
-import { ArrowLeftRight, CheckSquare, EyeOff, GripVertical, Search, SlidersHorizontal } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Columns3, Download, GripVertical, Search } from "lucide-react";
 import { GlassCard } from "../glass/glass-primitives";
+import { GlassInput } from "@/components/forms/glass-form";
 import { loadTableLayout, saveTableLayout } from "@/presentation/state/table-layout";
+import { formatNumber } from "@/presentation/format/number";
 
 export interface GlassTableColumn<T> { key: keyof T | string; header: string; render?: (row: T) => ReactNode; sticky?: boolean; }
+
+// Kolom bernuansa uang/nominal diformat ribuan otomatis (mis. 10000 → 10.000).
+// Sengaja TIDAK mencocokkan kode akun, SKU, kuantitas, urutan, tenor, dsb.
+const MONETARY_KEY = /amount|total|balance|debit|credit|value|price|paid|subtotal|payable|receivable|saldo|nominal|harga|nilai|modal|profit|margin|revenue|expense|cogs/i;
+
+function formatCell(key: string, raw: unknown): string {
+  if (raw === null || raw === undefined) return "";
+  const text = String(raw);
+  if (text === "" || !MONETARY_KEY.test(key)) return text;
+  // Hanya format bila benar-benar angka mentah (boleh negatif/desimal); biarkan yang sudah berformat (mis. "Rp 1.000").
+  if (!/^-?\d+(\.\d+)?$/.test(text.trim())) return text;
+  return formatNumber(text.trim());
+}
 
 function buildColumn<T extends object>(column: GlassTableColumn<T>): ColumnDef<T> {
   return {
@@ -16,7 +31,7 @@ function buildColumn<T extends object>(column: GlassTableColumn<T>): ColumnDef<T
     header: () => <div className="flex items-center gap-2"><GripVertical className="h-3.5 w-3.5 text-muted" />{column.header}</div>,
     size: 180,
     minSize: 120,
-    cell: ({ row }) => <div className="tabular-nums">{column.render ? column.render(row.original) : String((row.original as Record<string, unknown>)[String(column.key)] ?? "")}</div>
+    cell: ({ row }) => <div className="tabular-nums">{column.render ? column.render(row.original) : formatCell(String(column.key), (row.original as Record<string, unknown>)[String(column.key)])}</div>
   };
 }
 
@@ -49,6 +64,28 @@ function exportPrintHtml(filename: string, headers: string[], rows: string[][]) 
   window.open(url, "_blank", "noopener,noreferrer");
 }
 
+function GlassCheckbox({ checked, onChange, 'aria-label': ariaLabel, indeterminate }: {
+  checked: boolean;
+  onChange: React.ChangeEventHandler<HTMLInputElement>;
+  'aria-label'?: string;
+  indeterminate?: boolean;
+}) {
+  const ref = React.useRef<HTMLInputElement>(null);
+  React.useEffect(() => {
+    if (ref.current) ref.current.indeterminate = !!indeterminate;
+  }, [indeterminate]);
+  return (
+    <input
+      ref={ref}
+      type="checkbox"
+      aria-label={ariaLabel}
+      checked={checked}
+      onChange={onChange}
+      className="h-4 w-4 cursor-pointer rounded border-border accent-accent"
+    />
+  );
+}
+
 export function GlassTable<T extends object>({ columns, rows, empty = "No data", tableId = "default-table" }: { columns: GlassTableColumn<T>[]; rows: T[]; empty?: string; tableId?: string }) {
   const columnIds = columns.map((column) => String(column.key));
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -60,6 +97,7 @@ export function GlassTable<T extends object>({ columns, rows, empty = "No data",
   const [dragColumn, setDragColumn] = useState<string | null>(null);
   const [virtualStart, setVirtualStart] = useState(0);
   const [activeCell, setActiveCell] = useState<{ row: number; col: number }>({ row: 0, col: 0 });
+  const [menu, setMenu] = useState<null | "columns" | "export">(null);
   const rowHeight = 48;
   const viewportRows = 30;
 
@@ -90,9 +128,10 @@ export function GlassTable<T extends object>({ columns, rows, empty = "No data",
   const topSpacer = safeStart * rowHeight;
   const bottomSpacer = Math.max(0, (totalRows - (safeStart + virtualRowsSource.length)) * rowHeight);
 
+  const columnDefs = useMemo(() => columns.map(buildColumn), [columns]);
   const table = useReactTable({
     data: virtualRowsSource,
-    columns: columns.map(buildColumn),
+    columns: columnDefs,
     state: { sorting, columnVisibility: visibility, columnOrder, columnSizing, rowSelection },
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
@@ -137,22 +176,62 @@ export function GlassTable<T extends object>({ columns, rows, empty = "No data",
   const selectedCount = table.getSelectedRowModel().rows.length;
   const exportHeaders = visibleColumns.map((column) => column.id);
   const exportRows = searchedRows.map((row) => visibleColumns.map((column) => String((row as Record<string, unknown>)[column.id] ?? "")));
+  const headerLabel = (id: string) => columns.find((c) => String(c.key) === id)?.header ?? id;
+  const moveColumn = (id: string, dir: -1 | 1) => setColumnOrder((current) => {
+    const order = current.length ? current : columnIds;
+    const i = order.indexOf(id); const j = i + dir;
+    if (i < 0 || j < 0 || j >= order.length) return order;
+    const next = [...order]; const tmp = next[i]!; next[i] = next[j]!; next[j] = tmp; return next;
+  });
+  const orderedColumns = table.getAllLeafColumns();
+  const menuBtn = "flex h-9 items-center gap-2 rounded-lg border border-border bg-white/60 px-3 text-sm font-medium transition hover:bg-white/80 dark:bg-white/8 dark:hover:bg-white/12";
 
   return <GlassCard className="overflow-hidden p-0">
-    <div className="border-b border-border px-4 py-3">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-1 items-center gap-2 rounded-md border border-border bg-white/60 px-3 dark:bg-white/8"><Search className="h-4 w-4 text-muted" /><input value={search} onChange={(event) => { setSearch(event.target.value); setVirtualStart(0); setActiveCell({ row: 0, col: 0 }); }} placeholder="Search rows" className="h-10 w-full border-0 bg-transparent text-sm outline-none" /></div>
-        <div className="flex flex-wrap items-center gap-2"><button type="button" className="flex h-10 items-center gap-2 rounded-md border border-border px-3 text-sm"><SlidersHorizontal className="h-4 w-4" />Filters</button><button type="button" onClick={() => exportCsv(tableId, exportHeaders, exportRows)} className="h-10 rounded-md border border-border px-3 text-sm">Export CSV</button><button type="button" onClick={() => exportSpreadsheetXml(tableId, exportHeaders, exportRows)} className="h-10 rounded-md border border-border px-3 text-sm">Export Excel</button><button type="button" onClick={() => exportPrintHtml(tableId, exportHeaders, exportRows)} className="h-10 rounded-md border border-border px-3 text-sm">Export PDF</button></div>
+    <div className="flex flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-center">
+      <div className="flex flex-1 items-center gap-2 rounded-lg border border-border bg-white/60 px-3 dark:bg-white/8"><Search className="h-4 w-4 text-muted" /><GlassInput value={search} onChange={(event) => { setSearch(event.target.value); setVirtualStart(0); setActiveCell({ row: 0, col: 0 }); }} placeholder="Cari…" className="h-9 w-full border-0 bg-transparent shadow-none backdrop-blur-none" /></div>
+      <div className="flex items-center gap-2">
+        {selectedCount > 0 ? <span className="rounded-lg bg-accent/12 px-2.5 py-1 text-xs font-medium text-accent">{selectedCount} dipilih</span> : null}
+        <span className="hidden text-xs text-muted sm:inline">{totalRows} baris</span>
+
+        <div className="relative">
+          <button type="button" onClick={() => setMenu((m) => m === "columns" ? null : "columns")} className={menuBtn} aria-haspopup="menu" aria-expanded={menu === "columns"}><Columns3 className="h-4 w-4" /><span className="hidden sm:inline">Kolom</span></button>
+          {menu === "columns" ? (
+            <div className="absolute right-0 z-30 mt-2 w-60 rounded-xl border border-border bg-background p-1.5 shadow-xl">
+              <p className="px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">Tampilkan & urutkan</p>
+              {orderedColumns.map((column) => (
+                <div key={column.id} className="flex items-center gap-1 rounded-lg px-2 py-1 hover:bg-white/60 dark:hover:bg-white/8">
+                  <button type="button" onClick={() => column.toggleVisibility(!column.getIsVisible())} className="flex flex-1 items-center gap-2 text-left text-sm">
+                    <span className={`grid h-4 w-4 place-items-center rounded border ${column.getIsVisible() ? "border-accent bg-accent text-background" : "border-border"}`}>{column.getIsVisible() ? <Check className="h-3 w-3" /> : null}</span>
+                    <span className="truncate">{headerLabel(column.id)}</span>
+                  </button>
+                  <button type="button" aria-label={`Naikkan ${headerLabel(column.id)}`} onClick={() => moveColumn(column.id, -1)} className="grid h-6 w-6 place-items-center rounded text-muted hover:text-foreground"><ChevronUp className="h-3.5 w-3.5" /></button>
+                  <button type="button" aria-label={`Turunkan ${headerLabel(column.id)}`} onClick={() => moveColumn(column.id, 1)} className="grid h-6 w-6 place-items-center rounded text-muted hover:text-foreground"><ChevronDown className="h-3.5 w-3.5" /></button>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="relative">
+          <button type="button" onClick={() => setMenu((m) => m === "export" ? null : "export")} className={menuBtn} aria-haspopup="menu" aria-expanded={menu === "export"}><Download className="h-4 w-4" /><span className="hidden sm:inline">Ekspor</span></button>
+          {menu === "export" ? (
+            <div className="absolute right-0 z-30 mt-2 w-44 rounded-xl border border-border bg-background p-1.5 shadow-xl">
+              <button type="button" onClick={() => { exportCsv(tableId, exportHeaders, exportRows); setMenu(null); }} className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-white/60 dark:hover:bg-white/8">Ekspor CSV</button>
+              <button type="button" onClick={() => { exportSpreadsheetXml(tableId, exportHeaders, exportRows); setMenu(null); }} className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-white/60 dark:hover:bg-white/8">Ekspor Excel</button>
+              <button type="button" onClick={() => { exportPrintHtml(tableId, exportHeaders, exportRows); setMenu(null); }} className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-white/60 dark:hover:bg-white/8">Ekspor PDF</button>
+            </div>
+          ) : null}
+        </div>
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-2"><span className="inline-flex items-center gap-2 rounded-md border border-border px-2 py-1 text-xs"><CheckSquare className="h-3 w-3" />{selectedCount} selected</span>{table.getAllLeafColumns().map((column) => <div key={column.id} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs"><button type="button" aria-label={`Hide or show ${column.id}`} onClick={() => column.toggleVisibility(!column.getIsVisible())}><EyeOff className="h-3 w-3" /></button><span>{column.id}</span><button type="button" aria-label={`Move ${column.id} left`} onClick={() => setColumnOrder((current) => { const index = current.indexOf(column.id); if (index <= 0) return current; const next = [...current]; const a = next[index - 1]; const b = next[index]; if (a === undefined || b === undefined) return current; next[index - 1] = b; next[index] = a; return next; })}><ArrowLeftRight className="h-3 w-3 rotate-180" /></button><button type="button" aria-label={`Move ${column.id} right`} onClick={() => setColumnOrder((current) => { const index = current.indexOf(column.id); if (index < 0 || index >= current.length - 1) return current; const next = [...current]; const a = next[index]; const b = next[index + 1]; if (a === undefined || b === undefined) return current; next[index] = b; next[index + 1] = a; return next; })}><ArrowLeftRight className="h-3 w-3" /></button></div>)}<span className="rounded-md border border-border px-2 py-1 text-xs">{virtualRowsSource.length}/{totalRows} rows</span></div>
     </div>
+    {menu ? <div className="fixed inset-0 z-20" onClick={() => setMenu(null)} aria-hidden /> : null}
     <div className="max-h-[640px] overflow-auto" onScroll={onScroll}>
       <table className="w-full border-separate border-spacing-0 text-sm" role="grid" aria-rowcount={totalRows} aria-colcount={visibleColumns.length + 1}>
-        <thead className="sticky top-0 z-10 bg-white/85 backdrop-blur dark:bg-surface/90">{table.getHeaderGroups().map((headerGroup) => <tr key={headerGroup.id}><th className="sticky left-0 z-20 border-b border-border bg-white/85 px-3 py-3 dark:bg-surface/90"><input aria-label="Select all visible rows" type="checkbox" checked={table.getIsAllPageRowsSelected()} onChange={table.getToggleAllPageRowsSelectedHandler()} /></th>{headerGroup.headers.map((header, index) => <th key={header.id} draggable onDragStart={() => onDragStart(header.id)} onDragOver={onDragOver} onDrop={() => onDrop(header.id)} style={{ width: header.getSize() }} className={index === 0 ? "sticky left-12 z-10 border-b border-border bg-white/85 px-4 py-3 text-left font-medium text-muted dark:bg-surface/90" : "relative border-b border-border px-4 py-3 text-left font-medium text-muted"}><button type="button" onClick={header.column.getToggleSortingHandler()?.bind(header.column)} className="w-full cursor-grab text-left active:cursor-grabbing">{header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}</button><div onMouseDown={header.getResizeHandler()} onTouchStart={header.getResizeHandler()} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-border/60" /></th>)}</tr>)}</thead>
+        <thead className="sticky top-0 z-10 bg-white/85 backdrop-blur dark:bg-surface/90">{table.getHeaderGroups().map((headerGroup) => <tr key={headerGroup.id}><th className="w-12 sticky left-0 z-20 border-b border-border bg-white/85 px-3 py-3 dark:bg-surface/90"><GlassCheckbox aria-label="Select all visible rows" checked={table.getIsAllPageRowsSelected()} onChange={table.getToggleAllPageRowsSelectedHandler()} /></th>{headerGroup.headers.map((header, index) => <th key={header.id} draggable onDragStart={() => onDragStart(header.id)} onDragOver={onDragOver} onDrop={() => onDrop(header.id)} style={{ width: header.getSize() }} className={index === 0 ? "sticky left-12 z-10 border-b border-border bg-white/85 px-4 py-3 text-left font-medium text-muted dark:bg-surface/90" : "relative border-b border-border px-4 py-3 text-left font-medium text-muted"}><button type="button" onClick={header.column.getToggleSortingHandler()?.bind(header.column)} className="w-full cursor-grab text-left active:cursor-grabbing">{header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}</button><div onMouseDown={header.getResizeHandler()} onTouchStart={header.getResizeHandler()} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-border/60" /></th>)}</tr>)}</thead>
         <tbody>
           {table.getRowModel().rows.length === 0 ? <tr><td colSpan={columns.length + 1} className="px-4 py-12 text-center text-muted">{empty}</td></tr> : <>
             {topSpacer > 0 ? <tr><td colSpan={columns.length + 1} style={{ height: topSpacer }} /></tr> : null}
-            {table.getRowModel().rows.map((row, rowIndex) => <tr key={row.id} className="hover:bg-white/50 dark:hover:bg-white/5"><td className="sticky left-0 z-10 border-b border-border/70 bg-white/85 px-3 py-3 dark:bg-surface/90"><input aria-label={`Select row ${rowIndex + 1}`} type="checkbox" checked={row.getIsSelected()} onChange={row.getToggleSelectedHandler()} /></td>{row.getVisibleCells().map((cell, colIndex) => <td key={cell.id} tabIndex={activeCell.row === rowIndex && activeCell.col === colIndex ? 0 : -1} onFocus={() => setActiveCell({ row: rowIndex, col: colIndex })} onKeyDown={(event) => onCellKeyDown(event, rowIndex, colIndex)} className={indexCellClass(colIndex)}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>)}
+            {table.getRowModel().rows.map((row, rowIndex) => <tr key={row.id} className="hover:bg-white/50 dark:hover:bg-white/5"><td className="w-12 sticky left-0 z-10 border-b border-border/70 bg-white/85 px-3 py-3 dark:bg-surface/90"><GlassCheckbox aria-label={`Select row ${rowIndex + 1}`} checked={row.getIsSelected()} onChange={row.getToggleSelectedHandler()} /></td>{row.getVisibleCells().map((cell, colIndex) => <td key={cell.id} tabIndex={activeCell.row === rowIndex && activeCell.col === colIndex ? 0 : -1} onFocus={() => setActiveCell({ row: rowIndex, col: colIndex })} onKeyDown={(event) => onCellKeyDown(event, rowIndex, colIndex)} className={indexCellClass(colIndex)}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>)}
             {bottomSpacer > 0 ? <tr><td colSpan={columns.length + 1} style={{ height: bottomSpacer }} /></tr> : null}
           </>}
         </tbody>

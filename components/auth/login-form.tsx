@@ -2,16 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-
 import { GlassForm, GlassInput, GlassField } from "@/components/forms/glass-form";
-
-const DEFAULT_EMAIL = "admin@akuntansimu.local";
-const DEFAULT_PASSWORD = "Password123!";
 
 export function LoginForm() {
   const router = useRouter();
-  const [email, setEmail] = useState(DEFAULT_EMAIL);
-  const [password, setPassword] = useState(DEFAULT_PASSWORD);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -19,13 +15,15 @@ export function LoginForm() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch("/api/auth/dev-login", {
+      // Try primary login (argon2 credential auth)
+      const res = await fetch("/api/auth/dev-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: email.toLowerCase().trim(), password }),
       });
-      if (!response.ok) throw new Error(await response.text());
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.message || json?.code || "Email atau password salah.");
       router.push("/dashboard");
       router.refresh();
     } catch (err) {
@@ -36,16 +34,16 @@ export function LoginForm() {
   }
 
   return (
-    <GlassForm className="mt-6" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
+    <GlassForm className="mt-6" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
       <GlassField label="Email">
-        <GlassInput inputMode="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+        <GlassInput type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@usaha.com" autoComplete="email" />
       </GlassField>
       <GlassField label="Password">
-        <GlassInput type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
+        <GlassInput type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="current-password" />
       </GlassField>
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
-      <button type="submit" disabled={loading} className="h-11 rounded-md bg-foreground px-4 text-sm font-medium text-background disabled:opacity-60">
-        {loading ? "Signing in..." : "Continue"}
+      {error ? <p className="text-sm text-danger">{error}</p> : null}
+      <button type="submit" disabled={loading || !email || !password} className="h-11 rounded-md bg-foreground px-4 text-sm font-medium text-background disabled:opacity-60">
+        {loading ? "Masuk…" : "Masuk"}
       </button>
     </GlassForm>
   );

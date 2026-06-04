@@ -16,15 +16,41 @@ interface SessionRecord {
     email: string;
     emailVerified: boolean;
     image: string | null;
+    platformRole: string;
   };
 }
+
+export type PlatformRole = "USER" | "SUPER_ADMIN" | "SUPPORT_AGENT" | "FINANCE_ADMIN" | "DEVELOPER";
 
 export interface AuthenticatedUserContext {
   actorUserId: string;
   businessId: string;
   role: "OWNER" | "ADMIN" | "ACCOUNTANT" | "CASHIER" | "VIEWER";
+  platformRole: PlatformRole;
   user: SessionRecord["user"];
   session: Omit<SessionRecord, "user">;
+}
+
+export function requireGodMode(context: Pick<AuthenticatedUserContext, "platformRole">, allowed: PlatformRole[] = ["SUPER_ADMIN"]): void {
+  if (!allowed.includes(context.platformRole)) throw new AuthError("FORBIDDEN", "God mode access required");
+}
+
+export async function requireGodModeContext(request: Request): Promise<AuthenticatedUserContext> {
+  const token = getRequestSessionToken(request);
+  if (!token) throw new AuthError("UNAUTHENTICATED", "Unauthorized");
+  const session = await prisma.session.findUnique({ where: { token }, include: { user: true } });
+  if (!session?.user?.id || session.expiresAt <= new Date()) throw new AuthError("UNAUTHENTICATED", "Unauthorized");
+  const { user, ...sessionRecord } = session;
+  const ctx: AuthenticatedUserContext = {
+    actorUserId: user.id,
+    businessId: session.activeBusinessId ?? "",
+    role: "VIEWER",
+    platformRole: (user.platformRole ?? "USER") as PlatformRole,
+    user,
+    session: sessionRecord,
+  };
+  requireGodMode(ctx);
+  return ctx;
 }
 
 export function getRequestSessionToken(request: Request): string | null {
@@ -62,6 +88,7 @@ export async function getAuthenticatedUserContextByToken(token: string | null | 
     actorUserId: user.id,
     businessId: session.activeBusinessId,
     role: membership.role,
+    platformRole: (user.platformRole ?? "USER") as PlatformRole,
     user,
     session: sessionRecord,
   };

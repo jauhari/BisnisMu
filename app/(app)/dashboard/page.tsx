@@ -6,6 +6,7 @@ import { GlassErrorState, GlassSkeleton } from "@/components/feedback/glass-feed
 import { GlassTable } from "@/components/tables/glass-table";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/presentation/api/client";
+import { formatMoney, formatNumber } from "@/presentation/format/number";
 
 const now = new Date();
 const startsOn = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
@@ -31,8 +32,8 @@ export default function Page() {
   ];
   return <DashboardGrid>
     <section className="flex items-end justify-between"><div><p className="text-sm font-medium text-accent">Executive cockpit</p><h1 className="mt-2 text-3xl font-semibold">Dashboard</h1><p className="mt-2 text-sm text-muted">Realtime analytics backed by DashboardService projections.</p></div><RealtimeStatus /></section>
-    <KpiGrid items={[{ title: "Sales today", value: String(overview.sales?.salesToday ?? 0), detail: "Live" }, { title: "Net profit", value: String(overview.profitability?.netProfit ?? 0), detail: `Margin ${overview.profitability?.profitMargin ?? 0}%` }, { title: "Cash + bank", value: String((overview.cash?.cashOnHand ?? 0n) + (overview.cash?.bankBalance ?? 0n)), detail: "Available balance" }, { title: "Inventory value", value: String(overview.inventory?.inventoryValue ?? 0), detail: `${overview.inventory?.lowStockItems?.length ?? 0} low stock alerts` }]} />
+    <KpiGrid items={[{ title: "Sales today", value: formatMoney(overview.sales?.salesToday ?? 0), detail: "Live" }, { title: "Net profit", value: formatMoney(overview.profitability?.netProfit ?? 0), detail: `Margin ${overview.profitability?.profitMargin ?? 0}%` }, { title: "Cash + bank", value: formatMoney((overview.cash?.cashOnHand ?? 0n) + (overview.cash?.bankBalance ?? 0n)), detail: "Available balance" }, { title: "Inventory value", value: formatMoney(overview.inventory?.inventoryValue ?? 0), detail: `${overview.inventory?.lowStockItems?.length ?? 0} low stock alerts` }]} />
     <section className="grid gap-6 xl:grid-cols-2"><RevenueTrendChart data={trend} title="Sales trend" /><ActivityBarChart data={trend} title="Cash movement" /></section>
-    <DashboardExceptionPanel><GlassTable columns={[{ key: "item", header: "Exception" }, { key: "value", header: "Value" }, { key: "action", header: "Action" }]} rows={[{ item: "Overdue receivable", value: String(overview.receivable?.overdueReceivable ?? 0), action: "Review AR" }, { item: "Low stock", value: String(overview.inventory?.lowStockItems?.length ?? 0), action: "Review inventory" }, { item: "Low float", value: overview.float?.lowFloatProviders?.[0]?.provider ?? "None", action: "Top up" }]} /></DashboardExceptionPanel>
+    <DashboardExceptionPanel><GlassTable columns={[{ key: "item", header: "Exception" }, { key: "value", header: "Value" }, { key: "action", header: "Action" }]} rows={[{ item: "Overdue receivable", value: formatMoney(overview.receivable?.overdueReceivable ?? 0), action: "Review AR" }, { item: "Low stock", value: formatNumber(overview.inventory?.lowStockItems?.length ?? 0), action: "Review inventory" }, { item: "Low float", value: overview.float?.lowFloatProviders?.[0]?.provider ?? "None", action: "Top up" }]} /></DashboardExceptionPanel>
   </DashboardGrid>;
 }

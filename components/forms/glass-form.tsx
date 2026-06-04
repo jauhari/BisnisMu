@@ -42,12 +42,33 @@ export function GlassCombobox({ children, className }: { children?: ReactNode; c
   const triggerProps = className !== undefined ? { className } : {};
   return <div ref={rootRef} className="relative"><div onClick={() => setOpen(true)}><Trigger {...triggerProps} open={open} icon={<Search className="h-4 w-4" />}>{children}</Trigger></div>{open ? <div className="absolute z-30 mt-2 w-full rounded-lg border border-border bg-white/90 p-2 shadow-lg backdrop-blur dark:bg-slate-950/90"><div className="flex items-center gap-2 rounded-md border border-border px-3"><Search className="h-4 w-4 text-muted" /><input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} className="h-10 w-full border-0 bg-transparent text-sm outline-none" placeholder="Search..." /></div><div className="mt-2 grid gap-1">{options.map((option) => <button key={option} type="button" className="rounded-md px-3 py-2 text-left text-sm hover:bg-white/60 dark:hover:bg-white/10" onClick={() => setOpen(false)}>{option}</button>)}</div></div> : null}</div>;
 }
-export function GlassDatePicker({ children, className }: { children?: ReactNode; className?: string }) {
+export function GlassDatePicker({ value, onChange, placeholder = "Pilih tanggal", className }: {
+  value?: string;
+  onChange?: (v: string) => void;
+  placeholder?: string;
+  className?: string;
+}) {
   const [open, setOpen] = useState(false);
-  const [value, setValue] = useState<Date | undefined>();
   const rootRef = useDismissible(open, setOpen);
+  const dateObj = value ? new Date(value + "T00:00:00") : undefined;
+  function handleSelect(date: Date) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    onChange?.(`${y}-${m}-${d}`);
+    setOpen(false);
+  }
   const triggerProps = className !== undefined ? { className } : {};
-  return <div ref={rootRef} className="relative"><div onClick={() => setOpen((v) => !v)}><Trigger {...triggerProps} open={open} icon={<CalendarDays className="h-4 w-4" />}>{value ? value.toISOString().slice(0,10) : children}</Trigger></div>{open ? <div className="absolute z-30 mt-2"><GlassCalendar {...(value ? { value } : {})} onSelect={(date) => { setValue(date); setOpen(false); }} /></div> : null}</div>;
+  return (
+    <div ref={rootRef} className="relative">
+      <div onClick={() => setOpen((v) => !v)}>
+        <Trigger {...triggerProps} open={open} icon={<CalendarDays className="h-4 w-4" />}>
+          {value || <span className="text-muted">{placeholder}</span>}
+        </Trigger>
+      </div>
+      {open ? <div className="absolute left-0 z-50 mt-2 drop-shadow-xl"><GlassCalendar {...(dateObj ? { value: dateObj } : {})} onSelect={handleSelect} /></div> : null}
+    </div>
+  );
 }
 export function GlassDateRangePicker({ children, className }: { children?: ReactNode; className?: string }) {
   const [open, setOpen] = useState(false);
@@ -58,20 +79,110 @@ export function GlassDateRangePicker({ children, className }: { children?: React
   const label = start && end ? `${start.toISOString().slice(0,10)} - ${end.toISOString().slice(0,10)}` : children;
   return <div ref={rootRef} className="relative"><div onClick={() => setOpen((v) => !v)}><Trigger {...triggerProps} open={open} icon={<CalendarDays className="h-4 w-4" />}>{label}</Trigger></div>{open ? <div className="absolute z-30 mt-2 grid gap-2"><GlassCalendar {...(start ? { value: start } : {})} onSelect={(date) => setStart(date)} /><GlassCalendar {...(end ? { value: end } : {})} onSelect={(date) => { setEnd(date); if (start) setOpen(false); }} /></div> : null}</div>;
 }
-export function GlassDateTimePicker({ children, className }: { children?: ReactNode; className?: string }) {
+export function GlassDateTimePicker({ value, onChange, placeholder = "Pilih tanggal & waktu", className }: {
+  value?: string;
+  onChange?: (v: string) => void;
+  placeholder?: string;
+  className?: string;
+}) {
   const [open, setOpen] = useState(false);
-  const [value, setValue] = useState<Date | undefined>();
-  const [time, setTime] = useState("09:00");
+  const [pickedDate, setPickedDate] = useState<Date | undefined>(() => value ? new Date(value) : undefined);
+  const [time, setTime] = useState(() => value ? value.slice(11, 16) : "09:00");
   const rootRef = useDismissible(open, setOpen);
   const triggerProps = className !== undefined ? { className } : {};
-  const label = value ? `${value.toISOString().slice(0,10)} ${time}` : children;
-  return <div ref={rootRef} className="relative"><div onClick={() => setOpen((v) => !v)}><Trigger {...triggerProps} open={open} icon={<Clock3 className="h-4 w-4" />}>{label}</Trigger></div>{open ? <div className="absolute z-30 mt-2 rounded-lg border border-border bg-white/90 p-3 shadow-lg backdrop-blur dark:bg-slate-950/90"><GlassCalendar {...(value ? { value } : {})} onSelect={(date) => setValue(date)} /><input value={time} onChange={(event) => setTime(event.target.value)} className="mt-3 h-10 w-full rounded-md border border-border bg-transparent px-3 text-sm" placeholder="09:00" /><button type="button" className="mt-3 h-10 w-full rounded-md bg-foreground text-background" onClick={() => setOpen(false)}>Apply</button></div> : null}</div>;
+  const label = pickedDate ? `${pickedDate.toISOString().slice(0, 10)} ${time}` : <span className="text-muted">{placeholder}</span>;
+  function handleApply() {
+    if (pickedDate) {
+      const y = pickedDate.getFullYear();
+      const m = String(pickedDate.getMonth() + 1).padStart(2, "0");
+      const d = String(pickedDate.getDate()).padStart(2, "0");
+      onChange?.(`${y}-${m}-${d}T${time}`);
+    }
+    setOpen(false);
+  }
+  return (
+    <div ref={rootRef} className="relative">
+      <div onClick={() => setOpen((v) => !v)}>
+        <Trigger {...triggerProps} open={open} icon={<Clock3 className="h-4 w-4" />}>{label}</Trigger>
+      </div>
+      {open ? (
+        <div className="absolute z-30 mt-2 rounded-lg border border-border bg-white/90 p-3 shadow-lg backdrop-blur dark:bg-slate-950/90">
+          <GlassCalendar {...(pickedDate ? { value: pickedDate } : {})} onSelect={(date) => setPickedDate(date)} />
+          <GlassInput value={time} onChange={(e) => setTime(e.target.value)} className="mt-3 h-10 w-full bg-transparent shadow-none" placeholder="09:00" />
+          <button type="button" className="mt-3 h-10 w-full rounded-md bg-foreground text-sm text-background" onClick={handleApply}>Apply</button>
+        </div>
+      ) : null}
+    </div>
+  );
 }
-export function GlassTimePicker({ children, className }: { children?: ReactNode; className?: string }) {
+export function GlassTimePicker({ value, onChange, placeholder = "Pilih waktu", className }: {
+  value?: string;
+  onChange?: (v: string) => void;
+  placeholder?: string;
+  className?: string;
+}) {
   const [open, setOpen] = useState(false);
-  const [time, setTime] = useState("09:00");
+  const [time, setTime] = useState(value ?? "09:00");
   const rootRef = useDismissible(open, setOpen);
   const triggerProps = className !== undefined ? { className } : {};
-  return <div ref={rootRef} className="relative"><div onClick={() => setOpen((v) => !v)}><Trigger {...triggerProps} open={open} icon={<Clock3 className="h-4 w-4" />}>{time || children}</Trigger></div>{open ? <div className="absolute z-30 mt-2 rounded-lg border border-border bg-white/90 p-3 shadow-lg backdrop-blur dark:bg-slate-950/90"><input value={time} onChange={(event) => setTime(event.target.value)} className="h-10 w-full rounded-md border border-border bg-transparent px-3 text-sm" placeholder="09:00" /><button type="button" className="mt-3 h-10 w-full rounded-md bg-foreground text-background" onClick={() => setOpen(false)}>Apply</button></div> : null}</div>;
+  return (
+    <div ref={rootRef} className="relative">
+      <div onClick={() => setOpen((v) => !v)}>
+        <Trigger {...triggerProps} open={open} icon={<Clock3 className="h-4 w-4" />}>
+          {time || <span className="text-muted">{placeholder}</span>}
+        </Trigger>
+      </div>
+      {open ? (
+        <div className="absolute z-30 mt-2 rounded-lg border border-border bg-white/90 p-3 shadow-lg backdrop-blur dark:bg-slate-950/90">
+          <GlassInput value={time} onChange={(e) => setTime(e.target.value)} className="h-10 w-full bg-transparent shadow-none" placeholder="09:00" />
+          <button type="button" className="mt-3 h-10 w-full rounded-md bg-foreground text-sm text-background" onClick={() => { onChange?.(time); setOpen(false); }}>Apply</button>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 export function GlassFileUploader({ label = "Upload file" }: { label?: string }) { return <button type="button" className={cn(glassTokens.focus, glassTokens.interactive, "flex min-h-28 items-center justify-center rounded-lg border border-dashed border-border bg-white/50 px-4 text-sm text-muted dark:bg-white/8")}>{label}</button>; }
+
+export interface SelectOption { value: string; label: string }
+
+export function GlassDataSelect({ value, onChange, options, placeholder = "Pilih...", disabled, className }: {
+  value: string;
+  onChange: (value: string) => void;
+  options: SelectOption[];
+  placeholder?: string;
+  disabled?: boolean;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useDismissible(open, setOpen);
+  const selected = options.find((o) => o.value === value);
+  return (
+    <div ref={rootRef} className="relative">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => !disabled && setOpen((v) => !v)}
+        className={cn(glassTokens.focus, "flex h-11 w-full items-center justify-between rounded-md border border-border bg-white/60 px-3 text-sm dark:bg-white/8", !selected && "text-muted", disabled && "cursor-not-allowed opacity-50", className)}
+      >
+        <span className="flex-1 truncate text-left">{selected?.label ?? placeholder}</span>
+        <ChevronDown className={cn("ml-2 h-4 w-4 shrink-0 text-muted transition-transform", open && "rotate-180")} />
+      </button>
+      {open && !disabled && (
+        <div className="absolute z-30 mt-1 max-h-60 w-full overflow-auto rounded-lg border border-border bg-white/90 py-1 shadow-lg backdrop-blur dark:bg-slate-950/90">
+          {options.length === 0 && <p className="px-3 py-2 text-sm text-muted">Tidak ada pilihan</p>}
+          {options.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => { onChange(opt.value); setOpen(false); }}
+              className={cn("flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-white/60 dark:hover:bg-white/10", opt.value === value && "font-medium text-accent")}
+            >
+              <Check className={cn("h-3.5 w-3.5 shrink-0", opt.value !== value && "invisible")} />
+              <span className="truncate">{opt.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

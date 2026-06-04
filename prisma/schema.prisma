@@ -3,8 +3,17 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum PlatformRole {
+  USER
+  SUPER_ADMIN
+  SUPPORT_AGENT
+  FINANCE_ADMIN
+  DEVELOPER
 }
 
 enum AccountGroupCode {
@@ -69,6 +78,11 @@ enum ContactType {
   SUPPLIER
   BOTH
   OTHER
+}
+
+enum ContactCategory {
+  INDIVIDUAL
+  INSTANSI
 }
 
 enum CashTransactionType {
@@ -415,25 +429,46 @@ model Business {
   posCartItems               PosCartItem[]
   posReceipts                PosReceiptRecord[]
   members                    BusinessMember[]
+  dailySales                 DailySale[]
 
   @@index([createdByUserId])
   @@map("businesses")
 }
 
 model User {
-  id            String   @id @default(cuid())
+  id            String       @id @default(cuid())
   name          String
-  email         String   @unique
-  emailVerified Boolean  @default(false) @map("email_verified")
+  email         String       @unique
+  emailVerified Boolean      @default(false) @map("email_verified")
   image         String?
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  platformRole  PlatformRole @default(USER) @map("platform_role")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
 
   sessions          Session[]
   accounts          AuthAccount[]
   memberships       BusinessMember[]
+  godModeAuditLogs  GodModeAuditLog[]
+  dailySales        DailySale[]
 
   @@map("users")
+}
+
+model GodModeAuditLog {
+  id         String   @id @default(cuid())
+  actorId    String   @map("actor_id")
+  action     String
+  targetType String   @map("target_type")
+  targetId   String?  @map("target_id")
+  detail     Json?
+  ipAddress  String?  @map("ip_address")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  actor User @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([actorId])
+  @@index([createdAt])
+  @@map("god_mode_audit_logs")
 }
 
 model Session {
@@ -549,6 +584,8 @@ model Account {
   floatAssetAccounts                   FloatAccount[]       @relation("FloatAssetAccount")
   floatOffsetAccounts                  FloatAccount[]       @relation("FloatOffsetAccount")
   floatCashAccounts                    FloatTransaction[]   @relation("FloatCashAccount")
+  dailySalesAsCash                     DailySale[]          @relation("DailySaleCash")
+  dailySaleItemsAsRevenue              DailySaleItem[]      @relation("DailySaleRevenue")
   productInventoryAccounts             Product[]            @relation("ProductInventoryAccount")
   productCogsAccounts                  Product[]            @relation("ProductCogsAccount")
   productRevenueAccounts               Product[]            @relation("ProductRevenueAccount")
@@ -642,22 +679,30 @@ model JournalLine {
 }
 
 model Contact {
-  id         String      @id @default(cuid())
-  businessId String      @map("business_id")
+  id         String          @id @default(cuid())
+  businessId String          @map("business_id")
   name       String
-  type       ContactType @default(OTHER)
+  type       ContactType     @default(OTHER)
+  category   ContactCategory @default(INDIVIDUAL)
+  picName    String?         @map("pic_name")
   email      String?
   phone      String?
   address    String?
-  isActive   Boolean     @default(true) @map("is_active")
-  createdAt  DateTime    @default(now()) @map("created_at")
-  updatedAt  DateTime    @updatedAt @map("updated_at")
+  isActive   Boolean         @default(true) @map("is_active")
+  // Loyalty
+  totalVisits   Int    @default(0) @map("total_visits")
+  totalRevenue  BigInt @default(0) @map("total_revenue")
+  loyaltyPoints Int    @default(0) @map("loyalty_points")
+  createdAt  DateTime        @default(now()) @map("created_at")
+  updatedAt  DateTime        @updatedAt @map("updated_at")
 
-  business         Business          @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  cashTransactions CashTransaction[]
+  business          Business           @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  cashTransactions  CashTransaction[]
+  dailySaleContacts DailySaleContact[]
 
   @@index([businessId, type])
   @@index([businessId, name])
+  @@index([businessId, phone])
   @@map("contacts")
 }
 
@@ -1966,4 +2011,111 @@ model PosReceiptRecord {
   @@unique([businessId, receiptNumber])
   @@index([businessId, issuedAt])
   @@map("pos_receipts")
+}
+
+enum InstallmentPlanStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum InstallmentScheduleStatus {
+  UNPAID
+  PARTIAL
+  PAID
+}
+
+model InstallmentPlan {
+  id              String                @id @default(cuid())
+  businessId      String                @map("business_id")
+  planNumber      String                @map("plan_number")
+  customerId      String                @map("customer_id")
+  salesOrderId    String?               @map("sales_order_id")
+  description     String
+  totalAmount     BigInt                @map("total_amount")
+  downPayment     BigInt                @default(0) @map("down_payment")
+  financedAmount  BigInt                @map("financed_amount")
+  tenor           Int
+  startDate       DateTime              @map("start_date") @db.Date
+  arAccountId     String                @map("ar_account_id")
+  status          InstallmentPlanStatus @default(ACTIVE)
+  createdByUserId String                @map("created_by_user_id")
+  createdAt       DateTime              @default(now()) @map("created_at")
+  schedules       InstallmentSchedule[]
+
+  @@unique([businessId, planNumber])
+  @@index([businessId, customerId])
+  @@index([businessId, status])
+  @@map("installment_plans")
+}
+
+model InstallmentSchedule {
+  id              String                    @id @default(cuid())
+  businessId      String                    @map("business_id")
+  planId          String                    @map("plan_id")
+  sequence        Int
+  dueDate         DateTime                  @map("due_date") @db.Date
+  amount          BigInt
+  paidAmount      BigInt                    @default(0) @map("paid_amount")
+  status          InstallmentScheduleStatus @default(UNPAID)
+  paidAt          DateTime?                 @map("paid_at")
+  postedJournalId String?                   @map("posted_journal_id")
+  plan            InstallmentPlan           @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, planId, sequence])
+  @@index([businessId, planId])
+  @@map("installment_schedules")
+}
+
+// ─── Penjualan Harian ──────────────────────────────────────────────────────────
+
+model DailySale {
+  id              String   @id @default(cuid())
+  businessId      String   @map("business_id")
+  saleDate        DateTime @map("sale_date") @db.Date
+  cashAccountId   String   @map("cash_account_id")
+  description     String?
+  totalAmount     BigInt   @default(0) @map("total_amount")
+  journalId       String?  @map("journal_id")
+  createdByUserId String   @map("created_by_user_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  business    Business        @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  cashAccount Account         @relation("DailySaleCash", fields: [cashAccountId], references: [id], onDelete: Restrict)
+  createdBy   User            @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  items       DailySaleItem[]
+
+  @@index([businessId, saleDate])
+  @@map("daily_sales")
+}
+
+model DailySaleItem {
+  id               String  @id @default(cuid())
+  dailySaleId      String  @map("daily_sale_id")
+  revenueAccountId String  @map("revenue_account_id")
+  description      String?
+  amount           BigInt
+  lineNo           Int     @map("line_no")
+
+  dailySale      DailySale        @relation(fields: [dailySaleId], references: [id], onDelete: Cascade)
+  revenueAccount Account          @relation("DailySaleRevenue", fields: [revenueAccountId], references: [id], onDelete: Restrict)
+  contacts       DailySaleContact[]
+
+  @@index([dailySaleId])
+  @@map("daily_sale_items")
+}
+
+model DailySaleContact {
+  id              String  @id @default(cuid())
+  dailySaleItemId String  @map("daily_sale_item_id")
+  contactId       String  @map("contact_id")
+  amount          BigInt?
+  notes           String?
+
+  dailySaleItem DailySaleItem @relation(fields: [dailySaleItemId], references: [id], onDelete: Cascade)
+  contact       Contact       @relation(fields: [contactId], references: [id], onDelete: Restrict)
+
+  @@unique([dailySaleItemId, contactId])
+  @@index([contactId])
+  @@map("daily_sale_contacts")
 }
