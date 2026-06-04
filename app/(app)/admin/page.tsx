@@ -9,7 +9,7 @@ import { GlassTable } from "@/components/tables/glass-table";
 import { GlassPanel } from "@/components/glass/glass-primitives";
 import { apiRequest } from "@/presentation/api/client";
 import { useActiveBusiness } from "@/presentation/query/report-hooks";
-import { GlassDataSelect } from "@/components/forms/glass-form";
+import { GlassDataSelect, GlassInput } from "@/components/forms/glass-form";
 
 const PLATFORM_ROLES = ["USER", "SUPPORT_AGENT", "FINANCE_ADMIN", "DEVELOPER", "SUPER_ADMIN"];
 
@@ -29,6 +29,15 @@ export default function Page() {
   const [tab, setTab] = useState<"users" | "businesses">("users");
   const [busy, setBusy] = useState(false);
 
+  // Form tambah user
+  const [showAddUser, setShowAddUser] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newPlatformRole, setNewPlatformRole] = useState("USER");
+  const [newBizId, setNewBizId] = useState("");
+  const [newBizRole, setNewBizRole] = useState("VIEWER");
+
   if (users.isLoading) return <GlassSkeleton className="h-72" />;
   if (users.error) return <GlassErrorState title="God Mode tidak tersedia" description="Akses ditolak atau tidak ada koneksi." />;
 
@@ -40,6 +49,24 @@ export default function Page() {
     try {
       await patchRole(userId, newRole);
       toast.success("Platform role diperbarui.");
+      void qc.invalidateQueries({ queryKey: ["admin", "users"] });
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Gagal."); }
+    finally { setBusy(false); }
+  }
+
+  async function handleAddUser() {
+    if (!newName || !newEmail) { toast.error("Nama dan email wajib."); return; }
+    setBusy(true);
+    try {
+      const body: any = { name: newName, email: newEmail, platformRole: newPlatformRole };
+      if (newPassword) body.password = newPassword;
+      if (newBizId) { body.businessId = newBizId; body.businessRole = newBizRole; }
+      const res = await fetch("/api/admin/users", { method: "POST", credentials: "include", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error?.message || json?.message || "Gagal.");
+      toast.success(`User ${newEmail} berhasil dibuat.`);
+      setNewName(""); setNewEmail(""); setNewPassword(""); setNewPlatformRole("USER"); setNewBizId(""); setNewBizRole("VIEWER");
+      setShowAddUser(false);
       void qc.invalidateQueries({ queryKey: ["admin", "users"] });
     } catch (e) { toast.error(e instanceof Error ? e.message : "Gagal."); }
     finally { setBusy(false); }
@@ -77,10 +104,46 @@ export default function Page() {
   return (
     <div className="grid gap-6">
       <WorkspaceHeader eyebrow="God Mode" title="Admin Panel" description={`Akses platform level. Login sebagai: ${biz?.name ?? "—"}`} />
-      <div className="flex gap-2">
+      <div className="flex items-center gap-2">
         <button type="button" onClick={() => setTab("users")} className={`h-9 rounded-md px-4 text-sm font-medium ${tab === "users" ? "bg-foreground text-background" : "border border-border"}`}>Pengguna ({userList.length})</button>
         <button type="button" onClick={() => setTab("businesses")} className={`h-9 rounded-md px-4 text-sm font-medium ${tab === "businesses" ? "bg-foreground text-background" : "border border-border"}`}>Usaha ({bizList.length})</button>
+        <div className="flex-1" />
+        {tab === "users" && (
+          <button type="button" onClick={() => setShowAddUser((v) => !v)} className="h-9 rounded-md border border-border px-4 text-sm font-medium hover:bg-muted/20">
+            {showAddUser ? "Batal" : "+ Tambah User"}
+          </button>
+        )}
       </div>
+
+      {showAddUser && tab === "users" && (
+        <GlassPanel className="grid gap-4">
+          <h2 className="text-sm font-semibold">Tambah User Baru</h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="grid gap-1 text-xs">Nama Lengkap <GlassInput value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Nama lengkap" className="h-9" /></label>
+            <label className="grid gap-1 text-xs">Email <GlassInput type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="user@email.com" className="h-9" /></label>
+            <label className="grid gap-1 text-xs">Password (kosong = diacak) <GlassInput type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Min. 8 karakter" className="h-9" /></label>
+            <label className="grid gap-1 text-xs">Platform Role
+              <GlassDataSelect value={newPlatformRole} onChange={setNewPlatformRole} options={PLATFORM_ROLES.map((r) => ({ value: r, label: r }))} className="h-9" />
+            </label>
+            <label className="grid gap-1 text-xs">Langsung Tambah ke Usaha (opsional)
+              <GlassDataSelect value={newBizId} onChange={setNewBizId}
+                options={[{ value: "", label: "— Tidak —" }, ...bizList.map((b: any) => ({ value: b.id, label: b.name }))]}
+                className="h-9" />
+            </label>
+            {newBizId && (
+              <label className="grid gap-1 text-xs">Role di Usaha Tersebut
+                <GlassDataSelect value={newBizRole} onChange={setNewBizRole}
+                  options={["ADMIN","ACCOUNTANT","EDITOR","CASHIER","VIEWER"].map((r) => ({ value: r, label: r }))}
+                  className="h-9" />
+              </label>
+            )}
+          </div>
+          <button type="button" onClick={handleAddUser} disabled={busy || !newName || !newEmail}
+            className="h-10 w-fit rounded-md bg-foreground px-6 text-sm font-medium text-background disabled:opacity-40">
+            {busy ? "Memproses…" : "Buat User"}
+          </button>
+        </GlassPanel>
+      )}
       {tab === "users" ? (
         <GlassTable
           tableId="admin-users"
