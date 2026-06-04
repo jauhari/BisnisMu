@@ -52,18 +52,31 @@ function flattenAccounts(nodes: any[]): any[] {
 
 function ContactSearch({ onAdd }: { onAdd: (c: ContactTag) => void }) {
   const [q, setQ] = useState("");
-  const [showNew, setShowNew] = useState(false);
-  const [newName, setNewName] = useState("");
+  const [showNew,   setShowNew]   = useState(false);
+  const [showDrop,  setShowDrop]  = useState(false);
+  const [newName,   setNewName]   = useState("");
   const [newCategory, setNewCategory] = useState<"INDIVIDUAL" | "INSTANSI">("INDIVIDUAL");
-  const [newPic, setNewPic] = useState("");
-  const [newPhone, setNewPhone] = useState("");
+  const [newPic,    setNewPic]    = useState("");
+  const [newPhone,  setNewPhone]  = useState("");
   const ref = useRef<HTMLDivElement>(null);
   const qc = useQueryClient();
+
+  // Tutup dropdown saat klik di luar
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setShowDrop(false);
+        setShowNew(false);
+      }
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   const search = useQuery({
     queryKey: ["contacts-search", q],
     queryFn: () => apiRequest<{ data: Contact[] }>(`/api/contacts?q=${encodeURIComponent(q)}`),
-    enabled: q.length >= 1 || q === "",
+    enabled: q.length >= 1, // hanya fetch saat ada input
     staleTime: 10_000,
   });
 
@@ -96,7 +109,8 @@ function ContactSearch({ onAdd }: { onAdd: (c: ContactTag) => void }) {
       <div className="flex gap-2">
         <GlassInput
           value={q}
-          onChange={(e) => { setQ(e.target.value); setShowNew(false); }}
+          onChange={(e) => { setQ(e.target.value); setShowDrop(true); setShowNew(false); }}
+          onFocus={() => { if (q.length >= 1) setShowDrop(true); }}
           placeholder="Cari kontak (nama / HP)…"
           className="h-8 text-xs"
         />
@@ -111,13 +125,13 @@ function ContactSearch({ onAdd }: { onAdd: (c: ContactTag) => void }) {
       </div>
 
       {/* Hasil pencarian */}
-      {!showNew && contacts.length > 0 && (
+      {!showNew && showDrop && contacts.length > 0 && (
         <div className="absolute z-30 mt-1 w-full rounded-xl border border-border bg-background shadow-xl">
           {contacts.map((c) => (
             <button
               key={c.id}
               type="button"
-              onClick={() => { onAdd({ contactId: c.id, name: c.name, category: c.category, amount: "", notes: "" }); setQ(""); }}
+              onClick={() => { onAdd({ contactId: c.id, name: c.name, category: c.category, amount: "", notes: "" }); setQ(""); setShowDrop(false); }}
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-white/60 dark:hover:bg-white/8"
             >
               {c.category === "INSTANSI"
