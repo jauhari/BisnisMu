@@ -36,6 +36,9 @@ describe("RBAC permissions", () => {
     expect(() => requirePermissionForRoute(context("CASHIER"), "/api/sales/orders", "POST")).not.toThrow();
     expect(() => requirePermissionForRoute(context("CASHIER"), "/api/revenue/transactions", "POST")).not.toThrow();
     expect(() => requirePermissionForRoute(context("CASHIER"), "/api/tourism/visitor-transactions", "POST")).not.toThrow();
+    expect(() => requirePermissionForRoute(context("CASHIER"), "/api/reports/scan", "POST")).not.toThrow();
+    expect(() => requirePermissionForRoute(context("CASHIER"), "/api/accounting/chart-of-accounts", "GET")).not.toThrow();
+    expect(() => requirePermissionForRoute(context("CASHIER"), "/api/accounting/chart-of-accounts", "POST")).toThrow(/Forbidden/);
     expect(() => requirePermissionForRoute(context("CASHIER"), "/api/reports/profit-loss", "POST")).toThrow(/Forbidden/);
     expect(() => requirePermissionForRoute(context("CASHIER"), "/api/inventory/products", "POST")).toThrow(/Forbidden/);
   });

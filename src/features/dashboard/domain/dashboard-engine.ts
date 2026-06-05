@@ -2,6 +2,12 @@ import { DashboardDateRange, DashboardError, DashboardInput, DashboardOverview, 
 
 export class DashboardEngine {
   getDashboardOverview(range: DashboardDateRange, input: DashboardInput): DashboardOverview {
+    const activeSalesOrders = (input.salesOrders ?? []).filter((order) => this.inRange(range, order.businessId, order.saleDate) && order.status !== "VOID");
+    const activeCashTransactions = (input.cashTransactions ?? []).filter((tx) => tx.businessId === range.businessId && tx.status === "POSTED" && tx.transactionDate >= range.startsOn && tx.transactionDate <= range.endsOn);
+
+    const salesTrendItems = activeSalesOrders.map((order) => ({ date: order.saleDate, amount: order.totalAmount }));
+    const cashTrendItems = activeCashTransactions.map((tx) => ({ date: tx.transactionDate, amount: tx.type === "CASH_IN" ? tx.amount : -tx.amount }));
+
     return {
       businessId: range.businessId,
       startsOn: range.startsOn,
@@ -14,7 +20,9 @@ export class DashboardEngine {
       inventory: this.getInventoryAnalytics(range, input),
       float: this.getFloatAnalytics(range, input),
       customer: this.getCustomerAnalytics(range, input),
-      vendor: this.getVendorAnalytics(range, input)
+      vendor: this.getVendorAnalytics(range, input),
+      salesTrend: this.getTrendPoints(range.startsOn, range.endsOn, salesTrendItems),
+      cashTrend: this.getTrendPoints(range.startsOn, range.endsOn, cashTrendItems)
     };
   }
 
@@ -92,4 +100,103 @@ export class DashboardEngine {
   private asOf(range: DashboardDateRange): Date { return range.asOf ?? range.endsOn; }
   private inRange(range: DashboardDateRange, businessId: string, date: Date): boolean { if (businessId !== range.businessId) return false; if (date < range.startsOn || date > range.endsOn) return false; return true; }
   private sameUtcDate(a: Date, b: Date): boolean { return a.getUTCFullYear() === b.getUTCFullYear() && a.getUTCMonth() === b.getUTCMonth() && a.getUTCDate() === b.getUTCDate(); }
+
+  private getTrendPoints(startsOn: Date, endsOn: Date, items: { date: Date; amount: bigint }[]): { label: string; value: number }[] {
+    const daysDiff = Math.ceil((endsOn.getTime() - startsOn.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (daysDiff <= 8) {
+      const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      const points: { [key: string]: bigint } = {};
+      const currentDate = new Date(startsOn);
+      const labels: string[] = [];
+      
+      while (currentDate <= endsOn) {
+        const key = (currentDate.toISOString().split("T")[0] as string) || "";
+        points[key] = 0n;
+        const label = `${dayNames[currentDate.getUTCDay()]} ${String(currentDate.getUTCDate()).padStart(2, "0")}`;
+        labels.push(label);
+        currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+      }
+      
+      for (const item of items) {
+        const key = (item.date.toISOString().split("T")[0] as string) || "";
+        if (points[key] !== undefined) points[key] += item.amount;
+      }
+      
+      return Object.keys(points).map((key, i) => ({
+        label: labels[i] || key,
+        value: Number(points[key])
+      }));
+    } else if (daysDiff <= 31) {
+      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const points: { [key: string]: bigint } = {};
+      const currentDate = new Date(startsOn);
+      const labels: string[] = [];
+      
+      while (currentDate <= endsOn) {
+        const key = (currentDate.toISOString().split("T")[0] as string) || "";
+        points[key] = 0n;
+        const label = `${String(currentDate.getUTCDate()).padStart(2, "0")} ${months[currentDate.getUTCMonth()]}`;
+        labels.push(label);
+        currentDate.setUTCDate(currentDate.getUTCDate() + 1);
+      }
+      
+      for (const item of items) {
+        const key = (item.date.toISOString().split("T")[0] as string) || "";
+        if (points[key] !== undefined) points[key] += item.amount;
+      }
+      
+      return Object.keys(points).map((key, i) => ({
+        label: labels[i] || key,
+        value: Number(points[key])
+      }));
+    } else if (daysDiff <= 186) {
+      const points: { label: string; value: number }[] = [];
+      const currentDate = new Date(startsOn);
+      let weekNum = 1;
+      
+      while (currentDate <= endsOn) {
+        const weekStart = new Date(currentDate);
+        const weekEnd = new Date(currentDate);
+        weekEnd.setUTCDate(weekEnd.getUTCDate() + 6);
+        if (weekEnd > endsOn) weekEnd.setTime(endsOn.getTime());
+        
+        const amount = items
+          .filter(item => item.date >= weekStart && item.date <= weekEnd)
+          .reduce((sum, item) => sum + item.amount, 0n);
+        
+        const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        const label = `W${weekNum} (${weekStart.getUTCDate()} ${months[weekStart.getUTCMonth()]})`;
+        points.push({ label, value: Number(amount) });
+        
+        currentDate.setUTCDate(currentDate.getUTCDate() + 7);
+        weekNum++;
+      }
+      return points;
+    } else {
+      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const points: { [key: string]: bigint } = {};
+      const currentDate = new Date(startsOn);
+      const labels: string[] = [];
+      
+      while (currentDate <= endsOn) {
+        const key = `${currentDate.getUTCFullYear()}-${String(currentDate.getUTCMonth() + 1).padStart(2, "0")}`;
+        points[key] = 0n;
+        const label = `${months[currentDate.getUTCMonth()]} ${currentDate.getUTCFullYear()}`;
+        if (!labels.includes(label)) labels.push(label);
+        currentDate.setUTCMonth(currentDate.getUTCMonth() + 1);
+        currentDate.setUTCDate(1);
+      }
+      
+      for (const item of items) {
+        const key = `${item.date.getUTCFullYear()}-${String(item.date.getUTCMonth() + 1).padStart(2, "0")}`;
+        if (points[key] !== undefined) points[key] += item.amount;
+      }
+      
+      return Object.keys(points).map((key, i) => ({
+        label: labels[i] || key,
+        value: Number(points[key])
+      }));
+    }
+  }
 }

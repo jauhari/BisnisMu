@@ -268,7 +268,7 @@ export default function Page() {
   return (
     <div className="grid gap-6">
       <WorkspaceHeader
-        eyebrow="Penjualan"
+        eyebrow="Laporan Harian"
         title="Scan Laporan Harian"
         description="Foto form laporan harian → OCR otomatis → review → simpan ke jurnal."
       />

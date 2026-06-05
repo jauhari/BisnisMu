@@ -2,7 +2,24 @@
 
 All notable changes to BisnisMu are documented in this file.
 
+## [0.6.0] - 2026-06-05
+
+### Added — Brand Identity & Layout Polishing
+- **Favicons & Logo**: Generated 3D glassmorphic transparent icon assets (`favicon.ico`, `icon.png`, `apple-icon.png`, `public/logo.png`) and integrated the new logo into the sidebar layout.
+- **Header Alignment**: Aligned sidebar logo header height to `h-16` to match the top header exactly.
+- **Custom Scrollbar**: Implemented modern, thin (5px), rounded, and floating scrollbars globally in `globals.css` to replace default browser scrollbars.
+
+### Added — Dashboard Date Filters & Real-time Trends
+- **Range Filters**: Implemented rolling range selectors (1 Minggu, 1 Bulan, 3 Bulan, 6 Bulan, 1 Tahun) on the main dashboard page.
+- **Dynamic Grouping Trend**: Connected charts to actual sales and cash flow trend data calculated from database records in `dashboard-engine.ts`, with auto-grouping by day, week, or month.
+
+### Changed — Cashier RBAC Permissions
+- **Scan Access**: Allowed Cashiers to use the daily scan reports tool by mapping `/api/reports/scan` (POST) to `sales:write`.
+- **COA Read-only Access**: Configured GET requests on `/api/accounting/chart-of-accounts` to require `dashboard:read` (allowing Cashiers to list accounts in dropdowns) while keeping mutations (`POST, PUT, DELETE, PATCH`) under `coa:write`.
+- **RBAC Tests**: Added assertions verifying Cashier's new scan and COA list permissions in `rbac-permissions.test.ts`.
+
 ## [0.5.0] - 2026-06-03
+
 
 ### Added — UI Compliance (Glass Design System)
 - `GlassDataSelect` — dropdown data-driven baru, tanpa native `<select>`. Dipakai di semua 20+ page

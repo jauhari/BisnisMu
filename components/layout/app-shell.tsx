@@ -117,6 +117,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     ? currentUser.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()
     : "?";
 
+  const isGodMode = ["SUPER_ADMIN", "SUPPORT_AGENT", "DEVELOPER"].includes((currentUser?.platformRole ?? "USER") as any);
+
   // Muat preferensi collapse dari sesi sebelumnya.
   useEffect(() => {
     try { setCollapsed(localStorage.getItem(COLLAPSE_KEY) === "1"); } catch { /* ignore */ }
@@ -141,10 +143,12 @@ export function AppShell({ children }: { children: ReactNode }) {
     <aside className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-border/70 bg-white/60 backdrop-blur-glass transition-[transform,width] duration-200 dark:bg-white/6 lg:z-0 lg:translate-x-0 ${railWidth} ${
       sidebarOpen ? "translate-x-0" : "-translate-x-full"
     } lg:translate-x-0`}>
-      <div className={`flex items-center gap-3 border-b border-border/60 py-4 ${collapsed ? "lg:justify-center lg:px-0 px-5" : "px-5"}`}>
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent text-background shadow-sm">
-          <span className="text-base font-bold">A</span>
-        </span>
+      <div className={`flex h-16 items-center gap-3 border-b border-border/60 ${collapsed ? "lg:justify-center lg:px-0 px-5" : "px-5"}`}>
+        <img
+          src="/logo.png"
+          alt="Logo BisnisMu"
+          className="h-9 w-9 shrink-0 object-contain"
+        />
         <div className={`leading-tight ${collapsed ? "lg:hidden" : ""}`}>
           <p className="text-base font-semibold">BisnisMu</p>
           <p className="text-[11px] text-muted">Akuntansi UMKM</p>
@@ -154,6 +158,19 @@ export function AppShell({ children }: { children: ReactNode }) {
       <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4">
         <SidebarNav collapsed={collapsed} onNavigate={() => setSidebarOpen(false)} />
       </div>
+
+      {/* Tautan Changelog yang tidak terlalu mencolok (khusus God Mode) */}
+      {isGodMode && (
+        <div className={`p-2 border-t border-border/40 text-center ${collapsed ? "px-1" : "px-4"}`}>
+          <Link
+            href="/admin/changelog"
+            className={`block rounded-lg py-1.5 text-[11px] text-muted/50 hover:text-muted hover:bg-white/50 dark:hover:bg-white/5 transition duration-150 truncate`}
+            title="Lihat riwayat perubahan"
+          >
+            {collapsed ? "v0.5.0" : "Changelog v0.5.0"}
+          </Link>
+        </div>
+      )}
 
       {/* Tombol Collapse/Expand (hanya desktop) */}
       <div className="hidden border-t border-border/60 p-2 lg:block">

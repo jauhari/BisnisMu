@@ -1,8 +1,8 @@
 # CLAUDE.md — BisnisMu Development Guide
 
 **Project:** BisnisMu — Aplikasi Akuntansi untuk UMKM & BUMDes  
-**Last Updated:** 2026-06-03  
-**Version:** 0.5.0 + Development Guidelines  
+**Last Updated:** 2026-06-05  
+**Version:** 0.6.0 + Development Guidelines  
 
 ---
 

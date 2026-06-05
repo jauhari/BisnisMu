@@ -1,7 +1,7 @@
 # BisnisMu — Handoff Document
 
-Date: 2026-05-31  
-Session scope: Full persistence implementation, mock removal, bug fixes, concurrency hardening, production readiness audit.
+Date: 2026-06-05  
+Session scope: Favicon & app icon creation, sidebar alignment, custom premium scrollbars, dashboard dynamic date range filters & real-time trends, and Cashier RBAC adjustments.
 
 ---
 
@@ -79,6 +79,13 @@ Created 11 new route files exposing existing service methods:
 ### Phase 9: Concurrency Hardening
 1. **Atomic Inventory Operations** — replaced read-compute-write with `INSERT ON CONFLICT DO UPDATE` SQL that atomically increments/decrements quantity and recalculates average cost
 2. **Journal Number Race Condition** — implemented `pg_advisory_xact_lock` + retry loop (up to 10 attempts with exponential backoff) to serialize journal number generation per business
+
+### Phase 10: Favicons, Dashboard Upgrades & Cashier RBAC
+1. **App Favicons & Logo Creation**: Generated a 3D glassmorphic app icon and processed it using Python to create high-quality, transparent assets (`favicon.ico`, `icon.png`, `apple-icon.png`, `public/logo.png`).
+2. **Layout & Scrollbar Polishing**: Aligned the sidebar header height with the top header (`h-16`) to fix visual horizontal offset, and implemented modern thin scrollbars (5px width, rounded, floating, transparent track) globally in `globals.css`.
+3. **Dynamic Dashboard Date Ranges**: Replaced static monthly ranges on the dashboard with rolling range options (1 Week, 1 Month, 3 Months, 6 Months, 1 Year).
+4. **Real-time Trend Engine**: Connected "Sales trend" and "Cash movement" charts to actual calculated data points instead of KPI mock arrays, implementing auto-grouping by day, week, or month at the backend level.
+5. **Cashier Scan Role Rights**: Configured permissions on `/api/reports/scan` (POST) to map to `sales:write`, and `GET /api/accounting/chart-of-accounts` to map to `dashboard:read`, enabling the Cashier role to use the Scan Laporan Harian workflow. Added unit test coverages for these rules in `tests/presentation/rbac-permissions.test.ts`.
 
 ---
 
