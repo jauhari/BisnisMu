@@ -3,9 +3,10 @@
 import type { FormHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
 import { forwardRef, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { CalendarDays, Check, ChevronDown, Clock3, Search } from "lucide-react";
+import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, Search } from "lucide-react";
 import { cn } from "@/presentation/theme/cn";
 import { glassTokens } from "@/presentation/theme/tokens";
+import { formatDateLong } from "@/presentation/format/number";
 import { GlassCalendar } from "./glass-calendar";
 
 // Hook: hitung posisi dropdown berdasarkan trigger element
@@ -107,7 +108,7 @@ export function GlassDatePicker({ value, onChange, placeholder = "Pilih tanggal"
     <div ref={(el) => { (rootRef as any).current = el; triggerRef.current = el; }} className="relative">
       <div onClick={() => setOpen((v) => !v)}>
         <Trigger {...triggerProps} open={open} icon={<CalendarDays className="h-4 w-4" />}>
-          {value || <span className="text-muted">{placeholder}</span>}
+          {value ? formatDateLong(value) : <span className="text-muted">{placeholder}</span>}
         </Trigger>
       </div>
       {open && rect && (
@@ -126,8 +127,133 @@ export function GlassDateRangePicker({ children, className }: { children?: React
   const [end, setEnd] = useState<Date | undefined>();
   const rootRef = useDismissible(open, setOpen);
   const triggerProps = className !== undefined ? { className } : {};
-  const label = start && end ? `${start.toISOString().slice(0,10)} - ${end.toISOString().slice(0,10)}` : children;
+  const label = start && end ? `${formatDateLong(start)} - ${formatDateLong(end)}` : children;
   return <div ref={rootRef} className="relative"><div onClick={() => setOpen((v) => !v)}><Trigger {...triggerProps} open={open} icon={<CalendarDays className="h-4 w-4" />}>{label}</Trigger></div>{open ? <div className="absolute z-30 mt-2 grid gap-2"><GlassCalendar {...(start ? { value: start } : {})} onSelect={(date) => setStart(date)} /><GlassCalendar {...(end ? { value: end } : {})} onSelect={(date) => { setEnd(date); if (start) setOpen(false); }} /></div> : null}</div>;
+}
+
+// ─── Range Calendar (satu kalender, pilih tanggal awal lalu akhir) ──────────────
+const RANGE_MONTH_NAMES = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+
+function ymdUTC(d: Date): string {
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+}
+
+function rangeMonthMatrix(year: number, month: number): Array<Date | null> {
+  const startDay = new Date(Date.UTC(year, month, 1)).getUTCDay();
+  const daysInMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  const cells: Array<Date | null> = [];
+  for (let i = 0; i < startDay; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(new Date(Date.UTC(year, month, d)));
+  while (cells.length % 7 !== 0) cells.push(null);
+  return cells;
+}
+
+function RangeCalendar({ start, end, onPick }: { start?: string; end?: string; onPick: (d: string) => void }) {
+  const init = start ? new Date(start + "T00:00:00Z") : new Date();
+  const [cursor, setCursor] = useState(() => ({ year: init.getUTCFullYear(), month: init.getUTCMonth() }));
+  const cells = useMemo(() => rangeMonthMatrix(cursor.year, cursor.month), [cursor]);
+
+  function prev() { setCursor((c) => (c.month === 0 ? { year: c.year - 1, month: 11 } : { year: c.year, month: c.month - 1 })); }
+  function next() { setCursor((c) => (c.month === 11 ? { year: c.year + 1, month: 0 } : { year: c.year, month: c.month + 1 })); }
+
+  return (
+    <div style={{ minWidth: 280 }}>
+      <div className="mb-2 flex items-center justify-between">
+        <button type="button" onClick={prev} className="rounded p-1 hover:bg-black/5 dark:hover:bg-white/10"><ChevronLeft className="h-4 w-4" /></button>
+        <span className="text-sm font-semibold">{RANGE_MONTH_NAMES[cursor.month]} {cursor.year}</span>
+        <button type="button" onClick={next} className="rounded p-1 hover:bg-black/5 dark:hover:bg-white/10"><ChevronRight className="h-4 w-4" /></button>
+      </div>
+      <div className="mb-1 grid grid-cols-7 gap-1 text-center text-xs text-muted">
+        {["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"].map((d) => <div key={d}>{d}</div>)}
+      </div>
+      <div className="grid grid-cols-7 gap-1">
+        {cells.map((cell, i) => {
+          if (!cell) return <div key={i} className="h-9" />;
+          const ds = ymdUTC(cell);
+          const isStart = !!start && ds === start;
+          const isEnd = !!end && ds === end;
+          const inRange = !!start && !!end && ds > start && ds < end;
+          const endpoint = isStart || isEnd;
+          return (
+            <button
+              key={i}
+              type="button"
+              onClick={() => onPick(ds)}
+              className={cn(
+                "h-9 rounded-md text-sm transition",
+                endpoint ? "bg-accent text-white font-semibold" : inRange ? "bg-accent/15 text-foreground" : "hover:bg-black/5 dark:hover:bg-white/10",
+              )}
+            >
+              {cell.getUTCDate()}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Range picker terkontrol dalam SATU popover: klik tanggal awal lalu tanggal akhir.
+ * Nilai berupa string "YYYY-MM-DD". `onChange` dipanggil saat menekan "Terapkan".
+ */
+export function GlassDateRangeField({ start, end, onChange, placeholder = "Pilih rentang tanggal", className }: {
+  start?: string;
+  end?: string;
+  onChange?: (start: string, end: string) => void;
+  placeholder?: string;
+  className?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLDivElement | null>(null);
+  const portalRef = useRef<HTMLDivElement | null>(null);
+  const rootRef = useDismissible(open, setOpen, portalRef);
+  const rect = useDropdownRect(open, triggerRef);
+  const [draftStart, setDraftStart] = useState<string | undefined>(start);
+  const [draftEnd, setDraftEnd] = useState<string | undefined>(end);
+
+  useEffect(() => { if (open) { setDraftStart(start); setDraftEnd(end); } }, [open, start, end]);
+
+  function pick(dateStr: string) {
+    if (!draftStart || (draftStart && draftEnd)) { setDraftStart(dateStr); setDraftEnd(undefined); return; }
+    if (dateStr < draftStart) { setDraftStart(dateStr); return; }
+    setDraftEnd(dateStr);
+  }
+  function apply() { if (draftStart && draftEnd) { onChange?.(draftStart, draftEnd); setOpen(false); } }
+
+  const label = start && end
+    ? `${formatDateLong(start)} – ${formatDateLong(end)}`
+    : <span className="text-muted">{placeholder}</span>;
+  const triggerProps = className !== undefined ? { className } : {};
+
+  return (
+    <div ref={(el) => { (rootRef as any).current = el; triggerRef.current = el; }} className="relative">
+      <div onClick={() => setOpen((v) => !v)}>
+        <Trigger {...triggerProps} open={open} icon={<CalendarDays className="h-4 w-4" />}>{label}</Trigger>
+      </div>
+      {open && rect && (
+        <DropdownPortal rect={rect} minWidth={300} portalRef={portalRef}>
+          <div className="rounded-lg border border-border bg-white/95 p-3 shadow-xl backdrop-blur dark:bg-slate-950/95">
+            <RangeCalendar {...(draftStart ? { start: draftStart } : {})} {...(draftEnd ? { end: draftEnd } : {})} onPick={pick} />
+            <div className="mt-3 flex items-center justify-between gap-2 border-t border-border/60 pt-2">
+              <span className="text-xs text-muted">
+                {draftStart ? formatDateLong(draftStart) : "Tanggal awal"}
+                {draftEnd ? ` – ${formatDateLong(draftEnd)}` : draftStart ? " – pilih akhir" : ""}
+              </span>
+              <button
+                type="button"
+                disabled={!draftStart || !draftEnd}
+                onClick={apply}
+                className="h-8 shrink-0 rounded-md bg-foreground px-4 text-xs font-medium text-background disabled:opacity-40"
+              >
+                Terapkan
+              </button>
+            </div>
+          </div>
+        </DropdownPortal>
+      )}
+    </div>
+  );
 }
 export function GlassDateTimePicker({ value, onChange, placeholder = "Pilih tanggal & waktu", className }: {
   value?: string;
@@ -140,7 +266,7 @@ export function GlassDateTimePicker({ value, onChange, placeholder = "Pilih tang
   const [time, setTime] = useState(() => value ? value.slice(11, 16) : "09:00");
   const rootRef = useDismissible(open, setOpen);
   const triggerProps = className !== undefined ? { className } : {};
-  const label = pickedDate ? `${pickedDate.toISOString().slice(0, 10)} ${time}` : <span className="text-muted">{placeholder}</span>;
+  const label = pickedDate ? `${formatDateLong(pickedDate)} · ${time}` : <span className="text-muted">{placeholder}</span>;
   function handleApply() {
     if (pickedDate) {
       const y = pickedDate.getFullYear();
@@ -193,7 +319,7 @@ export function GlassTimePicker({ value, onChange, placeholder = "Pilih waktu", 
 }
 export function GlassFileUploader({ label = "Upload file" }: { label?: string }) { return <button type="button" className={cn(glassTokens.focus, glassTokens.interactive, "flex min-h-28 items-center justify-center rounded-lg border border-dashed border-border bg-white/50 px-4 text-sm text-muted dark:bg-white/8")}>{label}</button>; }
 
-export interface SelectOption { value: string; label: string }
+export interface SelectOption { value: string; label: string; code?: string; name?: string; groupLabel?: string; normalBalance?: string; subtype?: string | null }
 
 export function GlassDataSelect({ value, onChange, options, placeholder = "Pilih...", disabled, className }: {
   value: string;
@@ -218,24 +344,39 @@ export function GlassDataSelect({ value, onChange, options, placeholder = "Pilih
         onClick={() => !disabled && setOpen((v) => !v)}
         className={cn(glassTokens.focus, "flex h-11 w-full items-center justify-between rounded-md border border-border bg-white/60 px-3 text-sm dark:bg-white/8", !selected && "text-muted", disabled && "cursor-not-allowed opacity-50", className)}
       >
-        <span className="flex-1 truncate text-left">{selected?.label ?? placeholder}</span>
+        <span className="flex-1 truncate text-left">{selected ? (selected.name ?? selected.label) : placeholder}</span>
         <ChevronDown className={cn("ml-2 h-4 w-4 shrink-0 text-muted transition-transform", open && "rotate-180")} />
       </button>
       {open && !disabled && rect && (
         <DropdownPortal rect={rect} portalRef={portalRef}>
-          <div className="max-h-60 overflow-auto rounded-lg border border-border bg-white/90 py-1 shadow-lg backdrop-blur dark:bg-slate-950/90">
+          <div className="max-h-72 overflow-auto rounded-lg border border-border bg-white/95 p-1.5 shadow-xl shadow-slate-900/10 backdrop-blur dark:bg-slate-950/95">
             {options.length === 0 && <p className="px-3 py-2 text-sm text-muted">Tidak ada pilihan</p>}
-            {options.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => { onChange(opt.value); setOpen(false); }}
-                className={cn("flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-white/60 dark:hover:bg-white/10", opt.value === value && "font-medium text-accent")}
-              >
-                <Check className={cn("h-3.5 w-3.5 shrink-0", opt.value !== value && "invisible")} />
-                <span className="truncate">{opt.label}</span>
-              </button>
-            ))}
+            {options.map((opt) => {
+              const rich = Boolean(opt.code && opt.name);
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => { onChange(opt.value); setOpen(false); }}
+                  className={cn("group flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-left text-sm transition hover:bg-slate-950/5 dark:hover:bg-white/10", opt.value === value && "bg-accent/10 text-accent")}
+                >
+                  <span className={cn("grid h-5 w-5 shrink-0 place-items-center rounded-full", opt.value === value ? "bg-accent text-white" : "border border-border/70 text-transparent group-hover:border-accent/35")}>
+                    <Check className="h-3.5 w-3.5" />
+                  </span>
+                  {rich ? (
+                    <span className="flex min-w-0 flex-1 items-center justify-between gap-3">
+                      <span className="truncate font-medium text-foreground group-hover:text-foreground">{opt.name}</span>
+                      <span className="flex shrink-0 items-center gap-1.5 text-[11px] text-muted">
+                        {opt.groupLabel ? <span className="rounded bg-slate-950/5 px-1.5 py-0.5 dark:bg-white/10">{opt.groupLabel}</span> : null}
+                        {opt.normalBalance ? <span className="rounded bg-slate-950/5 px-1.5 py-0.5 dark:bg-white/10">{opt.normalBalance}</span> : null}
+                      </span>
+                    </span>
+                  ) : (
+                    <span className="truncate">{opt.label}</span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </DropdownPortal>
       )}

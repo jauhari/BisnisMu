@@ -2,6 +2,23 @@
 
 All notable changes to BisnisMu are documented in this file.
 
+## [0.9.0] - 2026-06-09
+
+### Added — Jurnal Draft, Reversal, dan Koreksi Standar Akuntansi
+- Jurnal manual kini mendukung alur `DRAFT` → `POSTED`; draft bisa diedit/dihapus, sedangkan jurnal posted terkunci.
+- Koreksi jurnal posted dilakukan lewat aksi `Reverse` yang membuat jurnal pembalik, lalu user bisa `Copy` untuk membuat jurnal koreksi baru.
+- Migration `20260609090000_add_journal_drafts` menambahkan status `DRAFT` pada `JournalStatus`.
+- API baru: `/api/accounting/journals/drafts`, `/api/accounting/journals/drafts/:journalId`, `/api/accounting/journals/:journalId/post`, dan `/api/accounting/journals/:journalId/reverse`.
+
+### Changed — UI/UX Jurnal dan Tabel Data
+- Form jurnal memakai date picker ringkas, amount auto-format ribuan Indonesia, serta warna debit/kredit yang lebih informatif.
+- Dropdown akun dibuat lebih bersih: nama akun sebagai fokus, metadata grup/saldo normal ringkas, tanpa kode akun yang terlalu dominan.
+- Tabel data mendapat zebra row, header lebih kuat, hover row, selected state, dan opsi `selectable={false}` untuk halaman yang tidak punya bulk action.
+
+### Changed — Bagan Akun (CoA) Lebih Hierarkis
+- Halaman CoA kini menampilkan struktur akun sebagai tree dengan indent level, status `Header`/`Posting`, badge grup, dan kode akun sebagai metadata kanan.
+- Form CoA dilokalkan ke Bahasa Indonesia dan mendukung pembuatan akun header maupun akun posting.
+- Kode akun dibuat otomatis berdasarkan grup, induk akun, dan nomor terakhir yang sudah ada; saldo normal ditampilkan sebagai informasi read-only.
 ## [0.8.0] - 2026-06-09
 
 ### Added — Multi-Unit Organization (Hierarki Organisasi → Unit Usaha)

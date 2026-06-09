@@ -8,6 +8,7 @@ import { GlassCard } from "../glass/glass-primitives";
 import { GlassInput } from "@/components/forms/glass-form";
 import { loadTableLayout, saveTableLayout } from "@/presentation/state/table-layout";
 import { formatNumber } from "@/presentation/format/number";
+import { cn } from "@/presentation/theme/cn";
 
 export interface GlassTableColumn<T> { key: keyof T | string; header: string; render?: (row: T) => ReactNode; sticky?: boolean; }
 
@@ -28,7 +29,7 @@ function buildColumn<T extends object>(column: GlassTableColumn<T>): ColumnDef<T
   return {
     id: String(column.key),
     accessorFn: (row) => (row as Record<string, unknown>)[String(column.key)],
-    header: () => <div className="flex items-center gap-2"><GripVertical className="h-3.5 w-3.5 text-muted" />{column.header}</div>,
+    header: () => <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide"><GripVertical className="h-3.5 w-3.5 text-muted/70" />{column.header}</div>,
     size: 180,
     minSize: 120,
     cell: ({ row }) => <div className="tabular-nums">{column.render ? column.render(row.original) : formatCell(String(column.key), (row.original as Record<string, unknown>)[String(column.key)])}</div>
@@ -86,7 +87,7 @@ function GlassCheckbox({ checked, onChange, 'aria-label': ariaLabel, indetermina
   );
 }
 
-export function GlassTable<T extends object>({ columns, rows, empty = "No data", tableId = "default-table" }: { columns: GlassTableColumn<T>[]; rows: T[]; empty?: string; tableId?: string }) {
+export function GlassTable<T extends object>({ columns, rows, empty = "No data", tableId = "default-table", selectable = true }: { columns: GlassTableColumn<T>[]; rows: T[]; empty?: string; tableId?: string; selectable?: boolean }) {
   const columnIds = columns.map((column) => String(column.key));
   const [sorting, setSorting] = useState<SortingState>([]);
   const [search, setSearch] = useState("");
@@ -186,8 +187,8 @@ export function GlassTable<T extends object>({ columns, rows, empty = "No data",
   const orderedColumns = table.getAllLeafColumns();
   const menuBtn = "flex h-9 items-center gap-2 rounded-lg border border-border bg-white/60 px-3 text-sm font-medium transition hover:bg-white/80 dark:bg-white/8 dark:hover:bg-white/12";
 
-  return <GlassCard className="overflow-hidden p-0">
-    <div className="flex flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-center">
+  return <GlassCard className="overflow-hidden p-0 shadow-xl shadow-slate-900/5">
+    <div className="flex flex-col gap-3 border-b border-border/70 bg-white/35 px-4 py-3 backdrop-blur sm:flex-row sm:items-center dark:bg-white/5">
       <div className="flex flex-1 items-center gap-2 rounded-lg border border-border bg-white/60 px-3 dark:bg-white/8"><Search className="h-4 w-4 text-muted" /><GlassInput value={search} onChange={(event) => { setSearch(event.target.value); setVirtualStart(0); setActiveCell({ row: 0, col: 0 }); }} placeholder="Cari…" className="h-9 w-full border-0 bg-transparent shadow-none backdrop-blur-none" /></div>
       <div className="flex items-center gap-2">
         {selectedCount > 0 ? <span className="rounded-lg bg-accent/12 px-2.5 py-1 text-xs font-medium text-accent">{selectedCount} dipilih</span> : null}
@@ -225,14 +226,14 @@ export function GlassTable<T extends object>({ columns, rows, empty = "No data",
       </div>
     </div>
     {menu ? <div className="fixed inset-0 z-20" onClick={() => setMenu(null)} aria-hidden /> : null}
-    <div className="max-h-[640px] overflow-auto" onScroll={onScroll}>
-      <table className="w-full border-separate border-spacing-0 text-sm" role="grid" aria-rowcount={totalRows} aria-colcount={visibleColumns.length + 1}>
-        <thead className="sticky top-0 z-10 bg-white/85 backdrop-blur dark:bg-surface/90">{table.getHeaderGroups().map((headerGroup) => <tr key={headerGroup.id}><th className="w-12 sticky left-0 z-20 border-b border-border bg-white/85 px-3 py-3 dark:bg-surface/90"><GlassCheckbox aria-label="Select all visible rows" checked={table.getIsAllPageRowsSelected()} onChange={table.getToggleAllPageRowsSelectedHandler()} /></th>{headerGroup.headers.map((header, index) => <th key={header.id} draggable onDragStart={() => onDragStart(header.id)} onDragOver={onDragOver} onDrop={() => onDrop(header.id)} style={{ width: header.getSize() }} className={index === 0 ? "sticky left-12 z-10 border-b border-border bg-white/85 px-4 py-3 text-left font-medium text-muted dark:bg-surface/90" : "relative border-b border-border px-4 py-3 text-left font-medium text-muted"}><button type="button" onClick={header.column.getToggleSortingHandler()?.bind(header.column)} className="w-full cursor-grab text-left active:cursor-grabbing">{header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}</button><div onMouseDown={header.getResizeHandler()} onTouchStart={header.getResizeHandler()} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-border/60" /></th>)}</tr>)}</thead>
+    <div className="max-h-[640px] overflow-auto bg-white/30 dark:bg-white/3" onScroll={onScroll}>
+      <table className="w-full border-separate border-spacing-0 text-sm" role="grid" aria-rowcount={totalRows} aria-colcount={visibleColumns.length + (selectable ? 1 : 0)}>
+        <thead className="sticky top-0 z-10 border-b border-border bg-slate-50/95 shadow-[0_1px_0_hsl(var(--border))] backdrop-blur dark:bg-slate-950/95">{table.getHeaderGroups().map((headerGroup) => <tr key={headerGroup.id}>{selectable ? <th className="sticky left-0 z-20 w-12 border-b border-r border-border/80 bg-slate-50/95 px-3 py-3 dark:bg-slate-950/95"><GlassCheckbox aria-label="Select all visible rows" checked={table.getIsAllPageRowsSelected()} onChange={table.getToggleAllPageRowsSelectedHandler()} /></th> : null}{headerGroup.headers.map((header, index) => <th key={header.id} draggable onDragStart={() => onDragStart(header.id)} onDragOver={onDragOver} onDrop={() => onDrop(header.id)} style={{ width: header.getSize() }} className={index === 0 && selectable ? "sticky left-12 z-10 border-b border-r border-border/80 bg-slate-50/95 px-4 py-3 text-left text-muted dark:bg-slate-950/95" : "relative border-b border-r border-border/80 bg-slate-50/95 px-4 py-3 text-left text-muted last:border-r-0 dark:bg-slate-950/95"}><button type="button" onClick={header.column.getToggleSortingHandler()?.bind(header.column)} className="w-full cursor-grab text-left active:cursor-grabbing">{header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}</button><div onMouseDown={header.getResizeHandler()} onTouchStart={header.getResizeHandler()} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-border/60 opacity-50 transition hover:opacity-100" /></th>)}</tr>)}</thead>
         <tbody>
-          {table.getRowModel().rows.length === 0 ? <tr><td colSpan={columns.length + 1} className="px-4 py-12 text-center text-muted">{empty}</td></tr> : <>
-            {topSpacer > 0 ? <tr><td colSpan={columns.length + 1} style={{ height: topSpacer }} /></tr> : null}
-            {table.getRowModel().rows.map((row, rowIndex) => <tr key={row.id} className="hover:bg-white/50 dark:hover:bg-white/5"><td className="w-12 sticky left-0 z-10 border-b border-border/70 bg-white/85 px-3 py-3 dark:bg-surface/90"><GlassCheckbox aria-label={`Select row ${rowIndex + 1}`} checked={row.getIsSelected()} onChange={row.getToggleSelectedHandler()} /></td>{row.getVisibleCells().map((cell, colIndex) => <td key={cell.id} tabIndex={activeCell.row === rowIndex && activeCell.col === colIndex ? 0 : -1} onFocus={() => setActiveCell({ row: rowIndex, col: colIndex })} onKeyDown={(event) => onCellKeyDown(event, rowIndex, colIndex)} className={indexCellClass(colIndex)}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>)}
-            {bottomSpacer > 0 ? <tr><td colSpan={columns.length + 1} style={{ height: bottomSpacer }} /></tr> : null}
+          {table.getRowModel().rows.length === 0 ? <tr><td colSpan={columns.length + (selectable ? 1 : 0)} className="px-4 py-12 text-center text-muted">{empty}</td></tr> : <>
+            {topSpacer > 0 ? <tr><td colSpan={columns.length + (selectable ? 1 : 0)} style={{ height: topSpacer }} /></tr> : null}
+            {table.getRowModel().rows.map((row, rowIndex) => <tr key={row.id} className={cn("group transition-colors", rowIndex % 2 === 0 ? "bg-white/55 dark:bg-white/[0.035]" : "bg-slate-50/70 dark:bg-white/[0.02]", row.getIsSelected() ? "bg-accent/10 hover:bg-accent/14" : "hover:bg-accent/7 dark:hover:bg-accent/10")}>{selectable ? <td className={cn("sticky left-0 z-10 w-12 border-b border-r border-border/60 px-3 py-3 transition-colors", rowIndex % 2 === 0 ? "bg-white/90 dark:bg-slate-950" : "bg-slate-50/95 dark:bg-slate-900", row.getIsSelected() ? "bg-accent/10" : "group-hover:bg-accent/7 dark:group-hover:bg-accent/10")}><GlassCheckbox aria-label={`Select row ${rowIndex + 1}`} checked={row.getIsSelected()} onChange={row.getToggleSelectedHandler()} /></td> : null}{row.getVisibleCells().map((cell, colIndex) => <td key={cell.id} tabIndex={activeCell.row === rowIndex && activeCell.col === colIndex ? 0 : -1} onFocus={() => setActiveCell({ row: rowIndex, col: colIndex })} onKeyDown={(event) => onCellKeyDown(event, rowIndex, colIndex)} className={indexCellClass(colIndex, selectable)}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>)}
+            {bottomSpacer > 0 ? <tr><td colSpan={columns.length + (selectable ? 1 : 0)} style={{ height: bottomSpacer }} /></tr> : null}
           </>}
         </tbody>
       </table>
@@ -240,6 +241,6 @@ export function GlassTable<T extends object>({ columns, rows, empty = "No data",
   </GlassCard>;
 }
 
-function indexCellClass(index: number): string {
-  return index === 0 ? "sticky left-12 z-10 border-b border-border/70 bg-white/85 px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-ring dark:bg-surface/90" : "border-b border-border/70 px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-ring";
+function indexCellClass(index: number, selectable: boolean): string {
+  return index === 0 && selectable ? "sticky left-12 z-10 border-b border-r border-border/60 bg-inherit px-4 py-3 outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring" : "border-b border-r border-border/60 px-4 py-3 outline-none transition-colors last:border-r-0 focus-visible:ring-2 focus-visible:ring-ring";
 }
