@@ -5,7 +5,8 @@ import { useEffect, useRef, useState } from "react";
 import type { PresetKey } from "@/presentation/query/report-hooks";
 import { FileDown } from "lucide-react";
 import { GlassPanel } from "../glass/glass-primitives";
-import { GlassDatePicker } from "@/components/forms/glass-form";
+import { GlassDateRangeField } from "@/components/forms/glass-form";
+import { formatDateLong } from "@/presentation/format/number";
 
 interface ReportRange {
   startsOn?: Date;
@@ -125,28 +126,16 @@ export function ReportWorkspace({ title, children, onExportPdf, onExportExcel, .
 }
 
 export function ReportFilterBar({ title, startsOn, endsOn, onStartsOnChange, onEndsOnChange, onExportPdf, onExportExcel, activePreset = "month", onPresetChange }: { title: string } & ReportRange & ExportActions) {
-  // Buffer untuk custom mode — hanya apply ke parent saat kedua tanggal sudah diisi
-  const [customStart, setCustomStart] = useState(toDateInput(startsOn));
-  const [customEnd,   setCustomEnd]   = useState(toDateInput(endsOn));
-
   function selectPreset(key: PresetKey) {
     onPresetChange?.(key);
-    if (key === "custom") {
-      // Reset buffer ke nilai aktif saat ini
-      setCustomStart(toDateInput(startsOn));
-      setCustomEnd(toDateInput(endsOn));
-      return;
-    }
+    if (key === "custom") return;
     const range = computePreset(key);
     if (!range) return;
     onStartsOnChange?.(range.startsOn);
     onEndsOnChange?.(range.endsOn);
   }
 
-  function applyCustom(start: string, end: string) {
-    setCustomStart(start);
-    setCustomEnd(end);
-    // Baru apply ke parent kalau KEDUA tanggal sudah terisi
+  function applyCustomRange(start: string, end: string) {
     if (start && end && start <= end) {
       onStartsOnChange?.(new Date(start + "T00:00:00"));
       onEndsOnChange?.(new Date(end + "T23:59:59"));
@@ -154,54 +143,57 @@ export function ReportFilterBar({ title, startsOn, endsOn, onStartsOnChange, onE
   }
 
   return (
-    <GlassPanel className="relative z-20 grid gap-3">
+    <GlassPanel className="relative z-20 grid gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div><p className="text-sm text-muted">Laporan</p><h1 className="text-2xl font-semibold">{title}</h1></div>
         <ExportDropdown onExportPdf={onExportPdf} onExportExcel={onExportExcel} />
       </div>
 
-      {/* Preset period buttons */}
-      <div className="flex flex-wrap items-center gap-2">
-        {PRESETS.map((p) => (
-          <button
-            key={p.key}
-            type="button"
-            onClick={() => selectPreset(p.key)}
-            className={`h-8 rounded-lg px-3 text-sm transition ${
-              activePreset === p.key
-                ? "bg-accent text-white font-medium"
-                : "border border-border text-muted hover:border-accent/60 hover:text-foreground"
-            }`}
-          >
-            {p.label}
-          </button>
-        ))}
+      {/* Baris filter: preset + (range picker saat custom / info periode) */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {PRESETS.map((p) => (
+            <button
+              key={p.key}
+              type="button"
+              onClick={() => selectPreset(p.key)}
+              className={`h-8 rounded-lg px-3 text-sm transition ${
+                activePreset === p.key
+                  ? "bg-accent text-white font-medium shadow-sm"
+                  : "border border-border text-muted hover:border-accent/60 hover:text-foreground"
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
 
-        {/* Custom date pickers — hanya tampil saat Custom dipilih */}
-        {activePreset === "custom" && onStartsOnChange && onEndsOnChange && (
-          <div className="flex items-center gap-2 rounded-lg border border-accent/40 bg-accent/5 px-3 py-1.5">
-            <span className="text-xs text-muted">Dari</span>
-            <GlassDatePicker
-              value={customStart}
-              onChange={(v) => applyCustom(v, customEnd)}
-              className="h-8"
-            />
-            <span className="text-xs text-muted">s/d</span>
-            <GlassDatePicker
-              value={customEnd}
-              onChange={(v) => applyCustom(customStart, v)}
-              className="h-8"
-            />
-          </div>
+        {activePreset === "custom" && onStartsOnChange && onEndsOnChange ? (
+          <GlassDateRangeField
+            start={toDateInput(startsOn)}
+            end={toDateInput(endsOn)}
+            onChange={applyCustomRange}
+            placeholder="Pilih rentang tanggal"
+            className="h-9 w-full sm:w-[340px]"
+          />
+        ) : (
+          <span className="text-sm text-muted">
+            Periode aktif:{" "}
+            <span className="font-medium text-foreground">
+              {startsOn ? formatDateLong(startsOn) : "—"} – {endsOn ? formatDateLong(endsOn) : "—"}
+            </span>
+          </span>
         )}
       </div>
 
-      {/* Info periode aktif */}
-      <p className="text-xs text-muted">
-        Periode: <span className="font-medium text-foreground">
-          {toDateInput(startsOn)} → {toDateInput(endsOn)}
-        </span>
-      </p>
+      {activePreset === "custom" && (startsOn || endsOn) && (
+        <p className="text-xs text-muted">
+          Periode dipilih:{" "}
+          <span className="font-medium text-foreground">
+            {startsOn ? formatDateLong(startsOn) : "—"} – {endsOn ? formatDateLong(endsOn) : "—"}
+          </span>
+        </p>
+      )}
     </GlassPanel>
   );
 }

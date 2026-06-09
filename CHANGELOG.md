@@ -14,6 +14,7 @@ All notable changes to BisnisMu are documented in this file.
 - Form jurnal memakai date picker ringkas, amount auto-format ribuan Indonesia, serta warna debit/kredit yang lebih informatif.
 - Dropdown akun dibuat lebih bersih: nama akun sebagai fokus, metadata grup/saldo normal ringkas, tanpa kode akun yang terlalu dominan.
 - Tabel data mendapat zebra row, header lebih kuat, hover row, selected state, dan opsi `selectable={false}` untuk halaman yang tidak punya bulk action.
+- Date input pembelian dan filter laporan memakai glass date/date-range picker, dengan format tanggal Indonesia konsisten.
 
 ### Changed — Bagan Akun (CoA) Lebih Hierarkis
 - Halaman CoA kini menampilkan struktur akun sebagai tree dengan indent level, status `Header`/`Posting`, badge grup, dan kode akun sebagai metadata kanan.

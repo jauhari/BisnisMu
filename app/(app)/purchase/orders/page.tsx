@@ -7,7 +7,7 @@ import { GlassTable } from "@/components/tables/glass-table";
 import { GlassPanel } from "@/components/glass/glass-primitives";
 import { usePostMutation, useListQuery } from "@/presentation/query/dashboard-hooks";
 import { GlassErrorState, GlassSkeleton } from "@/components/feedback/glass-feedback";
-import { GlassDataSelect, GlassInput } from "@/components/forms/glass-form";
+import { GlassDataSelect, GlassDatePicker, GlassInput } from "@/components/forms/glass-form";
 
 interface Item { productId: string; quantity: string; unitCost: string }
 function flattenAccounts(nodes: any[]): any[] { return nodes.flatMap((n) => [n, ...flattenAccounts(n.children ?? [])]); }
@@ -64,7 +64,7 @@ export default function Page() {
               </label>
               <label className="grid gap-1">
                 <span className="text-xs text-muted">Order date</span>
-                <GlassInput value={orderDate} onChange={(e) => setOrderDate(e.target.value)} className="h-10" />
+                <GlassDatePicker value={orderDate} onChange={setOrderDate} className="h-10" />
               </label>
               <label className="grid gap-1">
                 <span className="text-xs text-muted">GRNI account (liability)</span>
