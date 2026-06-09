@@ -1,5 +1,30 @@
 # BisnisMu — Handoff Document
 
+Date: 2026-06-09  
+Session scope: Reset Data God Mode (per bisnis, granular + dry-run), perbaikan timeout transaksi Scan Laporan Harian, dan perbaikan tampilan halaman changelog.
+
+---
+
+## Phase 12: God Mode Reset Data, Scan Timeout Fix, Changelog UI (v0.7.0 — 2026-06-09)
+
+### God Mode — Reset Data Bisnis
+- Menu baru `/admin/reset` (Admin → Reset Data), hanya `SUPER_ADMIN`.
+- Reset granular per kategori: data transaksi, reset loyalty kontak (non-hapus), dan master data (sampai Bagan Akun).
+- **Dry-run**: jalankan langkah hapus dalam transaksi lalu rollback → hitungan persis tanpa menghapus.
+- Penghapusan **atomik** urutan child→parent (FK `Restrict`); auto-dependency menarik grup transaksi terkait saat master data dipilih.
+- Pengaman: konfirmasi ketik nama bisnis + persetujuan; dicatat di `GodModeAuditLog` (`BUSINESS_DATA_RESET`).
+- File: `src/presentation/admin/reset-data.ts`, `app/api/admin/reset/route.ts`, `app/(app)/admin/reset/{page,layout}.tsx`. Navigasi Admin diberi submenu.
+
+### Fix — Scan Laporan Harian timeout
+- `POST /api/sales/daily`: update loyalty kontak diagregasi per kontak (kurangi round-trip), timeout transaksi dilonggarkan; default global `transactionOptions` ditambahkan di `prisma.ts` (Neon remote).
+
+### Fix — Halaman changelog
+- Butir tidak lagi dipotong (`truncate` dihapus), font dinaikkan, badge kode membungkus normal.
+
+---
+
+## Sesi Sebelumnya — Handoff
+
 Date: 2026-06-05  
 Session scope: Favicon & app icon creation, sidebar alignment, custom premium scrollbars, dashboard dynamic date range filters & real-time trends, and Cashier RBAC adjustments.
 

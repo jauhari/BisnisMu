@@ -126,20 +126,34 @@ export async function POST(request: Request) {
         include: { items: { include: { contacts: true } } },
       });
 
-      // Update loyalty counters untuk setiap kontak
+      // Update loyalty counters per kontak.
+      // Agregasi dulu agar setiap kontak hanya di-update satu kali (kurangi
+      // jumlah round-trip di dalam transaksi -> hindari timeout transaksi).
+      const contactAggregates = new Map<string, { visits: number; revenue: bigint }>();
       for (const it of body.items) {
         for (const c of it.contacts) {
-          await tx.contact.update({
-            where: { id: c.contactId },
-            data: {
-              totalVisits:  { increment: 1 },
-              totalRevenue: { increment: BigInt(c.amount ?? it.amount) },
-            },
-          });
+          const prev = contactAggregates.get(c.contactId) ?? { visits: 0, revenue: 0n };
+          prev.visits += 1;
+          prev.revenue += BigInt(c.amount ?? it.amount);
+          contactAggregates.set(c.contactId, prev);
         }
+      }
+      for (const [contactId, agg] of contactAggregates) {
+        await tx.contact.update({
+          where: { id: contactId },
+          data: {
+            totalVisits:  { increment: agg.visits },
+            totalRevenue: { increment: agg.revenue },
+          },
+        });
       }
 
       return { sale, journalNumber };
+    }, {
+      // Neon (remote, via PgBouncer) menambah latency per query. Default Prisma
+      // 5000ms terlalu ketat untuk transaksi multi-write ini.
+      maxWait: 10_000,
+      timeout: 20_000,
     });
 
     return result;

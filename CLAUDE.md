@@ -1,8 +1,8 @@
 # CLAUDE.md — BisnisMu Development Guide
 
 **Project:** BisnisMu — Aplikasi Akuntansi untuk UMKM & BUMDes  
-**Last Updated:** 2026-06-05  
-**Version:** 0.6.0 + Development Guidelines  
+**Last Updated:** 2026-06-09  
+**Version:** 0.7.0 + Development Guidelines  
 
 ---
 
@@ -627,6 +627,16 @@ GET    /api/reports/balance-sheet
 GET    /api/reports/trial-balance
 GET    /api/dashboard/overview
 ```
+
+#### Admin (God Mode)
+```
+GET    /api/admin/users
+POST   /api/admin/users
+GET    /api/admin/businesses
+GET    /api/admin/reset          # metadata grup + daftar bisnis (SUPER_ADMIN/SUPPORT_AGENT/DEVELOPER)
+POST   /api/admin/reset          # reset data per bisnis — SUPER_ADMIN only; { dryRun: true } untuk pratinjau
+```
+> Reset data bersifat destruktif & atomik (rollback bila subset FK tidak konsisten). Wajib konfirmasi nama bisnis, dicatat di `GodModeAuditLog`. Logika di `src/presentation/admin/reset-data.ts`.
 
 ### 11.2 Input Validation
 

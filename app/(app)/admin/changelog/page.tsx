@@ -19,7 +19,7 @@ function renderFormattedText(text: string) {
     if (part.startsWith("`") && part.endsWith("`")) {
       const codeText = part.slice(1, -1);
       return (
-        <code key={index} className="mx-0.5 rounded bg-black/5 px-1.5 py-0.5 font-mono text-[10px] text-accent dark:bg-white/5">
+        <code key={index} className="mx-0.5 rounded bg-black/5 px-1.5 py-0.5 font-mono text-xs text-accent break-words dark:bg-white/5">
           {codeText}
         </code>
       );
@@ -71,23 +71,23 @@ export default async function Page() {
                 const badgeClass = getSectionBadge(sec.title);
                 return (
                   <div key={idx} className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <span className={`rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${badgeClass}`}>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${badgeClass}`}>
                         {sec.title.split("—")[0]?.trim() || "Info"}
                       </span>
-                      <h3 className="text-xs font-bold text-foreground/80">
+                      <h3 className="text-sm font-semibold text-foreground/80">
                         {sec.title.replace(/^(added|fixed|changed|removed)\s*—\s*/i, "")}
                       </h3>
                     </div>
                     <ul className="space-y-1.5 pl-1">
                       {sec.bullets.slice(0, 3).map((bullet, bIdx) => (
-                        <li key={bIdx} className="relative flex items-start gap-1.5 text-[12px] text-muted truncate leading-relaxed">
-                          <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-accent/60" />
-                          <span className="truncate">{renderFormattedText(bullet)}</span>
+                        <li key={bIdx} className="flex items-start gap-2 text-sm leading-relaxed text-muted">
+                          <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-accent/60" />
+                          <span className="min-w-0 break-words">{renderFormattedText(bullet)}</span>
                         </li>
                       ))}
                       {sec.bullets.length > 3 && (
-                        <li className="text-[11px] text-muted/60 pl-2.5">
+                        <li className="pl-3 text-xs text-muted/60">
                           + {sec.bullets.length - 3} item lainnya...
                         </li>
                       )}

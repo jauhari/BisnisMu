@@ -2,6 +2,27 @@
 
 All notable changes to BisnisMu are documented in this file.
 
+## [0.7.0] - 2026-06-09
+
+### Added — God Mode: Reset Data Bisnis
+- Menu baru **Admin (God Mode) → Reset Data** (`/admin/reset`) untuk mereset data per bisnis. Hanya `SUPER_ADMIN`.
+- Reset granular per kategori: data transaksi (Jurnal & Buku Besar, Penjualan Harian/Scan, Kas, Pendapatan, Wisata, AR/AP, Sales & POS, Pembayaran & Wallet, Float, Stok, Sesi Kas, Pembelian, Cicilan, Saldo Awal, Log Audit), khusus (reset saldo loyalty kontak), dan master data (Metode Pembayaran, Master Pendapatan, Master Wisata, Produk, Kontak, Pelanggan & Vendor, Akun Float, Terminal POS & Laci Kas, Periode Fiskal, Bagan Akun).
+- **Dry-run / pratinjau**: menjalankan langkah penghapusan di dalam transaksi lalu rollback, sehingga jumlah baris yang dilaporkan persis sama dengan eksekusi nyata tanpa menghapus data.
+- **Penghapusan atomik** dengan urutan child→parent sesuai relasi FK `onDelete: Restrict`; bila subset tidak konsisten, transaksi rollback penuh (tidak ada data terhapus sebagian).
+- **Auto-dependency**: memilih master data otomatis menarik grup transaksi terkait agar konsisten.
+- Pengaman: konfirmasi ketik nama bisnis + centang persetujuan, dicatat di `GodModeAuditLog` (action `BUSINESS_DATA_RESET`).
+- File baru: `src/presentation/admin/reset-data.ts`, `app/api/admin/reset/route.ts`, `app/(app)/admin/reset/{page,layout}.tsx`.
+- Submenu navigasi Admin (God Mode): Panel Admin, Reset Data, Changelog.
+
+### Fixed — Scan Laporan Harian (Transaction Timeout)
+- `POST /api/sales/daily` (`prisma.dailySale.create`) gagal dengan "Transaction already closed: ... timeout 5000ms" pada DB Neon remote.
+- Update loyalty kontak kini diagregasi per kontak unik (mengurangi round-trip di dalam transaksi), perilaku hitungan kunjungan/omzet tidak berubah.
+- Timeout transaksi dilonggarkan (`maxWait 10s`, `timeout 20s`) di route tersebut.
+- Default global `transactionOptions` (`maxWait 10s`, `timeout 20s`) ditambahkan di `prisma.ts` agar seluruh `$transaction` punya headroom untuk DB remote.
+
+### Fixed — Tampilan Halaman Changelog
+- Butir changelog tidak lagi dipotong satu baris (`truncate` dihapus) dan ukuran font dinaikkan agar terbaca; badge kode inline membungkus normal.
+
 ## [0.6.0] - 2026-06-05
 
 ### Added — Brand Identity & Layout Polishing
