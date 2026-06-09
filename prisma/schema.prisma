@@ -431,7 +431,12 @@ model Business {
   members                    BusinessMember[]
   dailySales                 DailySale[]
 
+  // Multi-Unit Organization (additive, opsional) — satu Business hanya milik satu Organization.
+  organizationId             String?                    @map("organization_id")
+  organization               Organization?              @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
   @@index([createdByUserId])
+  @@index([organizationId])
   @@map("businesses")
 }
 
@@ -450,6 +455,7 @@ model User {
   memberships       BusinessMember[]
   godModeAuditLogs  GodModeAuditLog[]
   dailySales        DailySale[]
+  orgMemberships    OrgMember[]
 
   @@map("users")
 }
@@ -2118,4 +2124,51 @@ model DailySaleContact {
   @@unique([dailySaleItemId, contactId])
   @@index([contactId])
   @@map("daily_sale_contacts")
+}
+
+// ─── Multi-Unit Organization ────────────────────────────────────────────────────
+
+enum OrgType {
+  BUMDES        // Badan Usaha Milik Desa
+  KOPERASI      // Koperasi
+  HOLDING       // Holding UMKM
+  FRANCHISE     // Jaringan waralaba
+}
+
+enum OrgRole {
+  ORG_OWNER     // Ketua / Direktur — akses penuh semua unit
+  ORG_ADMIN     // Sekretaris / Bendahara — kelola semua unit, tidak bisa hapus org
+  ORG_VIEWER    // Pengawas / Auditor — read-only semua unit
+}
+
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  type        OrgType  @default(BUMDES)
+  description String?
+  address     String?
+  npwpNumber  String?  @map("npwp_number")
+  createdById String   @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  businesses Business[]
+  members    OrgMember[]
+
+  @@index([createdById])
+  @@map("organizations")
+}
+
+model OrgMember {
+  organizationId String   @map("organization_id")
+  userId         String   @map("user_id")
+  role           OrgRole
+  joinedAt       DateTime @default(now()) @map("joined_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([organizationId, userId])
+  @@index([userId])
+  @@map("org_members")
 }

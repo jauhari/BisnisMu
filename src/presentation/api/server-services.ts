@@ -30,6 +30,9 @@ import { RevenueService } from "@/features/revenue/application/revenue-service";
 import { PrismaRevenueRepository } from "@/features/revenue/infrastructure/prisma-revenue-repository";
 import { TourismService } from "@/features/tourism/application/tourism-service";
 import { PrismaTourismRepository } from "@/features/tourism/infrastructure/prisma-tourism-repository";
+import { OrganizationService } from "@/features/organization/application/organization-service";
+import { ConsolidationService } from "@/features/organization/application/consolidation-service";
+import { PrismaOrganizationRepository } from "@/features/organization/infrastructure/prisma-organization-repository";
 
 const journalRepository = new PrismaJournalRepository(prisma);
 const journal = new JournalPostingService(journalRepository);
@@ -75,4 +78,11 @@ export const serverServices = {
   tourism,
   installments: new InstallmentService(prisma, journal),
   paymentRepository
+};
+
+// ─── Multi-Unit Organization (additive — tidak mengubah service existing) ──────
+const organizationRepository = new PrismaOrganizationRepository(prisma);
+export const orgServices = {
+  organization: new OrganizationService(organizationRepository),
+  consolidation: new ConsolidationService(organizationRepository, serverServices.reporting),
 };

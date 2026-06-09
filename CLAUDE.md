@@ -2,7 +2,7 @@
 
 **Project:** BisnisMu — Aplikasi Akuntansi untuk UMKM & BUMDes  
 **Last Updated:** 2026-06-09  
-**Version:** 0.7.0 + Development Guidelines  
+**Version:** 0.8.0 + Development Guidelines  
 
 ---
 
@@ -329,6 +329,8 @@ npx prisma studio    # Open Prisma Studio (database GUI)
 ---
 
 ## 7. MULTI-UNIT ORGANIZATION
+
+> **Status: ✅ Implemented (v0.8.0)** — schema, service, konsolidasi, API `/api/organizations/*`, dan UI `/organizations` sudah live. Lihat CHANGELOG v0.8.0.
 
 Fitur opsional di atas flat model — untuk BUMDes, koperasi, atau holding UMKM yang mengelola beberapa unit usaha sekaligus.
 

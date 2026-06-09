@@ -5,6 +5,31 @@ Session scope: Reset Data God Mode (per bisnis, granular + dry-run), perbaikan t
 
 ---
 
+## Phase 13: Multi-Unit Organization & Business Switcher (v0.8.0 — 2026-06-09)
+
+### Multi-Unit Organization (Hierarki Organisasi → Unit Usaha)
+- Layer additive: `Organization` menaungi beberapa `Business`. Satu Business hanya milik satu Organization. Zero breaking change.
+- Schema: enum `OrgType`/`OrgRole`, model `Organization`/`OrgMember`, kolom nullable `Business.organizationId`. Migration `202606090001_add_organization_layer` (dibuat manual + `migrate deploy`, karena `migrate dev` gagal di shadow DB akibat migration lama `repair_current_schema` yang pre-existing bermasalah).
+- Domain: `organization-engine.ts` (validasi, permission OrgRole, cascade ke BusinessRole, agregasi P&L/Neraca pure, health score).
+- Application: `organization-service.ts` (CRUD + unit + member, proteksi owner terakhir), `consolidation-service.ts` (inject `ReportingService` existing apa adanya).
+- Infrastructure: `prisma-organization-repository.ts`; DI via `orgServices` di `server-services.ts`.
+- API: `/api/organizations/*` (CRUD, units, members, reports/{profit-loss,balance-sheet,unit-comparison}, dashboard). Rule permission `/api/organizations → reports:read` (OrgRole presisi ditegakkan di dalam route).
+- UI: menu "Organisasi", halaman `/organizations` (list/buat) & `/organizations/[orgId]` (kelola unit/anggota + tabel perbandingan unit & total konsolidasi).
+- Tests: `tests/organization/` (11 test). Total suite 193/193 hijau.
+- Catatan: endpoint laporan org pakai POST `{ startsOn, endsOn }` (konsisten dengan `/api/reports/*` existing), bukan GET `?period`.
+
+### Business Switcher Terintegrasi
+- Pemilih "Usaha aktif" di header jadi dropdown inline (`BusinessSwitcher` di `app-shell.tsx`), menggantikan navigasi ke `/select-business`.
+
+---
+
+## Sesi Sebelumnya — Reset Data, Scan Fix, Changelog UI (v0.7.0)
+
+Date: 2026-06-09  
+Session scope: Reset Data God Mode (per bisnis, granular + dry-run), perbaikan timeout transaksi Scan Laporan Harian, dan perbaikan tampilan halaman changelog.
+
+---
+
 ## Phase 12: God Mode Reset Data, Scan Timeout Fix, Changelog UI (v0.7.0 — 2026-06-09)
 
 ### God Mode — Reset Data Bisnis

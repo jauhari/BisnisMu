@@ -95,6 +95,9 @@ export const ROUTE_PERMISSION_RULES: readonly RoutePermissionRule[] = [
   { pattern: "/api/payment", permission: "payment:write" },
   { pattern: "/api/revenue", permission: "revenue:write" },
   { pattern: "/api/tourism", permission: "tourism:write" },
+  // Multi-Unit Organization: gate kasar (harus punya akses laporan); OrgRole presisi
+  // ditegakkan di dalam route via OrgMember.
+  { pattern: "/api/organizations", permission: "reports:read" },
 ];
 
 export function hasPermission(role: Role, permission: Permission): boolean {

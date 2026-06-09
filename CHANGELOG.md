@@ -2,6 +2,20 @@
 
 All notable changes to BisnisMu are documented in this file.
 
+## [0.8.0] - 2026-06-09
+
+### Added — Multi-Unit Organization (Hierarki Organisasi → Unit Usaha)
+- Layer additive di atas model flat: `Organization` (lembaga induk: BUMDes/Koperasi/Holding/Waralaba) menaungi beberapa `Business` (unit usaha). Satu Business hanya milik satu Organization.
+- Schema baru: enum `OrgType`, `OrgRole`; model `Organization`, `OrgMember`; kolom nullable `organizationId` di `Business` (migration `202606090001_add_organization_layer`). Tidak ada perubahan breaking — semua data & kode existing tetap valid.
+- Peran organisasi `ORG_OWNER`/`ORG_ADMIN`/`ORG_VIEWER` dengan cascade ke unit (OWNER/ADMIN → ADMIN, VIEWER → VIEWER). Proteksi "ORG_OWNER terakhir".
+- **Laporan konsolidasi** (agregasi langsung, tanpa eliminasi antar unit): laba rugi & neraca gabungan + perbandingan antar unit dengan skor kesehatan (🟢 ≥30%, 🟡 10–30%, 🔴 <10%/rugi).
+- API baru `/api/organizations/*`: CRUD organisasi, attach/detach unit, kelola anggota, dan `reports/{profit-loss,balance-sheet,unit-comparison}` + `dashboard`. `ReportingService` existing dipakai apa adanya (zero perubahan).
+- Fitur baru: `src/features/organization/` (domain/application/infrastructure), `orgServices` di `server-services.ts`, halaman `/organizations` & `/organizations/[orgId]`.
+- Tests: `tests/organization/` (engine + consolidation service).
+
+### Changed — Switch Bisnis Terintegrasi di Header
+- Pemilih "Usaha aktif" di header kini berupa **dropdown inline** (`BusinessSwitcher`) — ganti usaha langsung tanpa pindah ke halaman `/select-business`. Menandai usaha aktif, ada "+ Buat usaha baru", invalidasi cache + refresh otomatis setelah ganti.
+
 ## [0.7.0] - 2026-06-09
 
 ### Added — God Mode: Reset Data Bisnis

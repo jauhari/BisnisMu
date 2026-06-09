@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { GlassCommandPalette } from "../glass/glass-primitives";
 import { SidebarNav } from "./sidebar-nav";
 import Link from "next/link";
-import { Menu, X, PanelLeftClose, PanelLeftOpen, LogOut, ChevronDown, UserCircle, KeyRound, Pencil } from "lucide-react";
+import { Menu, X, PanelLeftClose, PanelLeftOpen, LogOut, ChevronDown, UserCircle, KeyRound, Pencil, Plus } from "lucide-react";
 import { useActiveBusiness, useCurrentUser } from "@/presentation/query/report-hooks";
 import { useQueryClient } from "@tanstack/react-query";
 import { GlassInput } from "@/components/forms/glass-form";
@@ -82,6 +82,130 @@ function ProfileModal({ user, onClose }: { user: { name: string; email: string }
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Business Switcher (dropdown di header) ─────────────────────────────────────
+interface SwitchableBusiness { id: string; name: string; role: string; active: boolean; }
+
+function BusinessSwitcher({ activeName }: { activeName: string }) {
+  const router = useRouter();
+  const qc = useQueryClient();
+  const ref = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState<SwitchableBusiness[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [switching, setSwitching] = useState<string | null>(null);
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const r = await fetch("/api/auth/businesses", { credentials: "include" });
+      const json = await r.json();
+      setItems(Array.isArray(json) ? json : (json.data ?? []));
+    } catch {
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function toggle() {
+    const next = !open;
+    setOpen(next);
+    if (next && items === null) void load();
+  }
+
+  async function select(id: string, isActive: boolean) {
+    if (isActive) { setOpen(false); return; }
+    setSwitching(id);
+    try {
+      const res = await fetch("/api/auth/select-business", {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ businessId: id }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j?.error?.message || j?.message || "Gagal mengganti usaha.");
+      }
+      toast.success("Usaha aktif diganti.");
+      setOpen(false);
+      await qc.invalidateQueries();
+      router.refresh();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gagal mengganti usaha.");
+    } finally {
+      setSwitching(null);
+    }
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={toggle}
+        title="Ganti usaha"
+        className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 transition hover:bg-white/60 dark:hover:bg-white/10"
+      >
+        <div className="text-left">
+          <p className="text-xs text-muted">Usaha aktif</p>
+          <p className="text-sm font-medium">{activeName}</p>
+        </div>
+        <ChevronDown className={`h-3.5 w-3.5 text-muted transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open && (
+        <div className="absolute left-0 z-50 mt-2 w-72 rounded-xl border border-border bg-background p-1.5 shadow-xl">
+          <p className="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-muted">Pilih Usaha</p>
+          <div className="max-h-72 overflow-y-auto">
+            {loading && <p className="px-3 py-3 text-sm text-muted">Memuat…</p>}
+            {!loading && items && items.length === 0 && (
+              <p className="px-3 py-3 text-sm text-muted">Belum tergabung di usaha manapun.</p>
+            )}
+            {!loading && items?.map((b) => (
+              <button
+                key={b.id}
+                type="button"
+                disabled={switching !== null}
+                onClick={() => void select(b.id, b.active)}
+                className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left transition disabled:opacity-50 ${
+                  b.active ? "bg-accent/8" : "hover:bg-white/60 dark:hover:bg-white/8"
+                }`}
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{b.name}</p>
+                  <p className="text-[11px] text-muted">{b.role}</p>
+                </div>
+                {switching === b.id ? (
+                  <span className="shrink-0 text-[11px] text-muted">Memuat…</span>
+                ) : b.active ? (
+                  <span className="shrink-0 rounded-full bg-accent/15 px-2 py-0.5 text-[11px] font-medium text-accent">Aktif</span>
+                ) : null}
+              </button>
+            ))}
+          </div>
+          <div className="mt-1 border-t border-border/60 pt-1">
+            <Link
+              href="/register"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-accent hover:bg-white/60 dark:hover:bg-white/8"
+            >
+              <Plus className="h-4 w-4" /> Buat usaha baru
+            </Link>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -192,10 +316,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <button onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden" aria-label="Toggle sidebar">
             {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
-          <Link href="/select-business" className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 transition hover:bg-white/60 dark:hover:bg-white/10" title="Ganti usaha">
-            <div><p className="text-xs text-muted">Usaha aktif</p><p className="text-sm font-medium">{activeBusiness?.name ?? "—"}</p></div>
-            <ChevronDown className="h-3.5 w-3.5 text-muted" />
-          </Link>
+          <BusinessSwitcher activeName={activeBusiness?.name ?? "—"} />
         </div>
         <div className="flex items-center gap-3">
           <div className="hidden md:block"><GlassCommandPalette className="w-80 px-4 py-2 text-sm text-muted">Command palette / search</GlassCommandPalette></div>
