@@ -11,6 +11,8 @@ All notable changes to BisnisMu are documented in this file.
 - API baru: `/api/accounting/journals/drafts`, `/api/accounting/journals/drafts/:journalId`, `/api/accounting/journals/:journalId/post`, dan `/api/accounting/journals/:journalId/reverse`.
 
 ### Changed — UI/UX Jurnal dan Tabel Data
+- Form jurnal manual kini tersembunyi di drawer dan hanya muncul lewat tombol `Tambah jurnal manual`, sehingga tabel jurnal lebih lega untuk review data.
+- Halaman kas kini difokuskan menjadi `Pengeluaran Kas` untuk biaya operasional harian; transaksi otomatis dibuat sebagai `CASH_OUT` dan langsung diposting ke jurnal.
 - Form jurnal memakai date picker ringkas, amount auto-format ribuan Indonesia, serta warna debit/kredit yang lebih informatif.
 - Dropdown akun dibuat lebih bersih: nama akun sebagai fokus, metadata grup/saldo normal ringkas, tanpa kode akun yang terlalu dominan.
 - Tabel data mendapat zebra row, header lebih kuat, hover row, selected state, dan opsi `selectable={false}` untuk halaman yang tidak punya bulk action.
