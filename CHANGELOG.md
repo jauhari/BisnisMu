@@ -20,6 +20,8 @@ All notable changes to BisnisMu are documented in this file.
 
 ### Changed — Bagan Akun (CoA) Lebih Hierarkis
 - Halaman CoA kini menampilkan struktur akun sebagai tree dengan indent level, status `Header`/`Posting`, badge grup, dan kode akun sebagai metadata kanan.
+- Akun header diberi background dan penanda kiri yang lebih tegas agar struktur kategori terlihat jelas.
+- CoA kini mendukung aksi edit nama akun, aktif/nonaktif, dan hapus/deaktif melalui route akun per-ID.
 - Form CoA dilokalkan ke Bahasa Indonesia dan mendukung pembuatan akun header maupun akun posting.
 - Kode akun dibuat otomatis berdasarkan grup, induk akun, dan nomor terakhir yang sudah ada; saldo normal ditampilkan sebagai informasi read-only.
 ## [0.8.0] - 2026-06-09
