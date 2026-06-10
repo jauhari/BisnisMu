@@ -2,6 +2,24 @@
 
 All notable changes to BisnisMu are documented in this file.
 
+## [0.10.0] - 2026-06-10
+
+### Added — CRUD Transaksi Berbasis Role dan Setting Organisasi
+- Halaman `Riwayat Transaksi` baru menggabungkan Penjualan Harian, Sales Order, dan Transaksi Kas dalam satu tabel operasional.
+- Aksi `Edit`, `Delete`, `Void`, `Post`, dan `Confirm` mengikuti role user dan status transaksi.
+- Setting organisasi baru `transactionHardMutationEnabled` memungkinkan organisasi tertentu mengaktifkan edit/delete langsung untuk role di atas Cashier.
+- Bisnis Hanyukupi dapat memakai mode edit/delete langsung untuk transaksi yang sudah posted/confirmed tanpa alur void, dengan audit tetap tercatat.
+- API baru untuk riwayat transaksi, update/delete sales order, update/delete penjualan harian, update/delete transaksi kas, dan setting hard mutation organisasi.
+
+### Changed — UI/UX Penjualan, Tabel, dan CoA Query
+- Form `Penjualan Harian` kini default tersembunyi dan dibuka lewat tombol `Tambah penjualan`; saat edit dari tabel, form otomatis terbuka.
+- Layout form penjualan dipadatkan: tanggal dibuat ringkas, akun/keterangan mendapat ruang lebih proporsional, dan total tampil di header form.
+- `GlassDataSelect` otomatis berubah menjadi query field cerdas untuk pilihan akun CoA: daftar tidak muncul sebelum user mengetik, hasil dibatasi maksimal 5 akun, dan bisa dicari lewat nama/kode/grup akun.
+- Tabel data memformat akun CoA dengan fokus pada nama akun, sementara kode akun tampil kecil sebagai metadata di kanan.
+- Tabel data memformat tanggal ke format lokal Indonesia dan memberi warna grup per tanggal agar perbedaan tanggal lebih mudah dipindai.
+- Layout workspace dan tabel dibuat lebih nyaman di layar kecil: panel samping turun ke bawah, filter dapat membungkus, dan scroll horizontal dibatasi di area tabel.
+- Kolom nomor internal panjang di Riwayat Transaksi disembunyikan agar tabel lebih fokus pada tanggal, status, keterangan, nominal, dan aksi.
+
 ## [0.9.0] - 2026-06-09
 
 ### Added — Jurnal Draft, Reversal, dan Koreksi Standar Akuntansi

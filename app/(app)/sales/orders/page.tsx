@@ -251,6 +251,7 @@ export default function Page() {
     { id: uid(), revenueAccountId: "", description: "", amount: "", contacts: [] },
   ]);
   const [editingDailySaleId, setEditingDailySaleId] = useState<string | null>(null);
+  const [dailySaleFormOpen, setDailySaleFormOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // Pre-fill kas ke Kas Waterbyuur kalau ada
@@ -309,6 +310,7 @@ export default function Page() {
   }
 
   function loadDailySaleForEdit(sale: any) {
+    setDailySaleFormOpen(true);
     setEditingDailySaleId(sale.id);
     setSaleDate(new Date(sale.saleDate).toLocaleDateString("en-CA"));
     setCashAccountId(sale.cashAccountId);
@@ -333,6 +335,14 @@ export default function Page() {
     setEditingDailySaleId(null);
     setItems([{ id: uid(), revenueAccountId: "", description: "", amount: "", contacts: [] }]);
     setDescription("");
+    setDailySaleFormOpen(false);
+  }
+
+  function openNewDailySaleForm() {
+    setEditingDailySaleId(null);
+    setItems([{ id: uid(), revenueAccountId: "", description: "", amount: "", contacts: [] }]);
+    setDescription("");
+    setDailySaleFormOpen(true);
   }
 
   async function submit() {
@@ -412,7 +422,7 @@ export default function Page() {
     (sale.items ?? []).map((item: any) => ({
       saleId:   sale.id,
       status:   sale.status ?? "POSTED",
-      tanggal:  new Date(sale.saleDate).toLocaleDateString("id-ID"),
+      tanggal:  sale.saleDate,
       kas:      `${sale.cashAccount?.code} | ${sale.cashAccount?.name}`,
       akun:     `${item.revenueAccount?.code} | ${item.revenueAccount?.name}`,
       keterangan: item.description ?? sale.description ?? "-",
@@ -423,7 +433,7 @@ export default function Page() {
   );
   const orderRows = (salesOrders.data?.data?.rows ?? []).map((order: any) => ({
     ...order,
-    tanggal: new Date(order.saleDate).toLocaleDateString("id-ID"),
+    tanggal: order.saleDate,
     total: String(order.totalAmount),
     paid: String(order.paidAmount),
     itemCount: order.items?.length ?? 0,
@@ -435,13 +445,33 @@ export default function Page() {
         eyebrow="Sales"
         title="Penjualan Harian"
         description="Catat pendapatan harian. Jurnal dibuat otomatis — Debit Kas, Kredit Pendapatan."
+        action={
+          dailySaleFormOpen ? (
+            <button type="button" onClick={resetDailySaleForm} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border bg-white/60 px-4 text-sm font-medium text-muted transition hover:text-foreground dark:bg-white/8">
+              <X className="h-4 w-4" /> Tutup form
+            </button>
+          ) : (
+            <button type="button" onClick={openNewDailySaleForm} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-foreground px-4 text-sm font-medium text-background shadow-sm transition hover:opacity-90">
+              <Plus className="h-4 w-4" /> Tambah penjualan
+            </button>
+          )
+        }
       />
 
-      <div className="relative z-10">
-      <GlassPanel>
+      {dailySaleFormOpen ? <div className="relative z-10">
+      <GlassPanel className="p-4 sm:p-5">
         <div className="grid gap-4">
+          <div className="flex flex-col gap-2 border-b border-border/60 pb-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-base font-semibold">{editingDailySaleId ? "Edit penjualan" : "Tambah penjualan"}</h2>
+              <p className="mt-1 text-xs text-muted">Isi ringkas transaksi harian, lalu simpan untuk membuat jurnal.</p>
+            </div>
+            <div className="text-sm text-muted">
+              Total: <strong className="text-foreground tabular-nums">{formatRupiah(totalAmount)}</strong>
+            </div>
+          </div>
           {/* Header */}
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid items-end gap-3 lg:grid-cols-[180px_minmax(260px,1fr)_minmax(260px,1fr)]">
             <label className="grid gap-1">
               <span className="text-xs text-muted">Tanggal</span>
               <GlassDatePicker value={saleDate} onChange={setSaleDate} className="h-10" />
@@ -465,9 +495,9 @@ export default function Page() {
           {/* Items */}
           <div className="grid gap-3">
             {items.map((item, idx) => (
-              <div key={item.id} className="rounded-xl border border-border/70 p-3 space-y-3">
+              <div key={item.id} className="space-y-3 rounded-xl border border-border/70 bg-white/35 p-3 dark:bg-white/5">
                 {/* Baris utama item */}
-                <div className="grid items-end gap-2 md:grid-cols-[2fr_2fr_1fr_auto]">
+                <div className="grid items-end gap-2 lg:grid-cols-[minmax(240px,1.3fr)_minmax(220px,1fr)_150px_auto]">
                   <label className="grid gap-1">
                     <span className="text-xs text-muted">Akun Pendapatan</span>
                     <GlassDataSelect
@@ -530,7 +560,7 @@ export default function Page() {
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 border-t border-border/60 pt-3 sm:flex-row sm:items-center sm:justify-between">
             <button
               type="button"
               onClick={() => {
@@ -547,12 +577,7 @@ export default function Page() {
             >
               <Plus className="h-4 w-4" /> Tambah item
             </button>
-            <div className="flex items-center gap-4">
-              {totalAmount > 0 && (
-                <span className="text-sm text-muted">
-                  Total: <strong className="text-foreground tabular-nums">{formatRupiah(totalAmount)}</strong>
-                </span>
-              )}
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <button
                 type="button"
                 onClick={() => void submit()}
@@ -561,12 +586,12 @@ export default function Page() {
               >
                 {saving ? "Menyimpan…" : editingDailySaleId ? "Simpan Perubahan" : "Simpan & Buat Jurnal"}
               </button>
-              {editingDailySaleId ? <button type="button" onClick={resetDailySaleForm} className="h-9 rounded-md border border-border px-4 text-sm text-muted">Batal edit</button> : null}
+              <button type="button" onClick={resetDailySaleForm} className="h-9 rounded-md border border-border px-4 text-sm text-muted">{editingDailySaleId ? "Batal edit" : "Batal"}</button>
             </div>
           </div>
         </div>
       </GlassPanel>
-      </div>
+      </div> : null}
 
       {/* Riwayat penjualan */}
       <GlassTable

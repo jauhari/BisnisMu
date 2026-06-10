@@ -321,6 +321,22 @@ export function GlassFileUploader({ label = "Upload file" }: { label?: string })
 
 export interface SelectOption { value: string; label: string; code?: string; name?: string; groupLabel?: string; normalBalance?: string; subtype?: string | null }
 
+function accountOptionParts(option: SelectOption): { code: string; name: string } | null {
+  if (option.code && option.name) return { code: option.code, name: option.name };
+  const match = option.label.match(/^\s*(\d{3,12})\s*(?:\||-|·)?\s*(.+?)\s*$/);
+  if (!match) return null;
+  return { code: match[1]!, name: match[2]! };
+}
+
+function isAccountOption(option: SelectOption): boolean {
+  return Boolean(accountOptionParts(option));
+}
+
+function optionSearchText(option: SelectOption): string {
+  const account = accountOptionParts(option);
+  return [option.label, option.code, option.name, account?.code, account?.name, option.groupLabel, option.normalBalance, option.subtype].filter(Boolean).join(" ").toLowerCase();
+}
+
 export function GlassDataSelect({ value, onChange, options, placeholder = "Pilih...", disabled, className }: {
   value: string;
   onChange: (value: string) => void;
@@ -330,15 +346,76 @@ export function GlassDataSelect({ value, onChange, options, placeholder = "Pilih
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const [query, setQuery] = useState("");
+  const triggerRef = useRef<HTMLElement | null>(null);
   const portalRef = useRef<HTMLDivElement | null>(null);
   const rootRef = useDismissible(open, setOpen, portalRef);
   const rect = useDropdownRect(open, triggerRef);
   const selected = options.find((o) => o.value === value);
+  const accountMode = options.some(isAccountOption);
+  const queryText = query.trim();
+  const filteredOptions = accountMode && queryText
+    ? options.filter((option) => optionSearchText(option).includes(queryText.toLowerCase())).slice(0, 5)
+    : [];
+
+  if (accountMode) {
+    const selectedAccount = selected ? accountOptionParts(selected) : null;
+    const displayValue = open ? query : selectedAccount?.name ?? selected?.name ?? selected?.label ?? "";
+    return (
+      <div ref={rootRef} className="relative">
+        <div
+          ref={triggerRef as React.RefObject<HTMLDivElement>}
+          className={cn("flex h-11 w-full items-center gap-2 rounded-md border border-border bg-white/60 px-3 text-sm shadow-sm transition focus-within:border-accent/35 focus-within:ring-2 focus-within:ring-accent/10 dark:bg-white/8", disabled && "cursor-not-allowed opacity-50", className)}
+        >
+          <Search className="h-4 w-4 shrink-0 text-muted" />
+          <input
+            disabled={disabled}
+            value={displayValue}
+            onFocus={() => { if (!disabled) { setQuery(""); setOpen(true); } }}
+            onChange={(event) => { setQuery(event.target.value); setOpen(true); }}
+            placeholder={selectedAccount ? `${selectedAccount.code} · ${selectedAccount.name}` : placeholder}
+            className="h-full min-w-0 flex-1 border-0 bg-transparent text-sm outline-none ring-0 placeholder:text-muted focus:outline-none focus:ring-0"
+          />
+          {selectedAccount && !open ? <span className="shrink-0 rounded-md border border-border/70 bg-white/55 px-1.5 py-0.5 text-[10px] font-medium text-muted dark:bg-white/8">{selectedAccount.code}</span> : null}
+          <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted transition-transform", open && "rotate-180")} />
+        </div>
+        {open && !disabled && queryText && rect && (
+          <DropdownPortal rect={rect} portalRef={portalRef}>
+            <div className="max-h-64 overflow-auto rounded-lg border border-border bg-white/95 p-1.5 shadow-xl shadow-slate-900/10 backdrop-blur dark:bg-slate-950/95">
+              {filteredOptions.length === 0 && <p className="px-3 py-2 text-sm text-muted">Tidak ada akun cocok</p>}
+              {filteredOptions.map((opt) => {
+                const account = accountOptionParts(opt);
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => { onChange(opt.value); setQuery(""); setOpen(false); }}
+                    className={cn("group flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-left text-sm transition hover:bg-slate-950/5 dark:hover:bg-white/10", opt.value === value && "bg-accent/10 text-accent")}
+                  >
+                    <span className={cn("grid h-5 w-5 shrink-0 place-items-center rounded-full", opt.value === value ? "bg-accent text-white" : "border border-border/70 text-transparent group-hover:border-accent/35")}>
+                      <Check className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="flex min-w-0 flex-1 items-center justify-between gap-3">
+                      <span className="min-w-0">
+                        <span className="block truncate font-medium text-foreground group-hover:text-foreground">{account?.name ?? opt.name ?? opt.label}</span>
+                        <span className="mt-0.5 block truncate text-[11px] text-muted">{[opt.groupLabel, opt.normalBalance].filter(Boolean).join(" · ") || "Chart of Accounts"}</span>
+                      </span>
+                      {account?.code ? <span className="shrink-0 rounded-md border border-border/70 bg-white/55 px-1.5 py-0.5 text-[10px] font-medium text-muted dark:bg-white/8">{account.code}</span> : null}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </DropdownPortal>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div ref={rootRef} className="relative">
       <button
-        ref={triggerRef}
+        ref={triggerRef as React.RefObject<HTMLButtonElement>}
         type="button"
         disabled={disabled}
         onClick={() => !disabled && setOpen((v) => !v)}

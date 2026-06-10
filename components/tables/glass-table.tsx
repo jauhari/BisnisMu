@@ -15,24 +15,132 @@ export interface GlassTableColumn<T> { key: keyof T | string; header: string; re
 // Kolom bernuansa uang/nominal diformat ribuan otomatis (mis. 10000 → 10.000).
 // Sengaja TIDAK mencocokkan kode akun, SKU, kuantitas, urutan, tenor, dsb.
 const MONETARY_KEY = /amount|total|balance|debit|credit|value|price|paid|subtotal|payable|receivable|saldo|nominal|harga|nilai|modal|profit|margin|revenue|expense|cogs/i;
+const DATE_KEY = /(^|_|\b)(date|tanggal|tgl|saleDate|transactionDate|journalDate|issuedAt|createdAt|updatedAt)(_|$|\b)/i;
+const ACCOUNT_KEY = /account|akun|coa|kas|bank|pendapatan|revenue/i;
+const ACCOUNT_VALUE = /^\s*(\d{3,12})\s*(?:\||-|·)\s*(.+?)\s*$/;
 
-function formatCell(key: string, raw: unknown): string {
+function parseDateValue(raw: unknown): Date | null {
+  if (raw instanceof Date) return Number.isNaN(raw.getTime()) ? null : raw;
+  if (typeof raw !== "string") return null;
+  const text = raw.trim();
+  if (!text) return null;
+
+  const local = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (local) {
+    const [, day, month, year] = local;
+    const date = new Date(Number(year), Number(month) - 1, Number(day));
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  const isoDate = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoDate) {
+    const [, year, month, day] = isoDate;
+    const date = new Date(Number(year), Number(month) - 1, Number(day));
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  if (!/[a-zA-Z]|[-/]\d/.test(text)) return null;
+  const parsed = new Date(text);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function dateKey(raw: unknown): string | null {
+  const date = parseDateValue(raw);
+  if (!date) return null;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function formatDateCell(raw: unknown): string {
+  const date = parseDateValue(raw);
+  if (!date) return raw === null || raw === undefined ? "" : String(raw);
+  return new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "long", year: "numeric" }).format(date);
+}
+
+function isDateColumn(key: string): boolean {
+  return DATE_KEY.test(key);
+}
+
+function isMonetaryColumn(key: string): boolean {
+  return MONETARY_KEY.test(key);
+}
+
+function isAccountColumn(key: string): boolean {
+  return ACCOUNT_KEY.test(key);
+}
+
+function renderDefaultCell(key: string, raw: unknown): ReactNode {
   if (raw === null || raw === undefined) return "";
   const text = String(raw);
-  if (text === "" || !MONETARY_KEY.test(key)) return text;
+  if (isDateColumn(key)) return formatDateCell(raw);
+
+  const account = text.match(ACCOUNT_VALUE);
+  if (account && isAccountColumn(key)) {
+    const [, code, name] = account;
+    return (
+      <div className="flex min-w-[180px] items-start justify-between gap-3">
+        <span className="min-w-0 leading-5 text-foreground">{name}</span>
+        <span className="shrink-0 rounded-md border border-border/70 bg-white/55 px-1.5 py-0.5 text-[10px] font-medium leading-none text-muted dark:bg-white/8">{code}</span>
+      </div>
+    );
+  }
+
+  if (text === "" || !isMonetaryColumn(key)) return text;
   // Hanya format bila benar-benar angka mentah (boleh negatif/desimal); biarkan yang sudah berformat (mis. "Rp 1.000").
   if (!/^-?\d+(\.\d+)?$/.test(text.trim())) return text;
   return formatNumber(text.trim());
 }
 
+function columnSize(key: string): number {
+  if (key === "actions") return 128;
+  if (isDateColumn(key)) return 150;
+  if (isAccountColumn(key)) return 224;
+  if (isMonetaryColumn(key)) return 132;
+  return 164;
+}
+
+function columnMinSize(key: string): number {
+  if (key === "actions") return 112;
+  if (isDateColumn(key)) return 132;
+  if (isAccountColumn(key)) return 180;
+  if (isMonetaryColumn(key)) return 116;
+  return 104;
+}
+
+function rowDateGroupKey(row: Record<string, unknown>): string | null {
+  const candidates = ["tanggal", "date", "saleDate", "transactionDate", "journalDate", "createdAt", "updatedAt"];
+  for (const key of candidates) {
+    if (row[key] !== undefined) {
+      const keyValue = dateKey(row[key]);
+      if (keyValue) return keyValue;
+    }
+  }
+  for (const [key, value] of Object.entries(row)) {
+    if (isDateColumn(key)) {
+      const keyValue = dateKey(value);
+      if (keyValue) return keyValue;
+    }
+  }
+  return null;
+}
+
+function cellSearchText(key: string, value: unknown): string {
+  const rendered = renderDefaultCell(key, value);
+  if (typeof rendered === "string" || typeof rendered === "number" || typeof rendered === "bigint") return String(rendered);
+  return value === null || value === undefined ? "" : String(value);
+}
+
 function buildColumn<T extends object>(column: GlassTableColumn<T>): ColumnDef<T> {
+  const key = String(column.key);
   return {
-    id: String(column.key),
-    accessorFn: (row) => (row as Record<string, unknown>)[String(column.key)],
+    id: key,
+    accessorFn: (row) => (row as Record<string, unknown>)[key],
     header: () => <div className="flex items-center gap-2 whitespace-nowrap text-[11px] font-semibold uppercase tracking-wide"><GripVertical className="h-3.5 w-3.5 shrink-0 text-muted/70" />{column.header}</div>,
-    size: String(column.key) === "actions" ? 128 : 164,
-    minSize: String(column.key) === "actions" ? 112 : 104,
-    cell: ({ row }) => <div className="min-w-0 tabular-nums">{column.render ? column.render(row.original) : formatCell(String(column.key), (row.original as Record<string, unknown>)[String(column.key)])}</div>
+    size: columnSize(key),
+    minSize: columnMinSize(key),
+    cell: ({ row }) => <div className={cn("min-w-0", isMonetaryColumn(key) ? "text-right tabular-nums" : "tabular-nums")}>{column.render ? column.render(row.original) : renderDefaultCell(key, (row.original as Record<string, unknown>)[key])}</div>
   };
 }
 
@@ -120,12 +228,29 @@ export function GlassTable<T extends object>({ columns, rows, empty = "No data",
   const searchedRows = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return rows;
-    return rows.filter((row) => Object.values(row as Record<string, unknown>).some((value) => String(value ?? "").toLowerCase().includes(q)));
+    return rows.filter((row) => Object.entries(row as Record<string, unknown>).some(([key, value]) => cellSearchText(key, value).toLowerCase().includes(q)));
   }, [rows, search]);
+
+  const rowGroupTone = useMemo(() => {
+    const tones = new Map<string, number>();
+    let currentKey: string | null = null;
+    let currentTone = -1;
+    return searchedRows.map((row) => {
+      const key = rowDateGroupKey(row as Record<string, unknown>);
+      if (!key) return -1;
+      if (key !== currentKey) {
+        currentKey = key;
+        currentTone = tones.has(key) ? tones.get(key)! : (currentTone + 1) % 3;
+        tones.set(key, currentTone);
+      }
+      return currentTone;
+    });
+  }, [searchedRows]);
 
   const totalRows = searchedRows.length;
   const safeStart = Math.max(0, Math.min(virtualStart, Math.max(0, totalRows - viewportRows)));
   const virtualRowsSource = useMemo(() => searchedRows.slice(safeStart, safeStart + viewportRows), [searchedRows, safeStart]);
+  const virtualRowTones = useMemo(() => rowGroupTone.slice(safeStart, safeStart + viewportRows), [rowGroupTone, safeStart]);
   const topSpacer = safeStart * rowHeight;
   const bottomSpacer = Math.max(0, (totalRows - (safeStart + virtualRowsSource.length)) * rowHeight);
 
@@ -176,7 +301,7 @@ export function GlassTable<T extends object>({ columns, rows, empty = "No data",
   const visibleColumns = table.getVisibleLeafColumns();
   const selectedCount = table.getSelectedRowModel().rows.length;
   const exportHeaders = visibleColumns.map((column) => column.id);
-  const exportRows = searchedRows.map((row) => visibleColumns.map((column) => String((row as Record<string, unknown>)[column.id] ?? "")));
+  const exportRows = searchedRows.map((row) => visibleColumns.map((column) => cellSearchText(column.id, (row as Record<string, unknown>)[column.id])));
   const headerLabel = (id: string) => columns.find((c) => String(c.key) === id)?.header ?? id;
   const moveColumn = (id: string, dir: -1 | 1) => setColumnOrder((current) => {
     const order = current.length ? current : columnIds;
@@ -232,7 +357,24 @@ export function GlassTable<T extends object>({ columns, rows, empty = "No data",
         <tbody>
           {table.getRowModel().rows.length === 0 ? <tr><td colSpan={columns.length + (selectable ? 1 : 0)} className="px-4 py-12 text-center text-muted">{empty}</td></tr> : <>
             {topSpacer > 0 ? <tr><td colSpan={columns.length + (selectable ? 1 : 0)} style={{ height: topSpacer }} /></tr> : null}
-            {table.getRowModel().rows.map((row, rowIndex) => <tr key={row.id} className={cn("group transition-colors", rowIndex % 2 === 0 ? "bg-white/55 dark:bg-white/[0.035]" : "bg-slate-50/70 dark:bg-white/[0.02]", row.getIsSelected() ? "bg-accent/10 hover:bg-accent/14" : "hover:bg-accent/7 dark:hover:bg-accent/10")}>{selectable ? <td className={cn("sticky left-0 z-10 w-12 border-b border-r border-border/60 px-3 py-3 transition-colors", rowIndex % 2 === 0 ? "bg-white/90 dark:bg-slate-950" : "bg-slate-50/95 dark:bg-slate-900", row.getIsSelected() ? "bg-accent/10" : "group-hover:bg-accent/7 dark:group-hover:bg-accent/10")}><GlassCheckbox aria-label={`Select row ${rowIndex + 1}`} checked={row.getIsSelected()} onChange={row.getToggleSelectedHandler()} /></td> : null}{row.getVisibleCells().map((cell, colIndex) => <td key={cell.id} tabIndex={activeCell.row === rowIndex && activeCell.col === colIndex ? 0 : -1} onFocus={() => setActiveCell({ row: rowIndex, col: colIndex })} onKeyDown={(event) => onCellKeyDown(event, rowIndex, colIndex)} className={indexCellClass(colIndex, selectable)}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>)}
+            {table.getRowModel().rows.map((row, rowIndex) => {
+              const tone = virtualRowTones[rowIndex] ?? -1;
+              const rowToneClass = tone === 0
+                ? "bg-white/75 dark:bg-white/[0.045]"
+                : tone === 1
+                  ? "bg-sky-50/70 dark:bg-sky-950/18"
+                  : tone === 2
+                    ? "bg-emerald-50/55 dark:bg-emerald-950/16"
+                    : rowIndex % 2 === 0 ? "bg-white/55 dark:bg-white/[0.035]" : "bg-slate-50/70 dark:bg-white/[0.02]";
+              const stickyToneClass = tone === 0
+                ? "bg-white/95 dark:bg-slate-950"
+                : tone === 1
+                  ? "bg-sky-50/95 dark:bg-sky-950"
+                  : tone === 2
+                    ? "bg-emerald-50/90 dark:bg-emerald-950"
+                    : rowIndex % 2 === 0 ? "bg-white/90 dark:bg-slate-950" : "bg-slate-50/95 dark:bg-slate-900";
+              return <tr key={row.id} className={cn("group transition-colors", rowToneClass, tone >= 0 ? "shadow-[inset_3px_0_0_hsl(var(--accent)/0.22)]" : "", row.getIsSelected() ? "bg-accent/10 hover:bg-accent/14" : "hover:bg-accent/7 dark:hover:bg-accent/10")}>{selectable ? <td className={cn("sticky left-0 z-10 w-12 border-b border-r border-border/60 px-3 py-3 transition-colors", stickyToneClass, row.getIsSelected() ? "bg-accent/10" : "group-hover:bg-accent/7 dark:group-hover:bg-accent/10")}><GlassCheckbox aria-label={`Select row ${rowIndex + 1}`} checked={row.getIsSelected()} onChange={row.getToggleSelectedHandler()} /></td> : null}{row.getVisibleCells().map((cell, colIndex) => <td key={cell.id} tabIndex={activeCell.row === rowIndex && activeCell.col === colIndex ? 0 : -1} onFocus={() => setActiveCell({ row: rowIndex, col: colIndex })} onKeyDown={(event) => onCellKeyDown(event, rowIndex, colIndex)} className={indexCellClass(colIndex, selectable)}>{flexRender(cell.column.columnDef.cell, cell.getContext())}</td>)}</tr>;
+            })}
             {bottomSpacer > 0 ? <tr><td colSpan={columns.length + (selectable ? 1 : 0)} style={{ height: bottomSpacer }} /></tr> : null}
           </>}
         </tbody>
