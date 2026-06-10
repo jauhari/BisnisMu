@@ -240,6 +240,7 @@ enum SalesOrderStatus {
 enum AuditAction {
   JOURNAL_POSTED
   JOURNAL_POST_REJECTED
+  JOURNAL_UPDATED
   ACCOUNT_CREATED
   ACCOUNT_UPDATED
   ACCOUNT_DEACTIVATED
@@ -317,8 +318,10 @@ enum AuditAction {
   POS_CHANGE_SAVED_TO_DEPOSIT
   POS_TRANSACTION_VOIDED
   SALES_ORDER_CREATED
+  SALES_ORDER_UPDATED
   SALES_ORDER_CONFIRMED
   SALES_PAYMENT_ALLOCATED
+  SALES_ORDER_VOIDED
 }
 
 enum PurchaseOrderStatus {
@@ -2082,10 +2085,16 @@ model DailySale {
   saleDate        DateTime @map("sale_date") @db.Date
   cashAccountId   String   @map("cash_account_id")
   description     String?
+  status          String   @default("POSTED")
   totalAmount     BigInt   @default(0) @map("total_amount")
   journalId       String?  @map("journal_id")
+  voidJournalId   String?  @map("void_journal_id")
+  voidReason      String?  @map("void_reason")
+  voidedByUserId  String?  @map("voided_by_user_id")
+  voidedAt        DateTime? @map("voided_at")
   createdByUserId String   @map("created_by_user_id")
   createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
   business    Business        @relation(fields: [businessId], references: [id], onDelete: Restrict)
   cashAccount Account         @relation("DailySaleCash", fields: [cashAccountId], references: [id], onDelete: Restrict)
@@ -2093,6 +2102,7 @@ model DailySale {
   items       DailySaleItem[]
 
   @@index([businessId, saleDate])
+  @@index([businessId, status])
   @@map("daily_sales")
 }
 
@@ -2149,6 +2159,7 @@ model Organization {
   description String?
   address     String?
   npwpNumber  String?  @map("npwp_number")
+  settings    Json?
   createdById String   @map("created_by_id")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")

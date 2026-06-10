@@ -311,7 +311,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     </aside>
 
     <div className={mainPad}>
-      <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border/70 bg-background/70 px-4 backdrop-blur-glass lg:px-8">
+      <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border/70 bg-background/70 px-4 backdrop-blur-glass xl:px-6 2xl:px-8">
         <div className="flex items-center gap-4">
           <button onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden" aria-label="Toggle sidebar">
             {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
@@ -363,7 +363,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-[1600px] p-4 lg:p-8">{children}</main>
+      <main className="mx-auto max-w-[1680px] p-3 sm:p-4 xl:p-6 2xl:p-8">{children}</main>
     </div>
 
     {editProfile && currentUser && (

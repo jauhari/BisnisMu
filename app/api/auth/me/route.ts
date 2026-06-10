@@ -1,6 +1,7 @@
 import { prisma } from "@/presentation/api/prisma";
 import { handleApi } from "@/presentation/api/route-handler";
-import { getRequestSessionToken } from "@/presentation/auth/session";
+import { getRequestSessionToken, requireTenantContext } from "@/presentation/auth/session";
+import { canHardMutateOrganizationTransaction, organizationHardMutationEnabled } from "@/presentation/auth/permissions";
 import { z } from "zod";
 import argon2 from "argon2";
 
@@ -14,8 +15,9 @@ async function getSessionUser(request: Request) {
 
 export async function GET(request: Request) {
   return handleApi(async () => {
-    const user = await getSessionUser(request);
-    return { id: user.id, name: user.name, email: user.email, platformRole: user.platformRole };
+    const [user, tenant] = await Promise.all([getSessionUser(request), requireTenantContext(request)]);
+    const business = await prisma.business.findUnique({ where: { id: tenant.businessId }, select: { organization: { select: { settings: true } } } });
+    return { id: user.id, name: user.name, email: user.email, platformRole: user.platformRole, role: tenant.role, businessId: tenant.businessId, hardMutation: canHardMutateOrganizationTransaction(tenant.role, organizationHardMutationEnabled(business?.organization?.settings)) };
   });
 }
 

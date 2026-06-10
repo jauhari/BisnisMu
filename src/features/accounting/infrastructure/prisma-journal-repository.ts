@@ -124,6 +124,50 @@ export class PrismaJournalRepository implements JournalRepository {
     throw new Error("Failed to generate unique journal number after 10 attempts.");
   }
 
+  async replacePostedJournal(ctx: TenantContext, journalId: string, journal: ValidatedJournal): Promise<PostedJournalResult> {
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.journalEntry.findFirst({ where: { id: journalId, businessId: ctx.businessId, status: "POSTED" }, select: { id: true } });
+      if (!existing) throw new Error("Posted journal was not found.");
+      await tx.journalLine.deleteMany({ where: { businessId: ctx.businessId, journalId } });
+      return tx.journalEntry.update({
+        where: { id: journalId },
+        data: {
+          fiscalPeriodId: journal.fiscalPeriod.id,
+          transactionDate: journal.transactionDate,
+          source: journal.source,
+          sourceId: journal.sourceId ?? null,
+          description: journal.description,
+          totalDebit: journal.totalDebit,
+          totalCredit: journal.totalCredit,
+          lines: {
+            create: journal.lines.map((line, index) => {
+              const data: Prisma.JournalLineUncheckedCreateWithoutJournalInput = {
+                businessId: ctx.businessId,
+                accountId: line.accountId,
+                side: line.side,
+                amount: line.amount,
+                lineNo: index + 1
+              };
+              if (line.memo !== undefined) data.memo = line.memo;
+              return data;
+            })
+          }
+        }
+      });
+    }, { timeout: 30000 });
+    return { journalId: updated.id, journalNumber: updated.journalNumber, postedAt: updated.postedAt, totalDebit: updated.totalDebit, totalCredit: updated.totalCredit };
+  }
+
+  async deletePostedJournal(ctx: TenantContext, journalId: string): Promise<boolean> {
+    const existing = await this.prisma.journalEntry.findFirst({ where: { id: journalId, businessId: ctx.businessId, status: "POSTED" }, select: { id: true } });
+    if (!existing) return false;
+    await this.prisma.$transaction(async (tx) => {
+      await tx.journalLine.deleteMany({ where: { businessId: ctx.businessId, journalId } });
+      await tx.journalEntry.delete({ where: { id: journalId } });
+    });
+    return true;
+  }
+
   async createAuditLog(ctx: TenantContext, event: JournalAuditEvent): Promise<void> {
     await this.prisma.auditLog.create({
       data: {

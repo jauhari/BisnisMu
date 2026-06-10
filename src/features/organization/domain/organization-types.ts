@@ -18,6 +18,7 @@ export interface OrganizationEntity {
   description: string | null;
   address: string | null;
   npwpNumber: string | null;
+  settings: Record<string, unknown> | null;
   createdById: string;
   createdAt: Date;
   updatedAt: Date;
@@ -49,6 +50,7 @@ export interface CreateOrganizationInput {
   description?: string | null;
   address?: string | null;
   npwpNumber?: string | null;
+  settings?: Record<string, unknown> | null;
 }
 
 export interface UpdateOrganizationInput {
@@ -57,6 +59,7 @@ export interface UpdateOrganizationInput {
   description?: string | null;
   address?: string | null;
   npwpNumber?: string | null;
+  settings?: Record<string, unknown> | null;
 }
 
 export interface ConsolidationRange {

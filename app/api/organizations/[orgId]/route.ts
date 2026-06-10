@@ -9,6 +9,9 @@ const updateSchema = z.object({
   description: z.string().nullable().optional(),
   address: z.string().nullable().optional(),
   npwpNumber: z.string().nullable().optional(),
+  settings: z.object({
+    transactionHardMutationEnabled: z.boolean().optional(),
+  }).optional(),
 });
 
 export async function GET(request: Request, { params }: { params: Promise<{ orgId: string }> }) {
@@ -30,6 +33,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ or
     if (body.description !== undefined) patch.description = body.description;
     if (body.address !== undefined) patch.address = body.address;
     if (body.npwpNumber !== undefined) patch.npwpNumber = body.npwpNumber;
+    if (body.settings !== undefined) patch.settings = body.settings;
     return orgServices.organization.updateOrganization(actorUserId, orgId, patch);
   });
 }

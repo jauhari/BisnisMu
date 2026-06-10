@@ -13,7 +13,7 @@ import { formatRupiah } from "@/presentation/format/number";
 
 interface Unit { id: string; name: string; type: string }
 interface Member { userId: string; role: string; name?: string; email?: string }
-interface OrgDetail { id: string; name: string; type: string; units: Unit[]; members: Member[] }
+interface OrgDetail { id: string; name: string; type: string; settings?: Record<string, unknown> | null; units: Unit[]; members: Member[] }
 interface Biz { id: string; name: string }
 
 interface ComparisonRow { businessId: string; name: string; revenue: string; netProfit: string; marginBps: number; healthStatus: string }
@@ -69,6 +69,7 @@ export default function Page() {
 
   const data = (detail.data as any)?.data as OrgDetail | undefined;
   const businesses: Biz[] = (myBiz.data as any)?.data ?? [];
+  const hardMutationEnabled = data?.settings?.transactionHardMutationEnabled === true;
 
   const attachable = useMemo(() => {
     const attachedIds = new Set((data?.units ?? []).map((u) => u.id));
@@ -143,12 +144,44 @@ export default function Page() {
     });
   }
 
+  async function toggleHardMutation(enabled: boolean) {
+    await run(async () => {
+      await call(`/api/organizations/${orgId}/settings/transaction-hard-mutation`, "PATCH", { enabled });
+      toast.success(enabled ? "Edit/delete langsung diaktifkan." : "Edit/delete langsung dimatikan.");
+      await refresh();
+      void qc.invalidateQueries({ queryKey: ["auth", "me"] });
+      void qc.invalidateQueries({ queryKey: ["list", "transaction-history"] });
+    });
+  }
+
   const years = [now.getFullYear(), now.getFullYear() - 1, now.getFullYear() - 2].map((y) => ({ value: String(y), label: String(y) }));
   const monthOptions = [{ value: "ALL", label: "Setahun penuh" }, ...MONTHS.map((m, i) => ({ value: String(i), label: m }))];
 
   return (
     <div className="grid gap-6">
       <WorkspaceHeader eyebrow={data.type} title={data.name} description="Kelola unit usaha, anggota, dan laporan konsolidasi." />
+
+      {/* Pengaturan khusus transaksi */}
+      <GlassPanel className="grid gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold">Fitur Khusus Transaksi</h2>
+            <p className="mt-1 text-xs text-muted">Izinkan role di atas Kasir untuk edit dan hapus transaksi posted/confirmed tanpa proses void.</p>
+          </div>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void toggleHardMutation(!hardMutationEnabled)}
+            className={`relative h-8 w-16 rounded-full border px-1 transition ${hardMutationEnabled ? "border-success/50 bg-success/20" : "border-border bg-muted/30"} disabled:opacity-50`}
+            aria-pressed={hardMutationEnabled}
+          >
+            <span className={`block h-6 w-6 rounded-full bg-white shadow transition ${hardMutationEnabled ? "translate-x-8" : "translate-x-0"}`} />
+          </button>
+        </div>
+        <p className={hardMutationEnabled ? "text-xs font-medium text-success" : "text-xs font-medium text-muted"}>
+          {hardMutationEnabled ? "Aktif: OWNER, ADMIN, dan ACCOUNTANT bisa edit/delete langsung." : "Nonaktif: transaksi posted/confirmed harus memakai Void."}
+        </p>
+      </GlassPanel>
 
       {/* Unit usaha */}
       <GlassPanel className="grid gap-4">

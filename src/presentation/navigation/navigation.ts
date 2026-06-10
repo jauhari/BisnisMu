@@ -7,6 +7,7 @@ export const navigation: NavItem[] = [
     { title: "Ringkasan", href: "/dashboard" }, { title: "Analitik Penjualan", href: "/dashboard/sales" }, { title: "Analitik Stok", href: "/dashboard/inventory" }, { title: "Analitik Kas", href: "/dashboard/cash" }, { title: "Analitik Saldo Rekanan", href: "/dashboard/float" }, { title: "Analitik Pelanggan", href: "/dashboard/customers" }, { title: "Analitik Pemasok", href: "/dashboard/vendors" }
   ] },
   { title: "Scan Laporan Harian", href: "/sales/scan", icon: "scan", group: "Utama" },
+  { title: "Riwayat Transaksi", href: "/transactions", icon: "transactions", group: "Utama" },
   { title: "Kasir (POS)", href: "/pos", icon: "pos", group: "Operasional", children: [{ title: "Kasir", href: "/pos" }, { title: "Sesi Kasir", href: "/pos/sessions" }, { title: "Struk", href: "/pos/receipts" }, { title: "Tutup Kasir", href: "/pos/closing" }] },
   { title: "Penjualan", href: "/sales/orders", icon: "sales", group: "Operasional", children: [{ title: "Penjualan Harian", href: "/sales/orders" }, { title: "Pembayaran", href: "/sales/payments" }, { title: "Pelanggan", href: "/sales/customers" }] },
   { title: "Pembelian", href: "/purchase/orders", icon: "purchase", group: "Operasional", children: [{ title: "Pesanan Pembelian", href: "/purchase/orders" }, { title: "Penerimaan Barang", href: "/purchase/receipts" }, { title: "Retur Pembelian", href: "/purchase/returns" }, { title: "Tagihan Pemasok", href: "/purchase/vendor-bills" }] },

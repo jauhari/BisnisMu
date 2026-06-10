@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { WorkspaceHeader } from "@/components/layout/workspace";
 import { GlassTable } from "@/components/tables/glass-table";
 import { GlassPanel } from "@/components/glass/glass-primitives";
@@ -11,7 +12,7 @@ import { apiRequest } from "@/presentation/api/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { formatRupiah } from "@/presentation/format/number";
 import { MoneyField } from "@/components/forms/financial-inputs";
-import { X, Plus, UserPlus, Building2, User } from "lucide-react";
+import { X, Plus, UserPlus, Building2, User, Trash2, Send, Undo2, FileText, Edit3 } from "lucide-react";
 import { toast } from "sonner";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -47,6 +48,12 @@ function uid() { return Math.random().toString(36).slice(2); }
 function flattenAccounts(nodes: any[]): any[] {
   return nodes.flatMap((n) => [n, ...flattenAccounts(n.children ?? [])]);
 }
+
+type Role = "OWNER" | "ADMIN" | "ACCOUNTANT" | "CASHIER" | "VIEWER";
+function canMutate(role?: Role) { return role === "OWNER" || role === "ADMIN" || role === "CASHIER"; }
+function canDelete(role?: Role) { return role === "OWNER" || role === "ADMIN"; }
+function canVoid(role?: Role) { return role === "OWNER" || role === "ADMIN"; }
+function canHardMutate(role?: Role, hardMutation?: boolean) { return Boolean(hardMutation && (role === "OWNER" || role === "ADMIN" || role === "ACCOUNTANT")); }
 
 // ─── ContactSearch — inline search + tambah baru ──────────────────────────────
 
@@ -208,10 +215,19 @@ function ContactSearch({ onAdd }: { onAdd: (c: ContactTag) => void }) {
 
 export default function Page() {
   const qc = useQueryClient();
+  const searchParams = useSearchParams();
   const accounts = useListQuery<any[]>("/api/accounting/chart-of-accounts", ["list", "accounting-coa"]);
   const dailyList = useQuery({
     queryKey: ["list", "daily-sales"],
     queryFn: () => apiRequest<{ data: any[] }>("/api/sales/daily/list"),
+  });
+  const salesOrders = useQuery({
+    queryKey: ["list", "formal-sales-orders"],
+    queryFn: () => apiRequest<{ data: { rows: any[]; total: number } }>("/api/sales/orders/list"),
+  });
+  const me = useQuery({
+    queryKey: ["auth", "me"],
+    queryFn: () => apiRequest<{ data: { role: Role; hardMutation: boolean } }>("/api/auth/me"),
   });
   const settings = useQuery({
     queryKey: ["settings", "business"],
@@ -221,6 +237,8 @@ export default function Page() {
 
   const bizSettings  = (settings.data as any)?.data?.settings ?? {};
   const defaultCustId: string = bizSettings?.defaultCustomerContactId ?? "";
+  const role = me.data?.data?.role;
+  const hardMutation = Boolean(me.data?.data?.hardMutation);
 
   const flat = flattenAccounts(accounts.data?.data ?? []);
   const revenueOptions = flat.filter((a) => a.groupCode === 4 && a.isPostingAllowed); // 4 = REVENUE
@@ -232,6 +250,7 @@ export default function Page() {
   const [items,        setItems]        = useState<SaleItem[]>([
     { id: uid(), revenueAccountId: "", description: "", amount: "", contacts: [] },
   ]);
+  const [editingDailySaleId, setEditingDailySaleId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   // Pre-fill kas ke Kas Waterbyuur kalau ada
@@ -262,6 +281,13 @@ export default function Page() {
     }));
   }, [defaultCustId, settings.isSuccess]);
 
+  useEffect(() => {
+    const dailySaleId = searchParams.get("dailySaleId");
+    if (!dailySaleId || !dailyList.data?.data?.length || editingDailySaleId === dailySaleId) return;
+    const sale = dailyList.data.data.find((row: any) => row.id === dailySaleId);
+    if (sale) loadDailySaleForEdit(sale);
+  }, [searchParams, dailyList.data, editingDailySaleId]);
+
   const totalAmount = items.reduce((s, it) => s + (parseInt(it.amount) || 0), 0);
 
   function updateItem(id: string, patch: Partial<SaleItem>) {
@@ -282,6 +308,33 @@ export default function Page() {
     ));
   }
 
+  function loadDailySaleForEdit(sale: any) {
+    setEditingDailySaleId(sale.id);
+    setSaleDate(new Date(sale.saleDate).toLocaleDateString("en-CA"));
+    setCashAccountId(sale.cashAccountId);
+    setDescription(sale.description ?? "");
+    setItems((sale.items ?? []).map((item: any): SaleItem => ({
+      id: item.id ?? uid(),
+      revenueAccountId: item.revenueAccountId,
+      description: item.description ?? "",
+      amount: String(item.amount ?? ""),
+      contacts: (item.contacts ?? []).map((entry: any): ContactTag => ({
+        contactId: entry.contactId,
+        name: entry.contact?.name ?? "Kontak",
+        category: entry.contact?.category ?? "INDIVIDUAL",
+        amount: entry.amount != null ? String(entry.amount) : "",
+        notes: entry.notes ?? "",
+      })),
+    })));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function resetDailySaleForm() {
+    setEditingDailySaleId(null);
+    setItems([{ id: uid(), revenueAccountId: "", description: "", amount: "", contacts: [] }]);
+    setDescription("");
+  }
+
   async function submit() {
     if (!cashAccountId) { toast.error("Pilih akun kas terlebih dahulu."); return; }
     const valid = items.filter((it) => it.revenueAccountId && parseInt(it.amount) > 0);
@@ -289,32 +342,66 @@ export default function Page() {
 
     setSaving(true);
     try {
-      await apiRequest("/api/sales/daily", {
-        method: "POST",
-        body: JSON.stringify({
-          saleDate,
-          cashAccountId,
-          description: description || undefined,
-          items: valid.map((it) => ({
-            revenueAccountId: it.revenueAccountId,
-            description:      it.description || undefined,
-            amount:           parseInt(it.amount),
-            contacts:         it.contacts.map((c) => ({
-              contactId: c.contactId,
-              amount:    parseInt(c.amount) || undefined,
-              notes:     c.notes || undefined,
-            })),
+      const payload = {
+        saleDate,
+        cashAccountId,
+        description: description || undefined,
+        items: valid.map((it) => ({
+          revenueAccountId: it.revenueAccountId,
+          description:      it.description || undefined,
+          amount:           parseInt(it.amount),
+          contacts:         it.contacts.map((c) => ({
+            contactId: c.contactId,
+            amount:    parseInt(c.amount) || undefined,
+            notes:     c.notes || undefined,
           })),
+        })),
+      };
+      await apiRequest(editingDailySaleId ? `/api/sales/daily/${editingDailySaleId}` : "/api/sales/daily", {
+        method: editingDailySaleId ? "PATCH" : "POST",
+        body: JSON.stringify({
+          ...payload,
         }),
       });
-      toast.success("Penjualan tersimpan & jurnal dibuat otomatis.");
+      toast.success(editingDailySaleId ? "Penjualan diperbarui." : "Penjualan tersimpan & jurnal dibuat otomatis.");
       void qc.invalidateQueries({ queryKey: ["list", "daily-sales"] });
-      setItems([{ id: uid(), revenueAccountId: "", description: "", amount: "", contacts: [] }]);
-      setDescription("");
+      resetDailySaleForm();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal menyimpan.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function rowAction(kind: "daily-delete" | "daily-void" | "sales-confirm" | "sales-delete" | "sales-void", row: any) {
+    try {
+      if (kind === "daily-delete") {
+        await apiRequest(`/api/sales/daily/${row.saleId}`, { method: "DELETE" });
+        toast.success("Penjualan harian dihapus.");
+        await dailyList.refetch();
+      }
+      if (kind === "daily-void") {
+        await apiRequest(`/api/sales/daily/${row.saleId}`, { method: "DELETE", body: JSON.stringify({ reason: `Void penjualan harian ${row.saleId}` }) });
+        toast.success("Penjualan harian dibatalkan.");
+        await dailyList.refetch();
+      }
+      if (kind === "sales-confirm") {
+        await apiRequest("/api/sales/orders/confirm", { method: "POST", body: JSON.stringify({ salesOrderId: row.id }) });
+        toast.success("Sales order dikonfirmasi.");
+        await salesOrders.refetch();
+      }
+      if (kind === "sales-delete") {
+        await apiRequest(`/api/sales/orders/${row.id}`, { method: "DELETE" });
+        toast.success("Draft sales order dihapus.");
+        await salesOrders.refetch();
+      }
+      if (kind === "sales-void") {
+        await apiRequest(`/api/sales/orders/${row.id}/void`, { method: "POST", body: JSON.stringify({ reason: `Void sales order ${row.salesNumber}` }) });
+        toast.success("Sales order dibatalkan.");
+        await salesOrders.refetch();
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Aksi gagal.");
     }
   }
 
@@ -323,14 +410,24 @@ export default function Page() {
 
   const listRows = (dailyList.data?.data ?? []).flatMap((sale: any) =>
     (sale.items ?? []).map((item: any) => ({
+      saleId:   sale.id,
+      status:   sale.status ?? "POSTED",
       tanggal:  new Date(sale.saleDate).toLocaleDateString("id-ID"),
       kas:      `${sale.cashAccount?.code} | ${sale.cashAccount?.name}`,
       akun:     `${item.revenueAccount?.code} | ${item.revenueAccount?.name}`,
       keterangan: item.description ?? sale.description ?? "-",
       nominal:  Number(item.amount).toLocaleString("id-ID"),
       kontak:   item.contacts?.map((c: any) => c.contact?.name).filter(Boolean).join(", ") || "-",
+      rawSale: sale,
     }))
   );
+  const orderRows = (salesOrders.data?.data?.rows ?? []).map((order: any) => ({
+    ...order,
+    tanggal: new Date(order.saleDate).toLocaleDateString("id-ID"),
+    total: String(order.totalAmount),
+    paid: String(order.paidAmount),
+    itemCount: order.items?.length ?? 0,
+  }));
 
   return (
     <div className="grid gap-6">
@@ -462,8 +559,9 @@ export default function Page() {
                 disabled={saving}
                 className="h-9 rounded-md bg-foreground px-5 text-sm font-medium text-background disabled:opacity-50"
               >
-                {saving ? "Menyimpan…" : "Simpan & Buat Jurnal"}
+                {saving ? "Menyimpan…" : editingDailySaleId ? "Simpan Perubahan" : "Simpan & Buat Jurnal"}
               </button>
+              {editingDailySaleId ? <button type="button" onClick={resetDailySaleForm} className="h-9 rounded-md border border-border px-4 text-sm text-muted">Batal edit</button> : null}
             </div>
           </div>
         </div>
@@ -475,13 +573,31 @@ export default function Page() {
         tableId="daily-sales-list"
         columns={[
           { key: "tanggal",    header: "Tanggal" },
+          { key: "status",     header: "Status" },
           { key: "akun",       header: "Akun Pendapatan" },
           { key: "keterangan", header: "Keterangan" },
           { key: "nominal",    header: "Nominal", render: (r: any) => r.nominal },
           { key: "kontak",     header: "Kontak" },
+          { key: "actions",    header: "Aksi", render: (r: any) => <div className="flex flex-wrap gap-1.5"><button type="button" className="rounded border border-border px-2 py-1 text-xs" onClick={() => toast.info(`${r.tanggal}: ${r.keterangan}`)}><FileText className="inline h-3 w-3" /> Detail</button>{r.status !== "VOID" && canHardMutate(role, hardMutation) ? <button type="button" className="rounded border border-border px-2 py-1 text-xs" onClick={() => loadDailySaleForEdit(r.rawSale)}><Edit3 className="inline h-3 w-3" /> Edit</button> : null}{r.status !== "VOID" && canHardMutate(role, hardMutation) ? <button type="button" className="rounded border border-danger/40 px-2 py-1 text-xs text-danger" onClick={() => void rowAction("daily-delete", r)}><Trash2 className="inline h-3 w-3" /> Delete</button> : null}{r.status !== "VOID" && canVoid(role) && !hardMutation ? <button type="button" className="rounded border border-danger/40 px-2 py-1 text-xs text-danger" onClick={() => void rowAction("daily-void", r)}><Undo2 className="inline h-3 w-3" /> Void</button> : null}</div> },
         ]}
         rows={listRows}
         empty="Belum ada data penjualan."
+      />
+
+      <GlassTable
+        tableId="formal-sales-orders-list"
+        columns={[
+          { key: "salesNumber", header: "No. Order" },
+          { key: "tanggal", header: "Tanggal" },
+          { key: "status", header: "Status" },
+          { key: "description", header: "Keterangan" },
+          { key: "itemCount", header: "Item" },
+          { key: "total", header: "Total" },
+          { key: "paid", header: "Terbayar" },
+          { key: "actions", header: "Aksi", render: (r: any) => <div className="flex flex-wrap gap-1.5"><button type="button" className="rounded border border-border px-2 py-1 text-xs" onClick={() => toast.info(`${r.salesNumber}: ${r.description}`)}><FileText className="inline h-3 w-3" /> Detail</button>{r.status === "DRAFT" && canMutate(role) ? <button type="button" className="rounded bg-foreground px-2 py-1 text-xs text-background" onClick={() => void rowAction("sales-confirm", r)}><Send className="inline h-3 w-3" /> Confirm</button> : null}{r.status === "DRAFT" && canDelete(role) ? <button type="button" className="rounded border border-danger/40 px-2 py-1 text-xs text-danger" onClick={() => void rowAction("sales-delete", r)}><Trash2 className="inline h-3 w-3" /> Delete</button> : null}{r.status !== "DRAFT" && r.status !== "VOID" && canVoid(role) ? <button type="button" className="rounded border border-danger/40 px-2 py-1 text-xs text-danger" onClick={() => void rowAction("sales-void", r)}><Undo2 className="inline h-3 w-3" /> Void</button> : null}</div> },
+        ]}
+        rows={orderRows}
+        empty="Belum ada sales order resmi."
       />
     </div>
   );

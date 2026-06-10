@@ -88,9 +88,15 @@ export const ROUTE_PERMISSION_RULES: readonly RoutePermissionRule[] = [
   { pattern: "/api/contacts", permission: "ar:write" },
   { pattern: "/api/inventory", permission: "inventory:write" },
   { pattern: "/api/purchase", permission: "ap:write" },
+  { pattern: "/api/transactions", permission: "dashboard:read", methods: ["GET"] },
+  { pattern: "/api/cash/transactions", permission: "dashboard:read", methods: ["PATCH", "DELETE"] },
   { pattern: "/api/float", permission: "cash:write" },
+  { pattern: "/api/cash", permission: "dashboard:read", methods: ["GET"] },
   { pattern: "/api/cash", permission: "cash:write" },
   { pattern: "/api/pos", permission: "pos:write" },
+  { pattern: "/api/sales/orders", permission: "dashboard:read", methods: ["PATCH", "DELETE"] },
+  { pattern: "/api/sales/daily", permission: "dashboard:read", methods: ["PATCH", "DELETE"] },
+  { pattern: "/api/sales", permission: "dashboard:read", methods: ["GET"] },
   { pattern: "/api/sales", permission: "sales:write" },
   { pattern: "/api/payment", permission: "payment:write" },
   { pattern: "/api/revenue", permission: "revenue:write" },
@@ -102,6 +108,31 @@ export const ROUTE_PERMISSION_RULES: readonly RoutePermissionRule[] = [
 
 export function hasPermission(role: Role, permission: Permission): boolean {
   return ROLE_PERMISSIONS[role].has(permission);
+}
+
+export function canReadTransaction(role: Role): boolean {
+  return ["OWNER", "ADMIN", "ACCOUNTANT", "CASHIER", "VIEWER"].includes(role);
+}
+
+export function canMutateTransactionDraft(role: Role): boolean {
+  return ["OWNER", "ADMIN", "CASHIER"].includes(role);
+}
+
+export function canDeleteDraftTransaction(role: Role): boolean {
+  return ["OWNER", "ADMIN"].includes(role);
+}
+
+export function canVoidPostedTransaction(role: Role): boolean {
+  return ["OWNER", "ADMIN"].includes(role);
+}
+
+export function canHardMutateOrganizationTransaction(role: Role, enabled: boolean | null | undefined): boolean {
+  return Boolean(enabled) && ["OWNER", "ADMIN", "ACCOUNTANT"].includes(role);
+}
+
+export function organizationHardMutationEnabled(settings: unknown): boolean {
+  if (!settings || typeof settings !== "object" || Array.isArray(settings)) return false;
+  return (settings as Record<string, unknown>).transactionHardMutationEnabled === true;
 }
 
 export function requireRole(context: Pick<AuthenticatedUserContext, "role">, allowedRoles: readonly Role[]): void {

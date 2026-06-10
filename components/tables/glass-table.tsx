@@ -29,10 +29,10 @@ function buildColumn<T extends object>(column: GlassTableColumn<T>): ColumnDef<T
   return {
     id: String(column.key),
     accessorFn: (row) => (row as Record<string, unknown>)[String(column.key)],
-    header: () => <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide"><GripVertical className="h-3.5 w-3.5 text-muted/70" />{column.header}</div>,
-    size: 180,
-    minSize: 120,
-    cell: ({ row }) => <div className="tabular-nums">{column.render ? column.render(row.original) : formatCell(String(column.key), (row.original as Record<string, unknown>)[String(column.key)])}</div>
+    header: () => <div className="flex items-center gap-2 whitespace-nowrap text-[11px] font-semibold uppercase tracking-wide"><GripVertical className="h-3.5 w-3.5 shrink-0 text-muted/70" />{column.header}</div>,
+    size: String(column.key) === "actions" ? 128 : 164,
+    minSize: String(column.key) === "actions" ? 112 : 104,
+    cell: ({ row }) => <div className="min-w-0 tabular-nums">{column.render ? column.render(row.original) : formatCell(String(column.key), (row.original as Record<string, unknown>)[String(column.key)])}</div>
   };
 }
 
@@ -187,10 +187,10 @@ export function GlassTable<T extends object>({ columns, rows, empty = "No data",
   const orderedColumns = table.getAllLeafColumns();
   const menuBtn = "flex h-9 items-center gap-2 rounded-lg border border-border bg-white/60 px-3 text-sm font-medium transition hover:bg-white/80 dark:bg-white/8 dark:hover:bg-white/12";
 
-  return <GlassCard className="overflow-hidden p-0 shadow-xl shadow-slate-900/5">
-    <div className="flex flex-col gap-3 border-b border-border/70 bg-white/35 px-4 py-3 backdrop-blur sm:flex-row sm:items-center dark:bg-white/5">
-      <div className="flex flex-1 items-center gap-2 rounded-lg border border-border bg-white/60 px-3 dark:bg-white/8"><Search className="h-4 w-4 text-muted" /><GlassInput value={search} onChange={(event) => { setSearch(event.target.value); setVirtualStart(0); setActiveCell({ row: 0, col: 0 }); }} placeholder="Cari…" className="h-9 w-full border-0 bg-transparent shadow-none backdrop-blur-none" /></div>
-      <div className="flex items-center gap-2">
+  return <GlassCard className="min-w-0 overflow-hidden p-0 shadow-xl shadow-slate-900/5">
+    <div className="flex flex-col gap-3 border-b border-border/70 bg-white/35 px-3 py-3 backdrop-blur md:flex-row md:items-center sm:px-4 dark:bg-white/5">
+      <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-border bg-white/60 px-3 dark:bg-white/8"><Search className="h-4 w-4 shrink-0 text-muted" /><GlassInput value={search} onChange={(event) => { setSearch(event.target.value); setVirtualStart(0); setActiveCell({ row: 0, col: 0 }); }} placeholder="Cari…" className="h-9 min-w-0 w-full border-0 bg-transparent shadow-none backdrop-blur-none" /></div>
+      <div className="flex flex-wrap items-center gap-2">
         {selectedCount > 0 ? <span className="rounded-lg bg-accent/12 px-2.5 py-1 text-xs font-medium text-accent">{selectedCount} dipilih</span> : null}
         <span className="hidden text-xs text-muted sm:inline">{totalRows} baris</span>
 
@@ -226,8 +226,8 @@ export function GlassTable<T extends object>({ columns, rows, empty = "No data",
       </div>
     </div>
     {menu ? <div className="fixed inset-0 z-20" onClick={() => setMenu(null)} aria-hidden /> : null}
-    <div className="max-h-[640px] overflow-auto bg-white/30 dark:bg-white/3" onScroll={onScroll}>
-      <table className="w-full border-separate border-spacing-0 text-sm" role="grid" aria-rowcount={totalRows} aria-colcount={visibleColumns.length + (selectable ? 1 : 0)}>
+    <div className="max-h-[min(640px,calc(100vh-14rem))] overflow-auto bg-white/30 dark:bg-white/3" onScroll={onScroll}>
+      <table className="min-w-max w-full border-separate border-spacing-0 text-sm" role="grid" aria-rowcount={totalRows} aria-colcount={visibleColumns.length + (selectable ? 1 : 0)}>
         <thead className="sticky top-0 z-10 border-b border-border bg-slate-50/95 shadow-[0_1px_0_hsl(var(--border))] backdrop-blur dark:bg-slate-950/95">{table.getHeaderGroups().map((headerGroup) => <tr key={headerGroup.id}>{selectable ? <th className="sticky left-0 z-20 w-12 border-b border-r border-border/80 bg-slate-50/95 px-3 py-3 dark:bg-slate-950/95"><GlassCheckbox aria-label="Select all visible rows" checked={table.getIsAllPageRowsSelected()} onChange={table.getToggleAllPageRowsSelectedHandler()} /></th> : null}{headerGroup.headers.map((header, index) => <th key={header.id} draggable onDragStart={() => onDragStart(header.id)} onDragOver={onDragOver} onDrop={() => onDrop(header.id)} style={{ width: header.getSize() }} className={index === 0 && selectable ? "sticky left-12 z-10 border-b border-r border-border/80 bg-slate-50/95 px-4 py-3 text-left text-muted dark:bg-slate-950/95" : "relative border-b border-r border-border/80 bg-slate-50/95 px-4 py-3 text-left text-muted last:border-r-0 dark:bg-slate-950/95"}><button type="button" onClick={header.column.getToggleSortingHandler()?.bind(header.column)} className="w-full cursor-grab text-left active:cursor-grabbing">{header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}</button><div onMouseDown={header.getResizeHandler()} onTouchStart={header.getResizeHandler()} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-border/60 opacity-50 transition hover:opacity-100" /></th>)}</tr>)}</thead>
         <tbody>
           {table.getRowModel().rows.length === 0 ? <tr><td colSpan={columns.length + (selectable ? 1 : 0)} className="px-4 py-12 text-center text-muted">{empty}</td></tr> : <>

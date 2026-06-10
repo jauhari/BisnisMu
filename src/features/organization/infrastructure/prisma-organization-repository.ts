@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import type {
   BusinessUnitRef,
   CreateOrganizationInput,
@@ -18,6 +18,7 @@ type OrgRow = {
   description: string | null;
   address: string | null;
   npwpNumber: string | null;
+  settings: Prisma.JsonValue | null;
   createdById: string;
   createdAt: Date;
   updatedAt: Date;
@@ -31,10 +32,15 @@ function mapOrg(row: OrgRow): OrganizationEntity {
     description: row.description,
     address: row.address,
     npwpNumber: row.npwpNumber,
+    settings: isRecord(row.settings) ? row.settings : null,
     createdById: row.createdById,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export class PrismaOrganizationRepository implements OrganizationRepository {
@@ -42,15 +48,17 @@ export class PrismaOrganizationRepository implements OrganizationRepository {
 
   async createOrganization(actorUserId: string, input: CreateOrganizationInput): Promise<OrganizationEntity> {
     const org = await this.prisma.$transaction(async (tx) => {
+      const data: Prisma.OrganizationUncheckedCreateInput = {
+        name: input.name,
+        type: input.type,
+        description: input.description ?? null,
+        address: input.address ?? null,
+        npwpNumber: input.npwpNumber ?? null,
+        createdById: actorUserId,
+      };
+      if (input.settings !== undefined) data.settings = input.settings as Prisma.InputJsonValue;
       const created = await tx.organization.create({
-        data: {
-          name: input.name,
-          type: input.type,
-          description: input.description ?? null,
-          address: input.address ?? null,
-          npwpNumber: input.npwpNumber ?? null,
-          createdById: actorUserId,
-        },
+        data,
       });
       await tx.orgMember.create({
         data: { organizationId: created.id, userId: actorUserId, role: "ORG_OWNER" },
@@ -108,6 +116,7 @@ export class PrismaOrganizationRepository implements OrganizationRepository {
         ...(input.description !== undefined ? { description: input.description } : {}),
         ...(input.address !== undefined ? { address: input.address } : {}),
         ...(input.npwpNumber !== undefined ? { npwpNumber: input.npwpNumber } : {}),
+        ...(input.settings !== undefined ? { settings: input.settings as Prisma.InputJsonValue } : {}),
       },
     });
     return mapOrg(org);

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  LayoutDashboard, ScanLine, ShoppingCart, Truck, Package, Wallet, Scale,
+  LayoutDashboard, ScanLine, ShoppingCart, Truck, Package, Wallet, Scale, ListChecks,
   Smartphone, BookOpen, BarChart3, Settings, ChevronRight, ClipboardPen, type LucideIcon,
 } from "lucide-react";
 import { navigation, NAV_GROUPS, type NavItem } from "@/presentation/navigation/navigation";
@@ -12,7 +12,7 @@ import { navigation, NAV_GROUPS, type NavItem } from "@/presentation/navigation/
 const OPEN_KEY = "bisnismu:sidebar-open";
 
 const ICONS: Record<string, LucideIcon> = {
-  dashboard: LayoutDashboard, scan: ClipboardPen, pos: ScanLine, sales: ShoppingCart, purchase: Truck,
+  dashboard: LayoutDashboard, scan: ClipboardPen, transactions: ListChecks, pos: ScanLine, sales: ShoppingCart, purchase: Truck,
   inventory: Package, cash: Wallet, arap: Scale, float: Smartphone,
   accounting: BookOpen, reports: BarChart3, settings: Settings, admin: Settings,
 };

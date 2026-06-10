@@ -2,7 +2,7 @@ import { PostJournalCommand } from "../../accounting/application/journal-reposit
 import { JournalPostingService } from "../../accounting/application/journal-posting-service";
 import { CashManagementEngine } from "../domain/cash-engine";
 import { CashManagementError, CashTransactionDraftInput, CashTransactionEntity, CashValidationContext, TenantContext } from "../domain/cash-types";
-import { CashDraftCommand, CashRepository, CreateContactCommand, PostCashCommand, PreviewCashCommand, UpdateCashDraftCommand, VoidCashCommand } from "./cash-repository";
+import { CashDraftCommand, CashRepository, CreateContactCommand, DeleteCashDraftCommand, PostCashCommand, PreviewCashCommand, UpdateCashDraftCommand, VoidCashCommand } from "./cash-repository";
 
 export class CashManagementService {
   constructor(private readonly repository: CashRepository, private readonly journalPostingService: JournalPostingService, private readonly engine = new CashManagementEngine()) {}
@@ -41,6 +41,28 @@ export class CashManagementService {
     return updated;
   }
 
+  async updateAny(command: UpdateCashDraftCommand) {
+    const ctx = this.contextFrom(command);
+    const existing = await this.requireTransaction(ctx, command.transactionId);
+    this.engine.validateDraft(command, await this.validationContext(ctx, command));
+    const updated = await this.repository.updateDraft(ctx, command.transactionId, command);
+    if (updated.postedJournalId) {
+      const preview = this.engine.preview(command, await this.validationContext(ctx, command));
+      const postCommand: PostJournalCommand = { businessId: ctx.businessId, actorUserId: ctx.actorUserId, transactionDate: updated.transactionDate, source: updated.type, sourceId: updated.id, description: updated.description, lines: preview.lines.map((line) => ({ accountId: line.accountId, side: line.side, amount: line.amount })) };
+      this.copyRequestMeta(ctx, postCommand);
+      await this.journalPostingService.replacePosted(updated.postedJournalId, postCommand);
+    }
+    await this.repository.createAuditLog(ctx, {
+      action: "CASH_TRANSACTION_UPDATED",
+      businessId: ctx.businessId,
+      actorUserId: ctx.actorUserId,
+      entityType: "cash_transaction",
+      entityId: updated.id,
+      metadata: { transactionNumber: updated.transactionNumber, previousStatus: existing.status, hardEdit: true },
+    });
+    return updated;
+  }
+
   async post(command: PostCashCommand) {
     const ctx = this.contextFrom(command);
     const tx = await this.requireTransaction(ctx, command.transactionId);
@@ -69,6 +91,32 @@ export class CashManagementService {
     return { transaction: voided, journal, preview };
   }
 
+  async deleteDraft(command: DeleteCashDraftCommand) {
+    const ctx = this.contextFrom(command);
+    const tx = await this.requireTransaction(ctx, command.transactionId);
+    if (tx.status !== "DRAFT") throw new CashManagementError("ONLY_DRAFT_CAN_BE_DELETED", "Only draft cash transactions can be deleted.");
+    await this.repository.deleteDraft(ctx, tx.id);
+    await this.repository.createAuditLog(ctx, { action: "CASH_TRANSACTION_UPDATED", businessId: ctx.businessId, actorUserId: ctx.actorUserId, entityType: "cash_transaction", entityId: tx.id, metadata: { transactionNumber: tx.transactionNumber, deleted: true } });
+    return tx;
+  }
+
+  async deleteAny(command: DeleteCashDraftCommand) {
+    const ctx = this.contextFrom(command);
+    const tx = await this.requireTransaction(ctx, command.transactionId);
+    if (tx.postedJournalId) await this.journalPostingService.deletePosted(this.deleteJournalCommand(ctx, tx.postedJournalId));
+    if (tx.voidJournalId) await this.journalPostingService.deletePosted(this.deleteJournalCommand(ctx, tx.voidJournalId));
+    await this.repository.deleteAny(ctx, tx.id);
+    await this.repository.createAuditLog(ctx, {
+      action: "CASH_TRANSACTION_UPDATED",
+      businessId: ctx.businessId,
+      actorUserId: ctx.actorUserId,
+      entityType: "cash_transaction",
+      entityId: tx.id,
+      metadata: { transactionNumber: tx.transactionNumber, previousStatus: tx.status, hardDelete: true },
+    });
+    return tx;
+  }
+
   private async validationContext(ctx: TenantContext, input: CashTransactionDraftInput): Promise<CashValidationContext> {
     const ids = [input.cashAccountId, input.destinationAccountId, input.categoryAccountId].filter((id): id is string => Boolean(id));
     const accounts = await this.repository.findAccounts(ctx, [...new Set(ids)]);
@@ -92,6 +140,14 @@ export class CashManagementService {
     const tx = await this.repository.findTransaction(ctx, id);
     if (!tx) throw new CashManagementError("CASH_TRANSACTION_NOT_FOUND", "Cash transaction was not found.", { transactionId: id });
     return tx;
+  }
+
+  private deleteJournalCommand(ctx: TenantContext, journalId: string) {
+    const command: { businessId: string; actorUserId: string; journalId: string; requestId?: string; ipAddress?: string; userAgent?: string } = { businessId: ctx.businessId, actorUserId: ctx.actorUserId, journalId };
+    if (ctx.requestId !== undefined) command.requestId = ctx.requestId;
+    if (ctx.ipAddress !== undefined) command.ipAddress = ctx.ipAddress;
+    if (ctx.userAgent !== undefined) command.userAgent = ctx.userAgent;
+    return command;
   }
 
   private copyRequestMeta(ctx: TenantContext, command: PostJournalCommand): void {

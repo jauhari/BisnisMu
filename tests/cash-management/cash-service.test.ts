@@ -8,11 +8,15 @@ import { CashTransactionDraftInput, CashTransactionEntity, ContactEntity, Create
 
 class PostingRepo implements JournalRepository {
   posted: ValidatedJournal[] = [];
+  replaced: Array<{ journalId: string; journal: ValidatedJournal }> = [];
+  deleted: string[] = [];
   constructor(private readonly accounts: AccountSnapshot[]) {}
   async findAccountsForPosting(ctx: AccountingTenantContext, ids: string[]) { return this.accounts.filter((a) => a.businessId === ctx.businessId && ids.includes(a.id)); }
   async findOpenFiscalPeriod(ctx: AccountingTenantContext): Promise<FiscalPeriodSnapshot | null> { return { id: "period-1", businessId: ctx.businessId, startsOn: new Date("2026-01-01T00:00:00.000Z"), endsOn: new Date("2026-12-31T00:00:00.000Z"), isClosed: false }; }
   async findPostedJournalByIdempotencyKey() { return null; }
   async createPostedJournal(_ctx: AccountingTenantContext, journal: ValidatedJournal): Promise<PostedJournalResult> { this.posted.push(journal); return { journalId: "journal-" + this.posted.length, journalNumber: "JV-" + this.posted.length, postedAt: new Date(), totalDebit: journal.totalDebit, totalCredit: journal.totalCredit }; }
+  async replacePostedJournal(_ctx: AccountingTenantContext, journalId: string, journal: ValidatedJournal): Promise<PostedJournalResult> { this.replaced.push({ journalId, journal }); return { journalId, journalNumber: "JV-REPLACED", postedAt: new Date(), totalDebit: journal.totalDebit, totalCredit: journal.totalCredit }; }
+  async deletePostedJournal(_ctx: AccountingTenantContext, journalId: string) { this.deleted.push(journalId); return true; }
   async createAuditLog() {}
 }
 
@@ -27,10 +31,12 @@ class InMemoryCashRepository implements CashRepository {
   async createContact(ctx: TenantContext, input: CreateContactInput) { const c: ContactEntity = { id: "contact-" + this.seq++, businessId: ctx.businessId, name: input.name.trim(), type: input.type ?? "OTHER", email: input.email ?? null, phone: input.phone ?? null, address: input.address ?? null, isActive: true }; this.contacts.set(c.id, c); return c; }
   async nextTransactionNumber() { return "CASH-202605-" + String(this.seq++).padStart(5, "0"); }
   async createDraft(ctx: TenantContext, input: CashTransactionDraftInput, number: string) { const tx = this.tx(ctx, input, number); this.transactions.set(tx.id, tx); return tx; }
-  async updateDraft(ctx: TenantContext, id: string, input: CashTransactionDraftInput) { const old = (await this.findTransaction(ctx, id))!; const tx = { ...this.tx(ctx, input, old.transactionNumber), id: old.id }; this.transactions.set(id, tx); return tx; }
+  async updateDraft(ctx: TenantContext, id: string, input: CashTransactionDraftInput) { const old = (await this.findTransaction(ctx, id))!; const tx: CashTransactionEntity = { ...this.tx(ctx, input, old.transactionNumber), id: old.id, status: old.status, postedJournalId: old.postedJournalId ?? null, voidJournalId: old.voidJournalId ?? null, voidReason: old.voidReason ?? null }; this.transactions.set(id, tx); return tx; }
   async findTransaction(ctx: TenantContext, id: string) { const tx = this.transactions.get(id); return tx?.businessId === ctx.businessId ? tx : null; }
   async markPosted(ctx: TenantContext, id: string, journalId: string) { const tx = (await this.findTransaction(ctx, id))!; const posted = { ...tx, status: "POSTED" as const, postedJournalId: journalId }; this.transactions.set(id, posted); return posted; }
   async markVoided(ctx: TenantContext, id: string, journalId: string, reason: string) { const tx = (await this.findTransaction(ctx, id))!; const voided = { ...tx, status: "VOID" as const, voidJournalId: journalId, voidReason: reason }; this.transactions.set(id, voided); return voided; }
+  async deleteDraft(ctx: TenantContext, id: string) { const tx = await this.findTransaction(ctx, id); if (!tx) return false; this.transactions.delete(id); return true; }
+  async deleteAny(ctx: TenantContext, id: string) { const tx = await this.findTransaction(ctx, id); if (!tx) return false; this.transactions.delete(id); return true; }
   async createAuditLog(_ctx: TenantContext, event: CashAuditEvent) { this.auditEvents.push(event); }
   private tx(ctx: TenantContext, input: CashTransactionDraftInput, number: string): CashTransactionEntity { return { id: "cash-" + this.seq++, businessId: ctx.businessId, transactionNumber: number, type: input.type, status: "DRAFT", transactionDate: input.transactionDate, cashAccountId: input.cashAccountId, destinationAccountId: input.destinationAccountId ?? null, categoryAccountId: input.categoryAccountId ?? null, contactId: input.contactId ?? null, amount: input.amount, description: input.description, paymentMethod: input.paymentMethod ?? null, referenceNumber: input.referenceNumber ?? null, attachmentKey: input.attachmentKey ?? null, tags: input.tags ?? [], createdByUserId: ctx.actorUserId }; }
 }
@@ -82,6 +88,42 @@ describe("CashManagementService", () => {
     const voided = await service.void({ businessId: "biz-1", actorUserId: "user-1", transactionId: draft.id, reason: "Salah input nota" });
     expect(voided.transaction.status).toBe("VOID");
     expect(postingRepo.posted[1]?.lines.map((l) => [l.accountId, l.side])).toEqual([["cash", "CREDIT"], ["revenue", "DEBIT"]]);
+  });
+
+  it("deletes draft cash transactions only before posting", async () => {
+    const { cashRepo, postingRepo, service } = setup();
+    const draft = await service.createDraft({ ...base, type: "CASH_OUT", cashAccountId: "cash", categoryAccountId: "expense", amount: 50000n, description: "Bayar sewa" });
+    const deleted = await service.deleteDraft({ businessId: "biz-1", actorUserId: "user-1", transactionId: draft.id });
+    expect(deleted.id).toBe(draft.id);
+    expect(cashRepo.transactions.has(draft.id)).toBe(false);
+  });
+
+  it("rejects deleting posted cash transactions", async () => {
+    const { postingRepo, service } = setup();
+    const draft = await service.createDraft({ ...base, type: "CASH_OUT", cashAccountId: "cash", categoryAccountId: "expense", amount: 50000n, description: "Bayar sewa" });
+    await service.post({ businessId: "biz-1", actorUserId: "user-1", transactionId: draft.id });
+    await expect(service.deleteDraft({ businessId: "biz-1", actorUserId: "user-1", transactionId: draft.id })).rejects.toThrow(/Only draft/i);
+  });
+
+  it("hard updates posted cash transactions when explicitly allowed", async () => {
+    const { postingRepo, service } = setup();
+    const draft = await service.createDraft({ ...base, type: "CASH_OUT", cashAccountId: "cash", categoryAccountId: "expense", amount: 50000n, description: "Bayar sewa" });
+    await service.post({ businessId: "biz-1", actorUserId: "user-1", transactionId: draft.id });
+    const updated = await service.updateAny({ ...base, type: "CASH_OUT", cashAccountId: "cash", categoryAccountId: "expense", amount: 75000n, description: "Koreksi bayar sewa", transactionId: draft.id });
+    expect(updated.status).toBe("POSTED");
+    expect(updated.amount).toBe(75000n);
+    expect(postingRepo.replaced[0]?.journalId).toBe("journal-1");
+    expect(postingRepo.replaced[0]?.journal.totalDebit).toBe(75000n);
+  });
+
+  it("hard deletes posted cash transactions when explicitly allowed", async () => {
+    const { cashRepo, postingRepo, service } = setup();
+    const draft = await service.createDraft({ ...base, type: "CASH_IN", cashAccountId: "cash", categoryAccountId: "revenue", amount: 90000n, description: "Penjualan" });
+    await service.post({ businessId: "biz-1", actorUserId: "user-1", transactionId: draft.id });
+    const deleted = await service.deleteAny({ businessId: "biz-1", actorUserId: "user-1", transactionId: draft.id });
+    expect(deleted.status).toBe("POSTED");
+    expect(cashRepo.transactions.has(draft.id)).toBe(false);
+    expect(postingRepo.deleted).toEqual(["journal-1"]);
   });
 
   it("rejects accounts from another tenant", async () => {
