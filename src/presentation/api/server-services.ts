@@ -1,5 +1,6 @@
 import { prisma } from "./prisma";
 import { JournalPostingService } from "@/features/accounting/application/journal-posting-service";
+import { InstallmentService } from "@/features/installments/application/installment-service";
 import { PrismaJournalRepository } from "@/features/accounting/infrastructure/prisma-journal-repository";
 import { ArApService } from "@/features/ar-ap/application/ar-ap-service";
 import { PrismaArApRepository } from "@/features/ar-ap/infrastructure/prisma-ar-ap-repository";
@@ -29,6 +30,9 @@ import { RevenueService } from "@/features/revenue/application/revenue-service";
 import { PrismaRevenueRepository } from "@/features/revenue/infrastructure/prisma-revenue-repository";
 import { TourismService } from "@/features/tourism/application/tourism-service";
 import { PrismaTourismRepository } from "@/features/tourism/infrastructure/prisma-tourism-repository";
+import { OrganizationService } from "@/features/organization/application/organization-service";
+import { ConsolidationService } from "@/features/organization/application/consolidation-service";
+import { PrismaOrganizationRepository } from "@/features/organization/infrastructure/prisma-organization-repository";
 
 const journalRepository = new PrismaJournalRepository(prisma);
 const journal = new JournalPostingService(journalRepository);
@@ -44,10 +48,10 @@ const inventoryRepository = new PrismaInventoryRepository(prisma);
 const purchaseRepository = new PrismaPurchaseRepository(prisma);
 const floatRepository = new PrismaFloatRepository(prisma);
 const payment = new PaymentService(paymentRepository, journal);
-const inventory = new InventoryService(inventoryRepository, journal);
+const float = new FloatManagementService(floatRepository, journal);
+const inventory = new InventoryService(inventoryRepository, journal, float);
 const arAp = new ArApService(arApRepository, journal);
 const cashSession = new CashService(cashSessionRepository, journal);
-const float = new FloatManagementService(floatRepository, journal);
 const sales = new SalesService(salesRepository, journal, inventory, payment);
 const posRepository = new PrismaPosRepository(prisma);
 const pos = new PosService(posRepository, sales, payment, cashSession);
@@ -72,5 +76,13 @@ export const serverServices = {
   pos,
   revenue,
   tourism,
+  installments: new InstallmentService(prisma, journal),
   paymentRepository
+};
+
+// ─── Multi-Unit Organization (additive — tidak mengubah service existing) ──────
+const organizationRepository = new PrismaOrganizationRepository(prisma);
+export const orgServices = {
+  organization: new OrganizationService(organizationRepository),
+  consolidation: new ConsolidationService(organizationRepository, serverServices.reporting),
 };

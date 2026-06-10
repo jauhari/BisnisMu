@@ -1,10 +1,10 @@
 # PRD Addendum — User Roles & God Mode (Super Admin)
-## AkuntansiMu
+## BisnisMu
 
 **Versi:** 1.1  
 **Tanggal:** 30 Mei 2026  
 **Status:** Draft  
-**Melengkapi:** PRD-AkuntansiMu-v1.0 (Bagian 10.2)
+**Melengkapi:** PRD-BisnisMu-v1.0 (Bagian 10.2)
 
 ---
 
@@ -24,7 +24,7 @@
 
 ## 1. Gambaran Sistem Role
 
-AkuntansiMu menggunakan **2 lapisan role yang independen**:
+BisnisMu menggunakan **2 lapisan role yang independen**:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -170,9 +170,9 @@ SUPPORT_AGENT, FINANCE_ADMIN, DEVELOPER  ──CANNOT assign──►  siapapun
 
 God Mode diakses melalui subdomain atau path terpisah:
 ```
-https://admin.akuntansimu.id   ← recommended (subdomain terpisah)
+https://admin.bisnismu.id   ← recommended (subdomain terpisah)
 atau
-https://akuntansimu.id/god     ← alternatif (path-based)
+https://bisnismu.id/god     ← alternatif (path-based)
 ```
 
 **Requirement akses:**
@@ -188,7 +188,7 @@ Halaman utama admin panel menampilkan:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  🔴 ADMIN PANEL — AkuntansiMu                    [Logout]   │
+│  🔴 ADMIN PANEL — BisnisMu                    [Logout]   │
 │  Login sebagai: Andi Pratama (SUPER_ADMIN)                  │
 │  Session expires: 1:45:23                                   │
 ├─────────────────────────────────────────────────────────────┤
@@ -241,7 +241,7 @@ Fitur paling sensitif di God Mode. Memungkinkan admin melihat tampilan persis se
     Alasan impersonasi: [wajib diisi, min 20 karakter]
     Semua aksi Anda akan dicatat atas nama Anda, bukan user ini."
 3. Admin isi alasan → klik Konfirmasi
-4. Tab baru terbuka → UI normal AkuntansiMu sebagai user tersebut
+4. Tab baru terbuka → UI normal BisnisMu sebagai user tersebut
 5. Banner merah permanen di atas UI:
    ┌──────────────────────────────────────────────────────────┐
    │ 🔴 GOD MODE AKTIF — Anda login sebagai: Ibu Sari        │
@@ -673,5 +673,5 @@ Saat **Impersonate aktif**, banner merah permanen muncul:
 
 ---
 
-*Addendum ini adalah bagian tidak terpisahkan dari PRD-AkuntansiMu-v1.0*  
+*Addendum ini adalah bagian tidak terpisahkan dari PRD-BisnisMu-v1.0*  
 *Versi berikutnya: Wireframe Admin Panel & API spec endpoint /admin/*

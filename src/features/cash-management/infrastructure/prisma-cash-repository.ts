@@ -57,6 +57,16 @@ export class PrismaCashRepository implements CashRepository {
     return this.toCashTransaction(tx);
   }
 
+  async deleteDraft(ctx: TenantContext, transactionId: string): Promise<boolean> {
+    const result = await this.prisma.cashTransaction.deleteMany({ where: { id: transactionId, businessId: ctx.businessId, status: "DRAFT" } });
+    return result.count > 0;
+  }
+
+  async deleteAny(ctx: TenantContext, transactionId: string): Promise<boolean> {
+    const result = await this.prisma.cashTransaction.deleteMany({ where: { id: transactionId, businessId: ctx.businessId } });
+    return result.count > 0;
+  }
+
   async createAuditLog(ctx: TenantContext, event: CashAuditEvent): Promise<void> {
     await this.prisma.auditLog.create({ data: { businessId: ctx.businessId, actorUserId: ctx.actorUserId, action: event.action, entityType: event.entityType, entityId: event.entityId ?? null, metadata: event.metadata as Prisma.InputJsonValue, requestId: ctx.requestId ?? null, ipAddress: ctx.ipAddress ?? null, userAgent: ctx.userAgent ?? null } });
   }

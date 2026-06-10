@@ -6,12 +6,12 @@ import argon2 from "argon2";
 import { prisma } from "@/presentation/api/prisma";
 
 export const auth = betterAuth({
-  appName: "AkuntansiMu",
+  appName: "BisnisMu",
   basePath: "/api/auth",
   secret: process.env.BETTER_AUTH_SECRET ?? process.env.AUTH_SECRET,
   database: prismaAdapter(prisma, {
     provider: "postgresql",
-    transaction: true,
+    transaction: false, // PgBouncer transaction pooling tidak support Prisma interactive transactions
   }),
   user: {
     modelName: "User",

@@ -1,11 +1,10 @@
 import { handleApi } from "@/presentation/api/route-handler";
+import { prisma } from "@/presentation/api/prisma";
 import { productCategorySchema } from "@/presentation/api/request-schemas";
 import { parseAndValidate } from "@/presentation/api/validation";
 import { PrismaInventoryRepository } from "@/features/inventory/infrastructure/prisma-inventory-repository";
 import { requireTenantContext } from "@/presentation/auth/session";
-import { PrismaClient } from "@prisma/client";
 
-const prisma = new PrismaClient();
 const repo = new PrismaInventoryRepository(prisma);
 
 export async function GET(request: Request) {

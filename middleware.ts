@@ -4,7 +4,8 @@ import { isAuthError } from "@/presentation/auth/auth-error";
 import { isPublicApiPath } from "@/presentation/auth/public-paths";
 import { requirePermissionForRoute } from "@/presentation/auth/permissions";
 import { apiRateLimitRule, authRateLimitRule, clientIp, getRateLimiter, rateLimitResponse } from "@/presentation/auth/rate-limit";
-import { getAuthenticatedUserContextByToken, getRequestSessionToken } from "@/presentation/auth/session";
+import { getAuthenticatedUserContextByToken, getRequestSessionToken, requireGodMode } from "@/presentation/auth/session";
+import { prisma } from "@/presentation/api/prisma";
 import { withSecurityHeaders } from "@/presentation/security/security-headers";
 
 function unauthorized(message = "Authentication required") {
@@ -38,6 +39,18 @@ export async function middleware(request: NextRequest) {
 
   const token = getRequestSessionToken(request);
   if (!token) return unauthorized();
+
+  // God mode routes — validate platform role, skip business context
+  if (pathname.startsWith("/api/admin/") || pathname === "/api/admin") {
+    try {
+      const session = await prisma.session.findUnique({ where: { token }, include: { user: true } });
+      if (!session?.user?.id || session.expiresAt <= new Date()) return unauthorized();
+      requireGodMode({ platformRole: (session.user.platformRole ?? "USER") as any }, ["SUPER_ADMIN", "SUPPORT_AGENT", "DEVELOPER"]);
+      return withSecurityHeaders(NextResponse.next());
+    } catch (error) {
+      return isAuthError(error) ? forbidden("God mode access required") : serviceUnavailable();
+    }
+  }
 
   try {
     const context = await getAuthenticatedUserContextByToken(token);

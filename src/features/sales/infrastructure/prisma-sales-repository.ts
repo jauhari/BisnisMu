@@ -102,6 +102,62 @@ export class PrismaSalesRepository implements SalesRepository {
     return { rows: rows.map((row) => this.toSalesOrder(row)), total };
   }
 
+  async updateSalesOrder(ctx: TenantContext, salesOrderId: string, input: any, computed: any): Promise<SalesOrderEntity> {
+    const row = await this.prisma.$transaction(async (tx) => {
+      await tx.salesOrderItem.deleteMany({ where: { businessId: ctx.businessId, salesOrderId } });
+      return tx.salesOrder.update({
+        where: { id: salesOrderId },
+        data: {
+          customerId: input.customerId,
+          saleDate: input.saleDate,
+          description: input.description,
+          subtotal: computed.subtotal,
+          discountTotal: computed.discountTotal,
+          taxTotal: computed.taxTotal,
+          totalAmount: computed.totalAmount,
+          revenueSettlementAccountId: input.revenueSettlementAccountId,
+          arAccountId: input.arAccountId ?? null,
+          items: {
+            create: computed.items.map((item: any) => ({
+              businessId: ctx.businessId,
+              productId: item.productId,
+              productType: item.productType,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              discountAmount: item.discountAmount,
+              taxAmount: item.taxAmount,
+              lineTotal: item.lineTotal,
+              locationId: item.locationId ?? null,
+              providerProductId: item.providerProductId ?? null
+            }))
+          }
+        },
+        include: { items: true }
+      });
+    });
+    return this.toSalesOrder(row);
+  }
+
+  async deleteSalesOrder(ctx: TenantContext, salesOrderId: string): Promise<boolean> {
+    const existing = await this.prisma.salesOrder.findFirst({ where: { id: salesOrderId, businessId: ctx.businessId, status: "DRAFT" }, select: { id: true } });
+    if (!existing) return false;
+    await this.prisma.$transaction(async (tx) => {
+      await tx.salesOrderItem.deleteMany({ where: { businessId: ctx.businessId, salesOrderId } });
+      await tx.salesOrder.delete({ where: { id: salesOrderId } });
+    });
+    return true;
+  }
+
+  async deleteAnySalesOrder(ctx: TenantContext, salesOrderId: string): Promise<boolean> {
+    const existing = await this.prisma.salesOrder.findFirst({ where: { id: salesOrderId, businessId: ctx.businessId }, select: { id: true } });
+    if (!existing) return false;
+    await this.prisma.$transaction(async (tx) => {
+      await tx.salesOrderItem.deleteMany({ where: { businessId: ctx.businessId, salesOrderId } });
+      await tx.salesOrder.delete({ where: { id: salesOrderId } });
+    });
+    return true;
+  }
+
   async updateSalesStatus(ctx: TenantContext, salesOrderId: string, status: SalesStatus, paidAmount?: bigint, paymentTransactionId?: string, postedJournalId?: string): Promise<SalesOrderEntity> {
     const data: Record<string, unknown> = { status };
     if (paidAmount !== undefined) data.paidAmount = paidAmount;

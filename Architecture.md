@@ -1,11 +1,11 @@
-# AkuntansiMu Architecture
+# BisnisMu Architecture
 
 Date reviewed: 2026-05-31  
 Scope reviewed: `src/features`, `prisma/schema.prisma`, `tests`, `docs`
 
 ## Executive Summary
 
-AkuntansiMu is currently a TypeScript domain and application service codebase for a multi-business accounting product. The repository is organized around feature modules with a common pattern:
+BisnisMu is currently a TypeScript domain and application service codebase for a multi-business accounting product. The repository is organized around feature modules with a common pattern:
 
 1. `domain`: pure business/accounting rules, validation, calculations, and journal previews.
 2. `application`: orchestration services and repository ports.
@@ -617,8 +617,9 @@ The Prisma schema defines PostgreSQL models using `BigInt` for money amounts. Am
 
 The current schema does not include tables for:
 
-- Users, authentication, sessions, password credentials, 2FA, or platform roles.
-- Business membership and business-level roles.
+- ~~Users, authentication, sessions, password credentials, or platform roles~~ — **Implemented (v0.4.0)**: `User`, `Session`, `AuthAccount`, `VerificationToken`, `PlatformRole`
+- ~~Business membership and business-level roles~~ — **Implemented (v0.4.0)**: `BusinessMember`, `BusinessMemberRole`
+- 2FA credentials (deferred).
 - Subscription, plan, billing, invoices, or limits.
 - File attachments beyond `attachmentKey` string references.
 - Fixed assets and depreciation.
@@ -679,21 +680,17 @@ These modules have meaningful business logic but no Prisma infrastructure:
 
 ## Missing Modules
 
-### Platform and Access Control
+### ~~Platform and Access Control~~ — Implemented (v0.4.0)
 
-Required modules:
-
-- User account management.
-- Authentication/session management.
-- Platform roles: `SUPER_ADMIN`, `SUPPORT_AGENT`, `FINANCE_ADMIN`, `DEVELOPER`, `USER`.
-- Business roles: `OWNER`, `ADMIN`, `EDITOR`, `VIEWER`, `ACCOUNTANT`, `CASHIER`.
-- Business membership table and permission checks.
-- Admin/God Mode session separation, 2FA enforcement, impersonation audit, and platform audit logs.
-
-Why it matters:
-
-- Current services trust `actorUserId` and `businessId` from callers.
-- There is no authoritative access-control boundary.
+✅ User account management — `User` model + `better-auth`  
+✅ Authentication/session management — cookie sessions via `better-auth`  
+✅ Platform roles — `PlatformRole`: SUPER_ADMIN, SUPPORT_AGENT, FINANCE_ADMIN, DEVELOPER, USER  
+✅ Business roles — `BusinessMemberRole`: OWNER, ADMIN, ACCOUNTANT, EDITOR, CASHIER, VIEWER  
+✅ Business membership table — `BusinessMember` with `isActive` flag  
+✅ Permission checks — `requirePermissionForRoute()` in `middleware.ts`  
+✅ God Mode — `/api/admin/*` terproteksi platform role check  
+❌ 2FA enforcement untuk SUPER_ADMIN — deferred  
+❌ Impersonation audit — deferred
 
 ### API and Application Shell
 
@@ -815,9 +812,9 @@ Required modules:
 
 ## Architectural Risks
 
-### Tenant Isolation Is Caller-Enforced
+### ~~Tenant Isolation Is Caller-Enforced~~ — Fixed (v0.4.0)
 
-Services consistently carry `businessId`, but there is no auth or membership layer to prove the caller can access the business. This should be fixed before exposing APIs.
+`businessId` dan `actorUserId` sekarang diambil dari `session.activeBusinessId` + `BusinessMember` di database. Client tidak lagi bisa inject nilai ini. Middleware memvalidasi setiap request.
 
 ### Several Services Outrun the Schema
 

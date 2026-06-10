@@ -19,11 +19,13 @@ export interface JournalRepository {
   findOpenFiscalPeriod(ctx: TenantContext, transactionDate: Date): Promise<FiscalPeriodSnapshot | null>;
   findPostedJournalByIdempotencyKey(ctx: TenantContext, idempotencyKey: string): Promise<PostedJournalResult | null>;
   createPostedJournal(ctx: TenantContext, journal: ValidatedJournal): Promise<PostedJournalResult>;
+  replacePostedJournal?(ctx: TenantContext, journalId: string, journal: ValidatedJournal): Promise<PostedJournalResult>;
+  deletePostedJournal?(ctx: TenantContext, journalId: string): Promise<boolean>;
   createAuditLog(ctx: TenantContext, event: JournalAuditEvent): Promise<void>;
 }
 
 export interface JournalAuditEvent {
-  action: "JOURNAL_POSTED" | "JOURNAL_POST_REJECTED";
+  action: "JOURNAL_POSTED" | "JOURNAL_POST_REJECTED" | "JOURNAL_UPDATED";
   businessId: string;
   actorUserId: string;
   entityType: "journal";

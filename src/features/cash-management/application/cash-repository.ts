@@ -20,6 +20,8 @@ export interface CashRepository {
   findTransaction(ctx: TenantContext, transactionId: string): Promise<CashTransactionEntity | null>;
   markPosted(ctx: TenantContext, transactionId: string, journalId: string): Promise<CashTransactionEntity>;
   markVoided(ctx: TenantContext, transactionId: string, journalId: string, reason: string): Promise<CashTransactionEntity>;
+  deleteDraft(ctx: TenantContext, transactionId: string): Promise<boolean>;
+  deleteAny(ctx: TenantContext, transactionId: string): Promise<boolean>;
   createAuditLog(ctx: TenantContext, event: CashAuditEvent): Promise<void>;
 }
 
@@ -29,4 +31,4 @@ export interface UpdateCashDraftCommand extends CashDraftCommand { transactionId
 export interface PreviewCashCommand extends CashTransactionDraftInput { actorUserId: string; requestId?: string; ipAddress?: string; userAgent?: string; }
 export interface PostCashCommand { businessId: string; transactionId: string; actorUserId: string; requestId?: string; ipAddress?: string; userAgent?: string; }
 export interface VoidCashCommand { businessId: string; transactionId: string; reason: string; actorUserId: string; requestId?: string; ipAddress?: string; userAgent?: string; }
-
+export interface DeleteCashDraftCommand { businessId: string; transactionId: string; actorUserId: string; requestId?: string; ipAddress?: string; userAgent?: string; }

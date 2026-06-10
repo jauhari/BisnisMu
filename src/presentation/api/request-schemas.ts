@@ -105,6 +105,11 @@ export const inventoryProductSchema = z.object({
   cogsAccountId: optionalUuidSchema,
   revenueAccountId: uuidSchema,
   trackStock: z.boolean().optional(),
+  buyPrice: nonNegativeMoneySchema.optional(),
+  sellPrice: nonNegativeMoneySchema.optional(),
+  provider: z.enum(["FASTPAY", "PAYFAZZ", "BUKUWARUNG", "SHOPEEPAY", "LINKAJA", "CUSTOM"]).optional(),
+  providerSku: optionalString,
+  floatAccountId: optionalUuidSchema,
 });
 
 export const inventoryStockInSchema = z.object({
@@ -314,3 +319,23 @@ export const tenantRentalSchema = z.object({ attractionId: uuidSchema, tenantNam
 export const visitorTransactionSchema = z.object({ source: visitorSourceEnum, transactionDate: dateSchema, attractionId: uuidSchema, ticketTypeId: optionalUuidSchema, ticketPackageId: optionalUuidSchema, parkingServiceId: optionalUuidSchema, rentalServiceId: optionalUuidSchema, tenantRentalId: optionalUuidSchema, cashAccountId: uuidSchema, quantity: positiveIntSchema.optional(), visitorCount: positiveIntSchema.optional(), bookingReference: optionalString });
 export const validateTicketSchema = z.object({ validationCode: stringRequired });
 export const voidVisitorTransactionSchema = z.object({ visitorTransactionId: uuidSchema, reason: z.string().min(10, "Void reason must be at least 10 characters") });
+
+export const installmentPlanSchema = z.object({
+  customerId: uuidSchema,
+  description: stringRequired,
+  totalAmount: positiveMoneySchema,
+  downPayment: nonNegativeMoneySchema.optional(),
+  tenor: z.coerce.number().int().min(1).max(120),
+  startDate: dateSchema,
+  arAccountId: uuidSchema,
+  revenueAccountId: optionalUuidSchema,
+  dpCashAccountId: optionalUuidSchema,
+  salesOrderId: optionalUuidSchema,
+});
+
+export const installmentPaySchema = z.object({
+  scheduleId: uuidSchema,
+  cashAccountId: uuidSchema,
+  amount: positiveMoneySchema,
+  paymentDate: dateSchema,
+});

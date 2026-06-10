@@ -35,3 +35,30 @@ body { min-height: 100vh; margin: 0; font-family: var(--font-sans); letter-spaci
 button, input, textarea { font: inherit; }
 :focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
 ::selection { background: hsl(var(--accent) / 0.22); }
+
+/* Custom Premium & Thin Scrollbar Styles */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted) / 0.2);
+  border-radius: 9999px;
+  transition: background 0.2s ease;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--accent) / 0.4);
+}
+
+/* Firefox support */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted) / 0.2) transparent;
+}
+
