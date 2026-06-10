@@ -22,8 +22,8 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate --schema prisma/schema.prisma
         env:
-          DATABASE_URL: ${{ secrets.DIRECT_URL }}
-          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+          DATABASE_URL: ${{ secrets.DIRECT_URL || 'postgresql://dummy:dummy@localhost:5432/dummy' }}
+          DIRECT_URL: ${{ secrets.DIRECT_URL || 'postgresql://dummy:dummy@localhost:5432/dummy' }}
 
       - name: Type check
         run: npm run typecheck
@@ -41,14 +41,33 @@ jobs:
           node-version: 20
           cache: npm
 
+      - name: Check production database secret
+        id: database-secret
+        shell: bash
+        env:
+          DIRECT_URL: ${{ secrets.DIRECT_URL }}
+        run: |
+          if [ -z "$DIRECT_URL" ]; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::DIRECT_URL secret is not configured; skipping production migrations."
+          else
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Install dependencies
+        if: steps.database-secret.outputs.available == 'true'
         run: npm ci
 
       - name: Deploy migrations
+        if: steps.database-secret.outputs.available == 'true'
         run: npm run prisma:migrate:deploy
         env:
           DATABASE_URL: ${{ secrets.DIRECT_URL }}
           DIRECT_URL: ${{ secrets.DIRECT_URL }}
+
+      - name: Skip migrations
+        if: steps.database-secret.outputs.available != 'true'
+        run: echo "Production migrations skipped because DIRECT_URL is not configured."
 
   deploy:
     name: Deploy to Vercel
@@ -58,7 +77,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check Vercel secrets
+        id: vercel-secrets
+        shell: bash
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_ORG_ID" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Vercel production secrets are not configured; skipping production deploy."
+          else
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Deploy to Vercel
+        if: steps.vercel-secrets.outputs.available == 'true'
         uses: amondnet/vercel-action@v25
         with:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
@@ -67,3 +102,7 @@ jobs:
           vercel-args: "--prod"
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+
+      - name: Skip Vercel deploy
+        if: steps.vercel-secrets.outputs.available != 'true'
+        run: echo "Production deploy skipped because one or more Vercel secrets are not configured."
