@@ -23,4 +23,15 @@ npm run typecheck
 npm run dev -- --port 3333
 ```
 
+## Security: secret rotation
+
+`.env` ships with placeholders only. Provide real values via your secrets manager
+(Vercel env vars / Neon dashboard), never commit them. If any of the following were
+ever exposed in a developer `.env`, rotate them:
+
+- `DATABASE_URL` / `DIRECT_URL` — reset the Neon database password.
+- `ANTHROPIC_API_KEY` — revoke and reissue in the Anthropic console.
+- `BETTER_AUTH_SECRET` — regenerate with `openssl rand -base64 32` (rotating this
+  invalidates existing sessions).
+
 Lihat `CHANGELOG.md` untuk riwayat perubahan lengkap.

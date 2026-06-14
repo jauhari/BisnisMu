@@ -23,6 +23,22 @@ function ProfileModal({ user, onClose }: { user: { name: string; email: string }
   const [newPw, setNewPw]             = useState("");
   const [confirmPw, setConfirmPw]     = useState("");
   const [saving, setSaving]           = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  // Dialog a11y: trap nothing heavy, but restore focus, close on Escape, and
+  // move focus into the dialog on open.
+  useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    dialogRef.current?.querySelector<HTMLElement>("input, button")?.focus();
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      previouslyFocused?.focus?.();
+    };
+  }, [onClose]);
 
   async function save() {
     if (newPw && newPw !== confirmPw) { toast.error("Konfirmasi password tidak cocok."); return; }
@@ -48,11 +64,14 @@ function ProfileModal({ user, onClose }: { user: { name: string; email: string }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="w-full max-w-sm rounded-2xl border border-border bg-background p-6 shadow-2xl">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Edit Profil" className="w-full max-w-sm rounded-2xl border border-border bg-background p-6 shadow-2xl">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-base font-semibold">Edit Profil</h2>
-          <button type="button" onClick={onClose} className="text-muted hover:text-foreground"><X className="h-4 w-4" /></button>
+          <button type="button" aria-label="Tutup" onClick={onClose} className="text-muted hover:text-foreground"><X className="h-4 w-4" /></button>
         </div>
 
         <div className="space-y-3">

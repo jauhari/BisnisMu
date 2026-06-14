@@ -8,7 +8,7 @@ import { GlassPanel } from "@/components/glass/glass-primitives";
 import { usePostMutation, useListQuery } from "@/presentation/query/dashboard-hooks";
 import { GlassDataSelect, GlassInput } from "@/components/forms/glass-form";
 
-const today = new Date().toISOString().slice(0, 10);
+const todayIso = () => new Date().toISOString().slice(0, 10);
 function flattenAccounts(nodes: any[]): any[] { return nodes.flatMap((n) => [n, ...flattenAccounts(n.children ?? [])]); }
 
 export default function Page() {
@@ -18,7 +18,7 @@ export default function Page() {
 
   const [sourceId, setSourceId] = useState("");
   const [destId, setDestId] = useState("");
-  const [movementDate, setMovementDate] = useState(today);
+  const [movementDate, setMovementDate] = useState(() => todayIso());
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [error, setError] = useState<string | null>(null);

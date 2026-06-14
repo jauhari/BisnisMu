@@ -1,7 +1,54 @@
 # BisnisMu — Handoff Document
 
-Date: 2026-06-09  
-Session scope: Reset Data God Mode (per bisnis, granular + dry-run), perbaikan timeout transaksi Scan Laporan Harian, dan perbaikan tampilan halaman changelog.
+Date: 2026-06-14  
+Session scope: Audit menyeluruh (security, bug, performa, arsitektur, DevOps) lalu remediasi seluruh temuan Critical, High, dan Medium. Verifikasi typecheck + ESLint + 212 test + coverage gate + production build, dan deploy migration index ke DB live.
+
+---
+
+## Phase 14: Security & Data-Integrity Hardening (v0.11.0 — 2026-06-14)
+
+### Pondasi atomicity (baru)
+- `src/features/shared/tx.ts` — tipe `TxClient` untuk menyalurkan transaction client lintas layer tanpa kebocoran dependency Prisma ke domain.
+- `src/features/shared/transaction-runner.ts` — port `TransactionRunner` + `inlineTransactionRunner` (no-op default, dipakai test & non-DB).
+- `src/presentation/api/transaction-runner.ts` — `PrismaTransactionRunner` di koneksi **DIRECT_URL** (PgBouncer transaction-pooling tidak mendukung interactive transaction).
+- `src/presentation/api/prisma.ts` — tambah `prismaDirect` (unpooled), fallback ke pooled bila `DIRECT_URL` kosong.
+- `JournalPostingService.post()` + `PrismaJournalRepository.createPostedJournal()` menerima `tx?` opsional → backward compatible (advisory lock + retry tetap jalan bila tx tidak diberikan).
+
+### Critical (selesai)
+- **C-1 Secrets**: `.env` di-placeholder, panduan rotasi di README. **Nilai lama harus dirotasi manual oleh pemilik** (DB/Anthropic/auth secret).
+- **C-2 dev-login**: diblokir di production.
+- **C-3 Atomicity**: Revenue, Cash Management, AR/AP → posting jurnal + update status dalam satu `$transaction`. **Belum**: flow multi-service (sales→inventory→payment, POS checkout, purchase receipt, installment, tourism) — butuh integration test ke DB asli.
+- **C-4 Balances/sequence**: wallet & float pakai increment SQL atomik. **Belum**: nomor dokumen sales/PO/POS masih `max+1` tanpa advisory lock.
+- **C-5 Tenant isolation**: `businessId` ditambahkan ke semua write Sales/Purchase/POS/Installment.
+- **C-6 Dockerfile**: deps lengkap saat build + `BUILD_STANDALONE=1`.
+
+### High (selesai)
+- **H-1** seed owner: guard production + password acak.
+- **H-2/M-14** CI: `build needs test`, job `audit`; deploy gagal (bukan skip) tanpa `DIRECT_URL`.
+- **H-3** ESLint asli (`next lint`) + `.eslintrc.json` + threshold coverage Vitest. (Menemukan & memperbaiki bug conditional-hooks nyata di `cash/transactions/page.tsx`.)
+- **H-4** CSP: drop `'unsafe-eval'` di prod + helper nonce.
+- **H-5** Escape HTML di semua jalur ekspor/cetak.
+- **H-6** Rate limiter fail-closed di prod + trusted client IP.
+- **H-7** Dashboard: ditangani via index (rewrite `groupBy` masih residual).
+- **H-8** Reporting query pakai `select` (paginasi report besar masih residual).
+- **H-9** 5 index baru — **sudah `migrate deploy` ke DB live & terverifikasi 5/5**.
+- **H-10** N+1 subsidiary-ledger + seeding CoA dibatch.
+- **H-11** Audit-in-catch dibungkus try/catch.
+
+### Medium (selesai)
+- M-1 subsidiary-ledger kolom benar; M-2 `new Date()` ke render (12 halaman); M-3 QueryClient defaults; M-4 debounce search; M-5 GlassTable lazy export + memo; M-6 default-customer via endpoint `?id=`; M-7 dialog a11y; M-8 aria-label; M-9 indikator non-warna; M-10 checkbox aksesibel; M-11 hapus `as any` (transactions); M-12 presisi average cost; M-13 komparator bigint.
+
+### Status verifikasi
+- `tsc --noEmit` bersih, `next lint` 0 error, **212 test hijau**, coverage gate exit 0, `next build` exit 0, `prisma validate` valid.
+- Migration `20260614000000_add_performance_indexes` **applied ke production**; status "Database schema is up to date!".
+
+### WAJIB dilakukan pemilik (tidak bisa dari kode)
+1. **Rotasi** password Neon, `ANTHROPIC_API_KEY`, `BETTER_AUTH_SECRET` (anggap kompromi).
+2. **Set `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`** di production — app sekarang fail-closed tanpa ini.
+
+### Residual / kerja lanjutan
+- Selesaikan C-3 untuk flow multi-service + advisory lock nomor dokumen (sebaiknya dengan integration test ke Neon branch).
+- Rewrite dashboard ke `groupBy/aggregate`; ganti `xlsx` (advisory tanpa fix upstream); wiring CSP nonce via page middleware; pertimbangkan Postgres RLS.
 
 ---
 

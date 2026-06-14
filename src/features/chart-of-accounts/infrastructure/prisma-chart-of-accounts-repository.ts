@@ -95,17 +95,18 @@ export class PrismaChartOfAccountsRepository implements ChartOfAccountsRepositor
 
   async createManySystemAccounts(ctx: TenantContext, accounts: Array<AccountTemplateItem & { normalBalance: "DEBIT" | "CREDIT"; parentId?: string | null }>): Promise<number> {
     return this.prisma.$transaction(async (tx) => {
-      const createdByCode = new Map<string, string>();
+      // Fetch all existing accounts once instead of one findFirst per template
+      // account (removes ~N queries from chart-of-accounts seeding).
+      const existingAccounts = await tx.account.findMany({
+        where: { businessId: ctx.businessId, code: { in: accounts.map((a) => a.code) } },
+        select: { id: true, code: true },
+      });
+      const createdByCode = new Map<string, string>(existingAccounts.map((a) => [a.code, a.id]));
       let created = 0;
 
       for (const account of accounts) {
+        if (createdByCode.has(account.code)) continue;
         const parentId = account.parentCode ? createdByCode.get(account.parentCode) ?? account.parentId ?? null : null;
-        const existing = await tx.account.findFirst({ where: { businessId: ctx.businessId, code: account.code } });
-        if (existing) {
-          createdByCode.set(existing.code, existing.id);
-          continue;
-        }
-
         const row = await tx.account.create({
           data: this.toCreateData(ctx, { ...account, parentId })
         });

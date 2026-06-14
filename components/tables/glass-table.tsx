@@ -144,6 +144,15 @@ function buildColumn<T extends object>(column: GlassTableColumn<T>): ColumnDef<T
   };
 }
 
+function escapeHtml(value: unknown): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function exportCsv(filename: string, headers: string[], rows: string[][]) {
   const body = rows.map((row) => row.map((value) => JSON.stringify(value ?? "")).join(",")).join("\n");
   const blob = new Blob([headers.join(",") + "\n" + body], { type: "text/csv;charset=utf-8;" });
@@ -155,8 +164,8 @@ function exportCsv(filename: string, headers: string[], rows: string[][]) {
 }
 
 function exportSpreadsheetXml(filename: string, headers: string[], rows: string[][]) {
-  const headerXml = headers.map((header) => `<Cell><Data ss:Type="String">${header}</Data></Cell>`).join("");
-  const rowXml = rows.map((row) => `<Row>${row.map((cell) => `<Cell><Data ss:Type="String">${String(cell ?? "")}</Data></Cell>`).join("")}</Row>`).join("");
+  const headerXml = headers.map((header) => `<Cell><Data ss:Type="String">${escapeHtml(header)}</Data></Cell>`).join("");
+  const rowXml = rows.map((row) => `<Row>${row.map((cell) => `<Cell><Data ss:Type="String">${escapeHtml(cell)}</Data></Cell>`).join("")}</Row>`).join("");
   const xml = `<?xml version="1.0"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Worksheet ss:Name="Export"><Table><Row>${headerXml}</Row>${rowXml}</Table></Worksheet></Workbook>`;
   const blob = new Blob([xml], { type: "application/vnd.ms-excel" });
   const link = document.createElement("a");
@@ -167,7 +176,7 @@ function exportSpreadsheetXml(filename: string, headers: string[], rows: string[
 }
 
 function exportPrintHtml(filename: string, headers: string[], rows: string[][]) {
-  const html = `<!doctype html><html><head><title>${filename}</title><style>body{font-family:Inter,Arial,sans-serif;padding:24px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #d1d5db;padding:8px;text-align:left;font-size:12px}th{background:#f8fafc}</style></head><body><h1>${filename}</h1><table><thead><tr>${headers.map((header) => `<th>${header}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${String(cell ?? "")}</td>`).join("")}</tr>`).join("")}</tbody></table><script>window.print()</script></body></html>`;
+  const html = `<!doctype html><html><head><title>${escapeHtml(filename)}</title><style>body{font-family:Inter,Arial,sans-serif;padding:24px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #d1d5db;padding:8px;text-align:left;font-size:12px}th{background:#f8fafc}</style></head><body><h1>${escapeHtml(filename)}</h1><table><thead><tr>${headers.map((header) => `<th>${escapeHtml(header)}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`).join("")}</tbody></table><script>window.print()</script></body></html>`;
   const blob = new Blob([html], { type: "text/html;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   window.open(url, "_blank", "noopener,noreferrer");
@@ -183,20 +192,34 @@ function GlassCheckbox({ checked, onChange, 'aria-label': ariaLabel, indetermina
   React.useEffect(() => {
     if (ref.current) ref.current.indeterminate = !!indeterminate;
   }, [indeterminate]);
+  // Accessible custom control: a real (visually hidden) input drives state and
+  // keyboard/AT behaviour, while a styled box provides the glass design visual.
   return (
-    <input
-      ref={ref}
-      type="checkbox"
-      aria-label={ariaLabel}
-      checked={checked}
-      onChange={onChange}
-      className="h-4 w-4 cursor-pointer rounded border-border accent-accent"
-    />
+    <label className="relative inline-flex h-4 w-4 cursor-pointer items-center justify-center">
+      <input
+        ref={ref}
+        type="checkbox"
+        aria-label={ariaLabel}
+        checked={checked}
+        onChange={onChange}
+        className="peer absolute inset-0 m-0 h-4 w-4 cursor-pointer opacity-0"
+      />
+      <span
+        aria-hidden
+        className={cn(
+          "pointer-events-none flex h-4 w-4 items-center justify-center rounded border border-border transition-colors",
+          checked || indeterminate ? "border-accent bg-accent text-white" : "bg-white/60 dark:bg-white/10",
+          "peer-focus-visible:ring-2 peer-focus-visible:ring-accent/60"
+        )}
+      >
+        {indeterminate ? <span className="h-0.5 w-2 rounded bg-current" /> : checked ? <Check className="h-3 w-3" /> : null}
+      </span>
+    </label>
   );
 }
 
 export function GlassTable<T extends object>({ columns, rows, empty = "No data", tableId = "default-table", selectable = true }: { columns: GlassTableColumn<T>[]; rows: T[]; empty?: string; tableId?: string; selectable?: boolean }) {
-  const columnIds = columns.map((column) => String(column.key));
+  const columnIds = useMemo(() => columns.map((column) => String(column.key)), [columns]);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [search, setSearch] = useState("");
   const [visibility, setVisibility] = useState<VisibilityState>({});
@@ -301,7 +324,9 @@ export function GlassTable<T extends object>({ columns, rows, empty = "No data",
   const visibleColumns = table.getVisibleLeafColumns();
   const selectedCount = table.getSelectedRowModel().rows.length;
   const exportHeaders = visibleColumns.map((column) => column.id);
-  const exportRows = searchedRows.map((row) => visibleColumns.map((column) => cellSearchText(column.id, (row as Record<string, unknown>)[column.id])));
+  // Built on demand (export click) instead of every render, so mapping the full
+  // dataset to strings doesn't run on each keystroke/scroll while the menu is closed.
+  const buildExportRows = () => searchedRows.map((row) => visibleColumns.map((column) => cellSearchText(column.id, (row as Record<string, unknown>)[column.id])));
   const headerLabel = (id: string) => columns.find((c) => String(c.key) === id)?.header ?? id;
   const moveColumn = (id: string, dir: -1 | 1) => setColumnOrder((current) => {
     const order = current.length ? current : columnIds;
@@ -342,9 +367,9 @@ export function GlassTable<T extends object>({ columns, rows, empty = "No data",
           <button type="button" onClick={() => setMenu((m) => m === "export" ? null : "export")} className={menuBtn} aria-haspopup="menu" aria-expanded={menu === "export"}><Download className="h-4 w-4" /><span className="hidden sm:inline">Ekspor</span></button>
           {menu === "export" ? (
             <div className="absolute right-0 z-30 mt-2 w-44 rounded-xl border border-border bg-background p-1.5 shadow-xl">
-              <button type="button" onClick={() => { exportCsv(tableId, exportHeaders, exportRows); setMenu(null); }} className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-white/60 dark:hover:bg-white/8">Ekspor CSV</button>
-              <button type="button" onClick={() => { exportSpreadsheetXml(tableId, exportHeaders, exportRows); setMenu(null); }} className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-white/60 dark:hover:bg-white/8">Ekspor Excel</button>
-              <button type="button" onClick={() => { exportPrintHtml(tableId, exportHeaders, exportRows); setMenu(null); }} className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-white/60 dark:hover:bg-white/8">Ekspor PDF</button>
+              <button type="button" onClick={() => { exportCsv(tableId, exportHeaders, buildExportRows()); setMenu(null); }} className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-white/60 dark:hover:bg-white/8">Ekspor CSV</button>
+              <button type="button" onClick={() => { exportSpreadsheetXml(tableId, exportHeaders, buildExportRows()); setMenu(null); }} className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-white/60 dark:hover:bg-white/8">Ekspor Excel</button>
+              <button type="button" onClick={() => { exportPrintHtml(tableId, exportHeaders, buildExportRows()); setMenu(null); }} className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-white/60 dark:hover:bg-white/8">Ekspor PDF</button>
             </div>
           ) : null}
         </div>

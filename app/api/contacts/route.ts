@@ -16,7 +16,13 @@ const createSchema = z.object({
 export async function GET(request: Request) {
   return handleApi(async () => {
     const { businessId } = await requireTenantContext(request);
-    const q = new URL(request.url).searchParams.get("q") ?? "";
+    const params = new URL(request.url).searchParams;
+    const q = params.get("q") ?? "";
+    const id = params.get("id");
+    // Direct lookup by id (used to resolve the configured default customer).
+    if (id) {
+      return prisma.contact.findMany({ where: { businessId, isActive: true, id } });
+    }
     return prisma.contact.findMany({
       where: {
         businessId,

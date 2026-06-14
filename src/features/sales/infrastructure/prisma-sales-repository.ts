@@ -106,7 +106,7 @@ export class PrismaSalesRepository implements SalesRepository {
     const row = await this.prisma.$transaction(async (tx) => {
       await tx.salesOrderItem.deleteMany({ where: { businessId: ctx.businessId, salesOrderId } });
       return tx.salesOrder.update({
-        where: { id: salesOrderId },
+        where: { id: salesOrderId, businessId: ctx.businessId },
         data: {
           customerId: input.customerId,
           saleDate: input.saleDate,
@@ -163,7 +163,7 @@ export class PrismaSalesRepository implements SalesRepository {
     if (paidAmount !== undefined) data.paidAmount = paidAmount;
     if (paymentTransactionId !== undefined) data.paymentTransactionId = paymentTransactionId;
     if (postedJournalId !== undefined) data.postedJournalId = postedJournalId;
-    const row = await this.prisma.salesOrder.update({ where: { id: salesOrderId }, data, include: { items: true } });
+    const row = await this.prisma.salesOrder.update({ where: { id: salesOrderId, businessId: ctx.businessId }, data, include: { items: true } });
     return this.toSalesOrder(row);
   }
 

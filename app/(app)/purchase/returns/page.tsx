@@ -8,7 +8,7 @@ import { GlassPanel } from "@/components/glass/glass-primitives";
 import { usePostMutation, useListQuery } from "@/presentation/query/dashboard-hooks";
 import { GlassDataSelect, GlassInput } from "@/components/forms/glass-form";
 
-const today = new Date().toISOString().slice(0, 10);
+const todayIso = () => new Date().toISOString().slice(0, 10);
 
 export default function Page() {
   const mutation = usePostMutation("/api/purchase/returns");
@@ -18,7 +18,7 @@ export default function Page() {
   const balances = useListQuery<any[]>("/api/inventory/balances", ["list", "inventory-balances"]);
 
   const [orderId, setOrderId] = useState("");
-  const [returnDate, setReturnDate] = useState(today);
+  const [returnDate, setReturnDate] = useState(() => todayIso());
   const [reason, setReason] = useState("");
   const [location, setLocation] = useState("main");
   const [qty, setQty] = useState<Record<string, string>>({});

@@ -21,7 +21,7 @@ function canVoid(role?: Role) { return role === "OWNER" || role === "ADMIN"; }
 function canHardMutate(role?: Role, hardMutation?: boolean) { return Boolean(hardMutation && (role === "OWNER" || role === "ADMIN" || role === "ACCOUNTANT")); }
 
 export default function Page() {
-  const history = useListQuery<{ role: Role; rows: TransactionHistoryRow[] }>("/api/transactions/history", ["list", "transaction-history"]);
+  const history = useListQuery<{ role: Role; hardMutation?: boolean; rows: TransactionHistoryRow[] }>("/api/transactions/history", ["list", "transaction-history"]);
 
   const [type, setType] = useState<TransactionHistoryTypeFilter>("all");
   const [status, setStatus] = useState<StatusFilter>("all");
@@ -29,13 +29,14 @@ export default function Page() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
-  const role = (history.data?.data as any)?.role as Role | undefined;
-  const hardMutation = Boolean((history.data?.data as any)?.hardMutation);
+  const payload = history.data?.data;
+  const role = payload?.role;
+  const hardMutation = Boolean(payload?.hardMutation);
   const loading = history.isLoading;
 
   const rows = useMemo(() => {
-    return ((history.data?.data as any)?.rows ?? []) as TransactionHistoryRow[];
-  }, [history.data]);
+    return payload?.rows ?? [];
+  }, [payload]);
 
   const filtered = useMemo(() => filterTransactionHistoryRows(rows, { type, status, query, startDate, endDate }), [rows, type, status, query, startDate, endDate]);
 
@@ -77,7 +78,7 @@ export default function Page() {
         { key: "kind", header: "Jenis" },
         { key: "status", header: "Status" },
         { key: "description", header: "Keterangan" },
-        { key: "amount", header: "Nominal", render: (row: any) => <span className={row.direction === "OUT" ? "font-medium text-danger" : row.direction === "IN" ? "font-medium text-success" : "font-medium"}>{Number(row.amount).toLocaleString("id-ID")}</span> },
+        { key: "amount", header: "Nominal", render: (row: any) => <span className={row.direction === "OUT" ? "font-medium text-danger" : row.direction === "IN" ? "font-medium text-success" : "font-medium"}>{row.direction === "OUT" ? "−" : row.direction === "IN" ? "+" : ""}{Number(row.amount).toLocaleString("id-ID")}</span> },
         { key: "actions", header: "Aksi", render: (row: TransactionHistoryRow) => <div className="flex flex-wrap gap-1.5"><Link href={row.href} className="rounded border border-border px-2 py-1 text-xs"><FileText className="inline h-3 w-3" /> Detail</Link>{((row.status === "DRAFT" && row.source !== "DAILY_SALE" && canMutate(role)) || (row.status !== "VOID" && canHardMutate(role, hardMutation))) ? <Link href={row.href} className="rounded border border-border px-2 py-1 text-xs"><Edit3 className="inline h-3 w-3" /> Edit</Link> : null}{row.status === "DRAFT" && row.source === "CASH_TRANSACTION" && canMutate(role) ? <button type="button" className="rounded bg-foreground px-2 py-1 text-xs text-background" onClick={() => void action(row, "post")}><Send className="inline h-3 w-3" /> Post</button> : null}{row.status === "DRAFT" && row.source === "SALES_ORDER" && canMutate(role) ? <button type="button" className="rounded bg-foreground px-2 py-1 text-xs text-background" onClick={() => void action(row, "confirm")}><Send className="inline h-3 w-3" /> Confirm</button> : null}{((row.status === "DRAFT" && row.source !== "DAILY_SALE" && canDelete(role)) || (row.status !== "VOID" && canHardMutate(role, hardMutation))) ? <button type="button" className="rounded border border-danger/40 px-2 py-1 text-xs text-danger" onClick={() => void action(row, "delete")}><Trash2 className="inline h-3 w-3" /> Delete</button> : null}{row.status !== "DRAFT" && row.status !== "VOID" && canVoid(role) && !hardMutation ? <button type="button" className="rounded border border-danger/40 px-2 py-1 text-xs text-danger" onClick={() => void action(row, "void")}><Undo2 className="inline h-3 w-3" /> Void</button> : null}</div> },
       ]} rows={filtered} empty="Belum ada transaksi yang cocok dengan filter." />
     </div>} side={<><DetailPanel title="Cara edit">Transaksi berstatus DRAFT bisa diedit dari tombol Edit. Untuk Bisnis Hanyukupi, role di atas Kasir dapat edit data yang sudah posted/confirmed.</DetailPanel><DetailPanel title="Kalau salah input">{hardMutation ? "Bisnis Hanyukupi memakai edit/delete langsung untuk role di atas Kasir; perubahan tetap dicatat di audit." : "Gunakan Void untuk membalik transaksi yang sudah masuk jurnal, lalu buat transaksi baru yang benar."}</DetailPanel><DetailPanel title="Akses role">Kasir bisa input dan posting draft. Void dan delete draft hanya OWNER atau ADMIN. Khusus Hanyukupi, OWNER, ADMIN, ACCOUNTANT mendapat edit/delete langsung.</DetailPanel></>} />

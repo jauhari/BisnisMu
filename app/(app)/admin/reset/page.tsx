@@ -308,7 +308,7 @@ export default function Page() {
           </p>
           {result.dryRun && (
             <p className="text-xs text-accent">
-              Ini hanya simulasi — data masih utuh. Centang konfirmasi lalu tekan "Reset Data Sekarang" untuk benar-benar menghapus.
+              Ini hanya simulasi — data masih utuh. Centang konfirmasi lalu tekan &quot;Reset Data Sekarang&quot; untuk benar-benar menghapus.
             </p>
           )}
           <div className="grid gap-1 text-xs">

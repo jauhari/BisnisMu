@@ -25,7 +25,12 @@ export interface FloatRepository {
   findFloatAccount(ctx: TenantContext, floatAccountId: string): Promise<FloatAccountEntity | null>;
   nextTransactionNumber(ctx: TenantContext, date: Date): Promise<string>;
   createTransaction(ctx: TenantContext, input: CreateFloatTransactionRecord): Promise<FloatTransactionEntity>;
-  updateFloatBalance(ctx: TenantContext, floatAccountId: string, balance: bigint): Promise<FloatAccountEntity>;
+  /**
+   * Atomically applies a signed delta to the float balance and returns the
+   * resulting balance. Prevents lost updates under concurrent transactions
+   * (unlike read-compute-overwrite).
+   */
+  incrementFloatBalance(ctx: TenantContext, floatAccountId: string, delta: bigint): Promise<bigint>;
   createBalanceSnapshot(ctx: TenantContext, input: FloatBalanceSnapshotInput, balance: bigint): Promise<FloatBalanceSnapshotEntity>;
   createAuditLog(ctx: TenantContext, event: FloatAuditEvent): Promise<void>;
 }

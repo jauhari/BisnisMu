@@ -2,6 +2,40 @@
 
 All notable changes to BisnisMu are documented in this file.
 
+## [0.11.0] - 2026-06-14
+
+### Security — Hardening Kredensial, Auth, CSP, dan Rate Limiting
+- `.env` dibersihkan ke placeholder; panduan rotasi kredensial (Neon, Anthropic, `BETTER_AUTH_SECRET`) ditambahkan di `README.md`.
+- Endpoint `/api/auth/dev-login` kini diblokir di production (404) kecuali `ALLOW_DEV_LOGIN=1`.
+- `scripts/seed-dev-owner.mjs` menolak berjalan di production tanpa `--force` dan membuat password acak (tidak lagi hardcode `Password123!`).
+- Content-Security-Policy menghapus `'unsafe-eval'` di production (tetap di dev untuk HMR); helper CSP berbasis nonce ditambahkan.
+- Rate limiter `fail-closed` di production bila Upstash belum dikonfigurasi, dan `clientIp` memakai hop proxy tepercaya (anti-spoof `x-forwarded-for`).
+- Semua jalur ekspor/cetak (`glass-table`, jadwal angsuran) kini melakukan HTML-escape pada nilai sel untuk mencegah XSS.
+
+### Fixed — Integritas Data Keuangan
+- Posting jurnal kini bisa berjalan dalam transaksi eksternal; modul Revenue, Cash Management, dan AR/AP membungkus posting jurnal + update status dalam satu transaksi atomik (via koneksi `DIRECT_URL`).
+- Saldo wallet pelanggan dan float memakai increment SQL atomik (`current_balance + delta`), menghilangkan lost-update pada operasi konkuren.
+- Penulisan lintas-tenant ditutup: semua `update`/`delete` di Sales, Purchase, POS, dan Installment menyertakan `businessId` pada klausa `where`.
+- Audit log pada blok catch posting jurnal dibungkus try/catch agar tidak menutupi error asli.
+- Valuasi stok keluar memakai porsi proporsional dari `inventory_value` (mengurangi akumulasi error pembulatan average cost).
+- Perbandingan sorting dashboard memakai komparator bigint (tanpa kehilangan presisi di atas 2^53).
+- Bug React conditional hooks di halaman Transaksi Kas diperbaiki (early return dipindah setelah semua hook).
+- Laporan buku pembantu (subsidiary-ledger) memfilter invoice/bill dengan kolom yang benar (`customerId`/`vendorId`, `subtotal`).
+
+### Performance
+- Index baru: `accounts(businessId, subtype)`, `journal_entries(businessId, status, transactionDate)`, `invoices(businessId, issueDate)`, `bills(businessId, issueDate)`, `inventory_movements(businessId, movementDate)`. Migration `20260614000000_add_performance_indexes`.
+- N+1 dihapus pada subsidiary-ledger (piutang/utang) dan seeding bagan akun (batch fetch + `createMany`).
+- Query reporting memakai `select` alih-alih `include` penuh.
+- `QueryClient` diberi default (`staleTime`, `refetchOnWindowFocus: false`), pencarian kontak di-debounce, dan ekspor tabel dihitung lazy saat menu dibuka.
+
+### Changed — DevOps & Tooling
+- `lint` kini ESLint sungguhan (`next lint`) menggantikan alias `tsc`; konfigurasi `.eslintrc.json` ditambahkan.
+- Threshold coverage Vitest ditambahkan (lines/functions/statements 60%, branches 50%).
+- CI: `build` bergantung pada `test`, ada job `audit` dependensi; deploy menjalankan typecheck+lint+test dan **gagal** (bukan skip) bila `DIRECT_URL` tidak ada.
+- Dockerfile memakai dependensi lengkap saat build dan menyetel `BUILD_STANDALONE=1`.
+- `new Date()` skala-modul dipindah ke dalam render di 12 halaman (menghindari hydration mismatch & staleness).
+- Aksesibilitas: modal profil mendapat semantik dialog + manajemen fokus + Escape, checkbox tabel jadi kontrol aksesibel, indikator laba/rugi & nominal tidak lagi hanya warna.
+
 ## [0.10.0] - 2026-06-10
 
 ### Added — CRUD Transaksi Berbasis Role dan Setting Organisasi

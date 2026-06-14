@@ -8,7 +8,7 @@ import { GlassPanel } from "@/components/glass/glass-primitives";
 import { usePostMutation, useListQuery } from "@/presentation/query/dashboard-hooks";
 import { GlassDataSelect, GlassDatePicker, GlassInput } from "@/components/forms/glass-form";
 
-const today = new Date().toISOString().slice(0, 10);
+const todayIso = () => new Date().toISOString().slice(0, 10);
 function addDays(iso: string, days: number) { const d = new Date(iso); d.setDate(d.getDate() + days); return d.toISOString().slice(0, 10); }
 
 export default function Page() {
@@ -18,8 +18,8 @@ export default function Page() {
   const vendors = useListQuery<any[]>("/api/ar-ap/vendors", ["list", "ar-ap-vendors"]);
 
   const [orderId, setOrderId] = useState("");
-  const [billDate, setBillDate] = useState(today);
-  const [dueDate, setDueDate] = useState(addDays(today, 30));
+  const [billDate, setBillDate] = useState(() => todayIso());
+  const [dueDate, setDueDate] = useState(() => addDays(todayIso(), 30));
   const [description, setDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [okMsg, setOkMsg] = useState<string | null>(null);

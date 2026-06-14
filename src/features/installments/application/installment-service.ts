@@ -88,12 +88,12 @@ export class InstallmentService {
 
     const newPaid = sch.paidAmount + c.amount;
     const status = newPaid >= sch.amount ? "PAID" : "PARTIAL";
-    await this.prisma.installmentSchedule.update({ where: { id: sch.id }, data: { paidAmount: newPaid, status, paidAt: status === "PAID" ? c.paymentDate : null, postedJournalId: posted.journalId } });
+    await this.prisma.installmentSchedule.update({ where: { id: sch.id, businessId: c.businessId }, data: { paidAmount: newPaid, status, paidAt: status === "PAID" ? c.paymentDate : null, postedJournalId: posted.journalId } });
 
-    const unpaid = await this.prisma.installmentSchedule.count({ where: { planId: sch.planId, status: { not: "PAID" } } });
-    if (unpaid === 0) await this.prisma.installmentPlan.update({ where: { id: sch.planId }, data: { status: "COMPLETED" } });
+    const unpaid = await this.prisma.installmentSchedule.count({ where: { businessId: c.businessId, planId: sch.planId, status: { not: "PAID" } } });
+    if (unpaid === 0) await this.prisma.installmentPlan.update({ where: { id: sch.planId, businessId: c.businessId }, data: { status: "COMPLETED" } });
 
-    return this.prisma.installmentPlan.findFirst({ where: { id: sch.planId }, include: { schedules: { orderBy: { sequence: "asc" } } } });
+    return this.prisma.installmentPlan.findFirst({ where: { id: sch.planId, businessId: c.businessId }, include: { schedules: { orderBy: { sequence: "asc" } } } });
   }
 
   async listPlans(ctx: Ctx) {

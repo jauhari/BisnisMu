@@ -10,6 +10,10 @@ interface LoginBody {
 }
 
 export async function POST(request: Request) {
+  // Backdoor login bypasses better-auth; never expose it in production.
+  if (process.env.NODE_ENV === "production" && process.env.ALLOW_DEV_LOGIN !== "1") {
+    return Response.json({ code: "NOT_FOUND", message: "Not found" }, { status: 404 });
+  }
   try {
     const body = await request.json() as LoginBody;
     const email = body.email?.toLowerCase().trim();

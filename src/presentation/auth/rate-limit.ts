@@ -91,6 +91,13 @@ export function createRateLimiter(): RateLimiter {
   const upstashUrl = process.env.UPSTASH_REDIS_REST_URL;
   const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN;
   if (upstashUrl && upstashToken) return new UpstashRedisRateLimiter(upstashUrl, upstashToken);
+  // MemoryRateLimiter is per-instance, so on serverless it neither shares state
+  // across instances nor survives cold starts — useless for real rate limiting.
+  // In production, refuse to start without a shared limiter rather than provide
+  // a false sense of protection.
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("Rate limiter misconfigured: set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN in production.");
+  }
   globalForRateLimit.memoryRateLimiter ??= new MemoryRateLimiter();
   return globalForRateLimit.memoryRateLimiter;
 }
@@ -120,7 +127,19 @@ export function rateLimitResponse(result: RateLimitResult): Response {
 }
 
 export function clientIp(headers: Headers): string {
-  return headers.get("x-forwarded-for")?.split(",")[0]?.trim() || headers.get("x-real-ip") || "unknown";
+  // x-forwarded-for is a client-controllable list "client, proxy1, proxy2".
+  // Behind a trusted proxy (Vercel), the platform appends the real client IP as
+  // the LAST entry, so in production we trust the rightmost hop to resist
+  // spoofing. In dev we keep the leftmost value for convenience.
+  const xff = headers.get("x-forwarded-for");
+  if (xff) {
+    const parts = xff.split(",").map((p) => p.trim()).filter(Boolean);
+    if (parts.length > 0) {
+      const ip = process.env.NODE_ENV === "production" ? parts[parts.length - 1] : parts[0];
+      if (ip) return ip;
+    }
+  }
+  return headers.get("x-real-ip") || "unknown";
 }
 
 export function authRateLimitRule(pathname: string): RateLimitRule | null {

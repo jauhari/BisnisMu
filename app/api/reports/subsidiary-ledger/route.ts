@@ -103,26 +103,26 @@ export async function POST(request: Request) {
         where: { businessId, subtype: "accounts_receivable", isActive: true },
       });
 
-      const result = await Promise.all(contacts.map(async (c) => {
-        // Cari invoice terkait kontak ini
-        const invoices = await prisma.invoice.findMany({
-          where: {
-            businessId,
-            ...(contactId ? { contactId } : {}),
-            ...(startsOn || endsOn ? {
-              issueDate: {
-                ...(startsOn ? { gte: startsOn } : {}),
-                ...(endsOn   ? { lte: endsOn   } : {}),
-              },
-            } : {}),
-          },
-          orderBy: { issueDate: "asc" },
-        });
+      // Fetch invoices once for the whole period (removes the per-contact N+1)
+      // and group in memory. Note: Invoice has `customerId`, not `contactId`.
+      const allInvoices = await prisma.invoice.findMany({
+        where: {
+          businessId,
+          ...(startsOn || endsOn ? {
+            issueDate: {
+              ...(startsOn ? { gte: startsOn } : {}),
+              ...(endsOn   ? { lte: endsOn   } : {}),
+            },
+          } : {}),
+        },
+        orderBy: { issueDate: "asc" },
+      });
 
-        const invoicesForContact = invoices.filter((inv) => (inv as any).contactId === c.id || (inv as any).customerId === c.id);
+      const result = contacts.map((c) => {
+        const invoicesForContact = allInvoices.filter((inv) => (inv as any).customerId === c.id);
 
-        const totalTagihan = invoicesForContact.reduce((s, inv) => s + BigInt((inv as any).totalAmount ?? 0), 0n);
-        const totalLunas   = invoicesForContact.filter((inv) => (inv as any).status === "PAID").reduce((s, inv) => s + BigInt((inv as any).totalAmount ?? 0), 0n);
+        const totalTagihan = invoicesForContact.reduce((s, inv) => s + BigInt((inv as any).subtotal ?? 0), 0n);
+        const totalLunas   = invoicesForContact.filter((inv) => (inv as any).status === "PAID").reduce((s, inv) => s + BigInt((inv as any).subtotal ?? 0), 0n);
         const sisaPiutang  = totalTagihan - totalLunas;
 
         return {
@@ -136,11 +136,11 @@ export async function POST(request: Request) {
             nomor:     (inv as any).invoiceNumber ?? inv.id,
             tanggal:   (inv as any).issueDate,
             jatuhTempo: (inv as any).dueDate,
-            jumlah:    BigInt((inv as any).totalAmount ?? 0),
+            jumlah:    BigInt((inv as any).subtotal ?? 0),
             status:    (inv as any).status ?? "DRAFT",
           })),
         };
-      }));
+      });
 
       return { type: "piutang", arAccountId: arAccount?.id, contacts: result.filter((c) => c.totalTagihan > 0n || !contactId) };
     }
@@ -166,9 +166,9 @@ export async function POST(request: Request) {
       });
 
       const result = contacts.map((c) => {
-        const billsForContact = bills.filter((b) => (b as any).contactId === c.id || (b as any).vendorId === c.id);
-        const totalTagihan = billsForContact.reduce((s, b) => s + BigInt((b as any).totalAmount ?? 0), 0n);
-        const totalLunas   = billsForContact.filter((b) => (b as any).status === "PAID").reduce((s, b) => s + BigInt((b as any).totalAmount ?? 0), 0n);
+        const billsForContact = bills.filter((b) => (b as any).vendorId === c.id);
+        const totalTagihan = billsForContact.reduce((s, b) => s + BigInt((b as any).subtotal ?? 0), 0n);
+        const totalLunas   = billsForContact.filter((b) => (b as any).status === "PAID").reduce((s, b) => s + BigInt((b as any).subtotal ?? 0), 0n);
         const sisaUtang    = totalTagihan - totalLunas;
 
         return {
@@ -182,7 +182,7 @@ export async function POST(request: Request) {
             nomor:     (b as any).billNumber ?? b.id,
             tanggal:   (b as any).issueDate,
             jatuhTempo: (b as any).dueDate,
-            jumlah:    BigInt((b as any).totalAmount ?? 0),
+            jumlah:    BigInt((b as any).subtotal ?? 0),
             status:    (b as any).status ?? "DRAFT",
           })),
         };

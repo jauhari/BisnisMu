@@ -137,18 +137,25 @@ export class PrismaInventoryRepository implements InventoryRepository {
 
   async atomicStockOut(ctx: TenantContext, productId: string, locationId: string, quantity: bigint): Promise<InventoryBalanceEntity> {
     const now = new Date();
+    // COGS is removed as a proportional share of the exact stored inventory_value
+    // (value_out = inventory_value * qty_out / qty_total) rather than
+    // qty_out * average_cost, which compounds the rounding error introduced when
+    // average_cost was computed via integer division on stock-in. average_cost is
+    // then re-derived from the remaining exact value/quantity.
     const result = await this.prisma.$queryRaw<Array<{ id: string; business_id: string; product_id: string; warehouse_id: string; quantity: bigint; average_cost: bigint; inventory_value: bigint }>>`
       UPDATE inventory_balances
       SET
-        quantity = quantity - ${quantity},
         inventory_value = CASE
           WHEN (quantity - ${quantity}) <= 0 THEN 0
-          ELSE inventory_value - (${quantity} * average_cost)
+          WHEN quantity = 0 THEN 0
+          ELSE inventory_value - (inventory_value * ${quantity} / quantity)
         END,
         average_cost = CASE
           WHEN (quantity - ${quantity}) <= 0 THEN 0
-          ELSE average_cost
+          WHEN quantity = 0 THEN 0
+          ELSE (inventory_value - (inventory_value * ${quantity} / quantity)) / (quantity - ${quantity})
         END,
+        quantity = quantity - ${quantity},
         updated_at = ${now}
       WHERE business_id = ${ctx.businessId} AND product_id = ${productId} AND warehouse_id = ${locationId}
       RETURNING id, business_id, product_id, warehouse_id, quantity, average_cost, inventory_value

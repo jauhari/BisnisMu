@@ -17,12 +17,12 @@ interface Plan { id: string; planNumber: string; customerId: string; description
 
 const flatten = (nodes: Account[]): Account[] => nodes.flatMap((n) => [n, ...flatten(n.children ?? [])]);
 const idr = (v: string | number) => "Rp " + Math.round(Number(v)).toLocaleString("id-ID");
-const esc = (s: string) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c] as string));
+const esc = (s: string) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
 
 function printSchedule(plan: Plan, customerName: string) {
   const paidTotal = plan.schedules.reduce((s, x) => s + Number(x.paidAmount), 0);
   const outstanding = Number(plan.totalAmount) - Number(plan.downPayment) - paidTotal;
-  const rows = plan.schedules.map((s) => `<tr><td>${s.sequence}</td><td>${String(s.dueDate).slice(0, 10)}</td><td class="r">${idr(s.amount)}</td><td class="r">${idr(s.paidAmount)}</td><td>${s.status === "PAID" ? "Lunas" : s.status === "PARTIAL" ? "Sebagian" : "Belum"}</td></tr>`).join("");
+  const rows = plan.schedules.map((s) => `<tr><td>${s.sequence}</td><td>${esc(String(s.dueDate).slice(0, 10))}</td><td class="r">${idr(s.amount)}</td><td class="r">${idr(s.paidAmount)}</td><td>${s.status === "PAID" ? "Lunas" : s.status === "PARTIAL" ? "Sebagian" : "Belum"}</td></tr>`).join("");
   const html = `<!doctype html><html><head><meta charset="utf-8"><title>Jadwal Angsuran ${esc(plan.planNumber)}</title><style>
     body{font-family:Inter,Arial,sans-serif;padding:32px;color:#0b1220}
     h1{font-size:20px;margin:0 0 4px}.muted{color:#64748b;font-size:13px}

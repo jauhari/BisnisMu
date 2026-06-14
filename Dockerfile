@@ -1,16 +1,17 @@
 FROM node:20-alpine AS base
 
-# Install dependencies only when needed
+# Install ALL dependencies (incl. dev) — build needs prisma, typescript, tailwind, postcss
 FROM base AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci --omit=dev
+RUN npm ci
 
 FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+ENV BUILD_STANDALONE=1
 RUN npx prisma generate --schema prisma/schema.prisma
 RUN npm run build
 

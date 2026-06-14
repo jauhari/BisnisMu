@@ -436,8 +436,8 @@ model Business {
   dailySales                 DailySale[]
 
   // Multi-Unit Organization (additive, opsional) — satu Business hanya milik satu Organization.
-  organizationId             String?                    @map("organization_id")
-  organization               Organization?              @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  organizationId String?       @map("organization_id")
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
 
   @@index([createdByUserId])
   @@index([organizationId])
@@ -454,12 +454,12 @@ model User {
   createdAt     DateTime     @default(now()) @map("created_at")
   updatedAt     DateTime     @updatedAt @map("updated_at")
 
-  sessions          Session[]
-  accounts          AuthAccount[]
-  memberships       BusinessMember[]
-  godModeAuditLogs  GodModeAuditLog[]
-  dailySales        DailySale[]
-  orgMemberships    OrgMember[]
+  sessions         Session[]
+  accounts         AuthAccount[]
+  memberships      BusinessMember[]
+  godModeAuditLogs GodModeAuditLog[]
+  dailySales       DailySale[]
+  orgMemberships   OrgMember[]
 
   @@map("users")
 }
@@ -482,15 +482,15 @@ model GodModeAuditLog {
 }
 
 model Session {
-  id        String   @id @default(cuid())
-  userId    String   @map("user_id")
-  activeBusinessId String? @map("active_business_id")
-  token     String   @unique
-  expiresAt DateTime @map("expires_at")
-  ipAddress String?  @map("ip_address")
-  userAgent String?  @map("user_agent")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id               String   @id @default(cuid())
+  userId           String   @map("user_id")
+  activeBusinessId String?  @map("active_business_id")
+  token            String   @unique
+  expiresAt        DateTime @map("expires_at")
+  ipAddress        String?  @map("ip_address")
+  userAgent        String?  @map("user_agent")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -536,8 +536,8 @@ model AuthAccount {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
   @@unique([providerId, accountId])
+  @@index([userId])
   @@map("auth_accounts")
 }
 
@@ -608,6 +608,7 @@ model Account {
   @@index([businessId, parentId])
   @@index([businessId, parentCode])
   @@index([businessId, groupCode])
+  @@index([businessId, subtype])
   @@map("accounts")
 }
 
@@ -664,6 +665,7 @@ model JournalEntry {
   @@unique([businessId, journalNumber])
   @@unique([businessId, idempotencyKey])
   @@index([businessId, transactionDate])
+  @@index([businessId, status, transactionDate])
   @@index([businessId, source, sourceId])
   @@map("journal_entries")
 }
@@ -689,22 +691,22 @@ model JournalLine {
 }
 
 model Contact {
-  id         String          @id @default(cuid())
-  businessId String          @map("business_id")
-  name       String
-  type       ContactType     @default(OTHER)
-  category   ContactCategory @default(INDIVIDUAL)
-  picName    String?         @map("pic_name")
-  email      String?
-  phone      String?
-  address    String?
-  isActive   Boolean         @default(true) @map("is_active")
+  id            String          @id @default(cuid())
+  businessId    String          @map("business_id")
+  name          String
+  type          ContactType     @default(OTHER)
+  category      ContactCategory @default(INDIVIDUAL)
+  picName       String?         @map("pic_name")
+  email         String?
+  phone         String?
+  address       String?
+  isActive      Boolean         @default(true) @map("is_active")
   // Loyalty
-  totalVisits   Int    @default(0) @map("total_visits")
-  totalRevenue  BigInt @default(0) @map("total_revenue")
-  loyaltyPoints Int    @default(0) @map("loyalty_points")
-  createdAt  DateTime        @default(now()) @map("created_at")
-  updatedAt  DateTime        @updatedAt @map("updated_at")
+  totalVisits   Int             @default(0) @map("total_visits")
+  totalRevenue  BigInt          @default(0) @map("total_revenue")
+  loyaltyPoints Int             @default(0) @map("loyalty_points")
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
 
   business          Business           @relation(fields: [businessId], references: [id], onDelete: Restrict)
   cashTransactions  CashTransaction[]
@@ -1146,6 +1148,7 @@ model Invoice {
   @@unique([businessId, invoiceNumber])
   @@index([businessId, status])
   @@index([businessId, dueDate])
+  @@index([businessId, issueDate])
   @@map("invoices")
 }
 
@@ -1179,6 +1182,7 @@ model Bill {
   @@unique([businessId, billNumber])
   @@index([businessId, status])
   @@index([businessId, dueDate])
+  @@index([businessId, issueDate])
   @@map("bills")
 }
 
@@ -1430,6 +1434,7 @@ model InventoryMovement {
   product  Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   @@index([businessId, productId, movementDate])
+  @@index([businessId, movementDate])
   @@index([businessId, type])
   @@index([businessId, fromWarehouseId])
   @@index([businessId, toWarehouseId])
@@ -1738,7 +1743,7 @@ model PurchaseOrder {
   updatedAt       DateTime            @updatedAt @map("updated_at")
 
   business Business            @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  supplier Vendor               @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  supplier Vendor              @relation(fields: [supplierId], references: [id], onDelete: Restrict)
   items    PurchaseOrderItem[]
   receipts PurchaseReceipt[]
   returns  PurchaseReturn[]
@@ -1848,9 +1853,9 @@ model CashSessionRecord {
   createdAt             DateTime          @default(now()) @map("created_at")
   updatedAt             DateTime          @updatedAt @map("updated_at")
 
-  business        Business                 @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  drawer          CashDrawer               @relation(fields: [drawerId], references: [id], onDelete: Restrict)
-  cashAccount     Account                  @relation("CashSessionCashAccount", fields: [cashAccountId], references: [id], onDelete: Restrict)
+  business        Business                   @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  drawer          CashDrawer                 @relation(fields: [drawerId], references: [id], onDelete: Restrict)
+  cashAccount     Account                    @relation("CashSessionCashAccount", fields: [cashAccountId], references: [id], onDelete: Restrict)
   movements       CashMovementRecord[]
   reconciliations CashReconciliationRecord[]
 
@@ -1885,16 +1890,16 @@ model CashMovementRecord {
 }
 
 model CashReconciliationRecord {
-  id               String   @id @default(cuid())
-  businessId       String   @map("business_id")
-  sessionId        String   @map("session_id")
-  expectedAmount   BigInt   @map("expected_amount")
-  countedAmount    BigInt   @map("counted_amount")
-  differenceAmount BigInt   @map("difference_amount")
-  reconciledAt     DateTime @map("reconciled_at")
-  postedJournalId  String?  @map("posted_journal_id")
-  reconciledByUserId String @map("reconciled_by_user_id")
-  createdAt        DateTime @default(now()) @map("created_at")
+  id                 String   @id @default(cuid())
+  businessId         String   @map("business_id")
+  sessionId          String   @map("session_id")
+  expectedAmount     BigInt   @map("expected_amount")
+  countedAmount      BigInt   @map("counted_amount")
+  differenceAmount   BigInt   @map("difference_amount")
+  reconciledAt       DateTime @map("reconciled_at")
+  postedJournalId    String?  @map("posted_journal_id")
+  reconciledByUserId String   @map("reconciled_by_user_id")
+  createdAt          DateTime @default(now()) @map("created_at")
 
   business Business          @relation(fields: [businessId], references: [id], onDelete: Restrict)
   session  CashSessionRecord @relation(fields: [sessionId], references: [id], onDelete: Restrict)
@@ -1967,8 +1972,8 @@ model PosTransactionRecord {
   createdAt            DateTime             @default(now()) @map("created_at")
   updatedAt            DateTime             @updatedAt @map("updated_at")
 
-  business Business           @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  session  PosSessionRecord   @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  business Business          @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  session  PosSessionRecord  @relation(fields: [sessionId], references: [id], onDelete: Restrict)
   items    PosCartItem[]
   receipt  PosReceiptRecord?
 
@@ -1980,20 +1985,20 @@ model PosTransactionRecord {
 }
 
 model PosCartItem {
-  id                String   @id @default(cuid())
-  businessId        String   @map("business_id")
-  transactionId     String   @map("transaction_id")
-  productId         String   @map("product_id")
-  quantity          BigInt
-  unitPrice         BigInt?  @map("unit_price")
-  priceId           String?  @map("price_id")
-  discountAmount    BigInt   @default(0) @map("discount_amount")
-  discountPercentBps BigInt  @default(0) @map("discount_percent_bps")
-  taxAmount         BigInt   @default(0) @map("tax_amount")
-  locationId        String?  @map("location_id")
-  providerProductId String?  @map("provider_product_id")
-  barcode           String?
-  createdAt         DateTime @default(now()) @map("created_at")
+  id                 String   @id @default(cuid())
+  businessId         String   @map("business_id")
+  transactionId      String   @map("transaction_id")
+  productId          String   @map("product_id")
+  quantity           BigInt
+  unitPrice          BigInt?  @map("unit_price")
+  priceId            String?  @map("price_id")
+  discountAmount     BigInt   @default(0) @map("discount_amount")
+  discountPercentBps BigInt   @default(0) @map("discount_percent_bps")
+  taxAmount          BigInt   @default(0) @map("tax_amount")
+  locationId         String?  @map("location_id")
+  providerProductId  String?  @map("provider_product_id")
+  barcode            String?
+  createdAt          DateTime @default(now()) @map("created_at")
 
   business    Business             @relation(fields: [businessId], references: [id], onDelete: Restrict)
   transaction PosTransactionRecord @relation(fields: [transactionId], references: [id], onDelete: Restrict)
@@ -2080,21 +2085,21 @@ model InstallmentSchedule {
 // ─── Penjualan Harian ──────────────────────────────────────────────────────────
 
 model DailySale {
-  id              String   @id @default(cuid())
-  businessId      String   @map("business_id")
-  saleDate        DateTime @map("sale_date") @db.Date
-  cashAccountId   String   @map("cash_account_id")
+  id              String    @id @default(cuid())
+  businessId      String    @map("business_id")
+  saleDate        DateTime  @map("sale_date") @db.Date
+  cashAccountId   String    @map("cash_account_id")
   description     String?
-  status          String   @default("POSTED")
-  totalAmount     BigInt   @default(0) @map("total_amount")
-  journalId       String?  @map("journal_id")
-  voidJournalId   String?  @map("void_journal_id")
-  voidReason      String?  @map("void_reason")
-  voidedByUserId  String?  @map("voided_by_user_id")
+  status          String    @default("POSTED")
+  totalAmount     BigInt    @default(0) @map("total_amount")
+  journalId       String?   @map("journal_id")
+  voidJournalId   String?   @map("void_journal_id")
+  voidReason      String?   @map("void_reason")
+  voidedByUserId  String?   @map("voided_by_user_id")
   voidedAt        DateTime? @map("voided_at")
-  createdByUserId String   @map("created_by_user_id")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  createdByUserId String    @map("created_by_user_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
   business    Business        @relation(fields: [businessId], references: [id], onDelete: Restrict)
   cashAccount Account         @relation("DailySaleCash", fields: [cashAccountId], references: [id], onDelete: Restrict)
@@ -2114,8 +2119,8 @@ model DailySaleItem {
   amount           BigInt
   lineNo           Int     @map("line_no")
 
-  dailySale      DailySale        @relation(fields: [dailySaleId], references: [id], onDelete: Cascade)
-  revenueAccount Account          @relation("DailySaleRevenue", fields: [revenueAccountId], references: [id], onDelete: Restrict)
+  dailySale      DailySale          @relation(fields: [dailySaleId], references: [id], onDelete: Cascade)
+  revenueAccount Account            @relation("DailySaleRevenue", fields: [revenueAccountId], references: [id], onDelete: Restrict)
   contacts       DailySaleContact[]
 
   @@index([dailySaleId])
@@ -2140,16 +2145,16 @@ model DailySaleContact {
 // ─── Multi-Unit Organization ────────────────────────────────────────────────────
 
 enum OrgType {
-  BUMDES        // Badan Usaha Milik Desa
-  KOPERASI      // Koperasi
-  HOLDING       // Holding UMKM
-  FRANCHISE     // Jaringan waralaba
+  BUMDES // Badan Usaha Milik Desa
+  KOPERASI // Koperasi
+  HOLDING // Holding UMKM
+  FRANCHISE // Jaringan waralaba
 }
 
 enum OrgRole {
-  ORG_OWNER     // Ketua / Direktur — akses penuh semua unit
-  ORG_ADMIN     // Sekretaris / Bendahara — kelola semua unit, tidak bisa hapus org
-  ORG_VIEWER    // Pengawas / Auditor — read-only semua unit
+  ORG_OWNER // Ketua / Direktur — akses penuh semua unit
+  ORG_ADMIN // Sekretaris / Bendahara — kelola semua unit, tidak bisa hapus org
+  ORG_VIEWER // Pengawas / Auditor — read-only semua unit
 }
 
 model Organization {

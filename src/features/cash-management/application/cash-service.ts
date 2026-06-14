@@ -3,9 +3,10 @@ import { JournalPostingService } from "../../accounting/application/journal-post
 import { CashManagementEngine } from "../domain/cash-engine";
 import { CashManagementError, CashTransactionDraftInput, CashTransactionEntity, CashValidationContext, TenantContext } from "../domain/cash-types";
 import { CashDraftCommand, CashRepository, CreateContactCommand, DeleteCashDraftCommand, PostCashCommand, PreviewCashCommand, UpdateCashDraftCommand, VoidCashCommand } from "./cash-repository";
+import { inlineTransactionRunner, type TransactionRunner } from "../../shared/transaction-runner";
 
 export class CashManagementService {
-  constructor(private readonly repository: CashRepository, private readonly journalPostingService: JournalPostingService, private readonly engine = new CashManagementEngine()) {}
+  constructor(private readonly repository: CashRepository, private readonly journalPostingService: JournalPostingService, private readonly engine = new CashManagementEngine(), private readonly txRunner: TransactionRunner = inlineTransactionRunner) {}
 
   async createContact(command: CreateContactCommand) {
     const ctx = this.contextFrom(command);
@@ -71,9 +72,12 @@ export class CashManagementService {
     const preview = this.engine.preview(input, await this.validationContext(ctx, input));
     const postCommand: PostJournalCommand = { businessId: ctx.businessId, actorUserId: ctx.actorUserId, transactionDate: tx.transactionDate, source: tx.type, sourceId: tx.id, description: tx.description, idempotencyKey: "cash:" + ctx.businessId + ":" + tx.id, lines: preview.lines.map((line) => ({ accountId: line.accountId, side: line.side, amount: line.amount })) };
     this.copyRequestMeta(ctx, postCommand);
-    const journal = await this.journalPostingService.post(postCommand);
-    const posted = await this.repository.markPosted(ctx, tx.id, journal.journalId);
-    await this.repository.createAuditLog(ctx, { action: "CASH_TRANSACTION_POSTED", businessId: ctx.businessId, actorUserId: ctx.actorUserId, entityType: "cash_transaction", entityId: posted.id, metadata: { journalId: journal.journalId, journalNumber: journal.journalNumber, transactionNumber: posted.transactionNumber } });
+    const { journal, posted } = await this.txRunner.run(async (dbTx) => {
+      const journal = await this.journalPostingService.post(postCommand, dbTx);
+      const posted = await this.repository.markPosted(ctx, tx.id, journal.journalId, dbTx);
+      return { journal, posted };
+    });
+    await this.auditSafe(ctx, { action: "CASH_TRANSACTION_POSTED", businessId: ctx.businessId, actorUserId: ctx.actorUserId, entityType: "cash_transaction", entityId: posted.id, metadata: { journalId: journal.journalId, journalNumber: journal.journalNumber, transactionNumber: posted.transactionNumber } });
     return { transaction: posted, journal, preview };
   }
 
@@ -85,9 +89,12 @@ export class CashManagementService {
     const preview = this.engine.previewVoid(tx, await this.validationContext(ctx, this.inputFromTransaction(tx)));
     const postCommand: PostJournalCommand = { businessId: ctx.businessId, actorUserId: ctx.actorUserId, transactionDate: tx.transactionDate, source: "VOID_CASH_TRANSACTION", sourceId: tx.id, description: "Void " + tx.transactionNumber + ": " + command.reason.trim(), idempotencyKey: "void-cash:" + ctx.businessId + ":" + tx.id, lines: preview.lines.map((line) => ({ accountId: line.accountId, side: line.side, amount: line.amount })) };
     this.copyRequestMeta(ctx, postCommand);
-    const journal = await this.journalPostingService.post(postCommand);
-    const voided = await this.repository.markVoided(ctx, tx.id, journal.journalId, command.reason.trim());
-    await this.repository.createAuditLog(ctx, { action: "CASH_TRANSACTION_VOIDED", businessId: ctx.businessId, actorUserId: ctx.actorUserId, entityType: "cash_transaction", entityId: voided.id, metadata: { voidJournalId: journal.journalId, reason: command.reason.trim() } });
+    const { journal, voided } = await this.txRunner.run(async (dbTx) => {
+      const journal = await this.journalPostingService.post(postCommand, dbTx);
+      const voided = await this.repository.markVoided(ctx, tx.id, journal.journalId, command.reason.trim(), dbTx);
+      return { journal, voided };
+    });
+    await this.auditSafe(ctx, { action: "CASH_TRANSACTION_VOIDED", businessId: ctx.businessId, actorUserId: ctx.actorUserId, entityType: "cash_transaction", entityId: voided.id, metadata: { voidJournalId: journal.journalId, reason: command.reason.trim() } });
     return { transaction: voided, journal, preview };
   }
 
@@ -154,6 +161,15 @@ export class CashManagementService {
     if (ctx.requestId !== undefined) command.requestId = ctx.requestId;
     if (ctx.ipAddress !== undefined) command.ipAddress = ctx.ipAddress;
     if (ctx.userAgent !== undefined) command.userAgent = ctx.userAgent;
+  }
+
+  /** Audit logging is best-effort: it must never roll back or mask a committed posting. */
+  private async auditSafe(ctx: TenantContext, event: Parameters<CashRepository["createAuditLog"]>[1]): Promise<void> {
+    try {
+      await this.repository.createAuditLog(ctx, event);
+    } catch (error) {
+      console.error("[cash-management] failed to write audit log", error);
+    }
   }
 
   private contextFrom(command: { businessId: string; actorUserId: string; requestId?: string; ipAddress?: string; userAgent?: string }): TenantContext {

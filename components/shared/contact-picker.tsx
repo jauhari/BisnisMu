@@ -26,6 +26,9 @@ interface Props {
 
 export function ContactPicker({ value, valueName, onChange, onClear, placeholder = "Cari / pilih kontak…", className }: Props) {
   const [q, setQ]               = useState("");
+  // Debounce the query so we fire one request after typing pauses instead of
+  // one request + cache entry per keystroke.
+  const [debouncedQ, setDebouncedQ] = useState("");
   const [showDrop, setShowDrop]  = useState(false);
   const [showNew,  setShowNew]   = useState(false);
   const [newName,  setNewName]   = useState("");
@@ -41,6 +44,11 @@ export function ContactPicker({ value, valueName, onChange, onClear, placeholder
 
   useEffect(() => { setMounted(true); }, []);
 
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedQ(q), 300);
+    return () => clearTimeout(id);
+  }, [q]);
+
   // Tutup saat klik di luar (trigger + portal)
   useEffect(() => {
     function handler(e: MouseEvent) {
@@ -54,9 +62,9 @@ export function ContactPicker({ value, valueName, onChange, onClear, placeholder
   }, []);
 
   const search = useQuery({
-    queryKey: ["contacts-search", q],
-    queryFn: () => apiRequest<{ data: Contact[] }>(`/api/contacts?q=${encodeURIComponent(q)}`),
-    enabled: q.length >= 1,
+    queryKey: ["contacts-search", debouncedQ],
+    queryFn: () => apiRequest<{ data: Contact[] }>(`/api/contacts?q=${encodeURIComponent(debouncedQ)}`),
+    enabled: debouncedQ.length >= 1,
     staleTime: 10_000,
   });
   const contacts: Contact[] = search.data?.data ?? [];

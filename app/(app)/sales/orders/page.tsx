@@ -59,6 +59,7 @@ function canHardMutate(role?: Role, hardMutation?: boolean) { return Boolean(har
 
 function ContactSearch({ onAdd }: { onAdd: (c: ContactTag) => void }) {
   const [q, setQ] = useState("");
+  const [debouncedQ, setDebouncedQ] = useState("");
   const [showNew,   setShowNew]   = useState(false);
   const [showDrop,  setShowDrop]  = useState(false);
   const [newName,   setNewName]   = useState("");
@@ -67,6 +68,12 @@ function ContactSearch({ onAdd }: { onAdd: (c: ContactTag) => void }) {
   const [newPhone,  setNewPhone]  = useState("");
   const ref = useRef<HTMLDivElement>(null);
   const qc = useQueryClient();
+
+  // Debounce search input: one request after a pause, not per keystroke.
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedQ(q), 300);
+    return () => clearTimeout(id);
+  }, [q]);
 
   // Tutup dropdown saat klik di luar
   useEffect(() => {
@@ -81,9 +88,9 @@ function ContactSearch({ onAdd }: { onAdd: (c: ContactTag) => void }) {
   }, []);
 
   const search = useQuery({
-    queryKey: ["contacts-search", q],
-    queryFn: () => apiRequest<{ data: Contact[] }>(`/api/contacts?q=${encodeURIComponent(q)}`),
-    enabled: q.length >= 1, // hanya fetch saat ada input
+    queryKey: ["contacts-search", debouncedQ],
+    queryFn: () => apiRequest<{ data: Contact[] }>(`/api/contacts?q=${encodeURIComponent(debouncedQ)}`),
+    enabled: debouncedQ.length >= 1, // hanya fetch saat ada input
     staleTime: 10_000,
   });
 
@@ -237,6 +244,17 @@ export default function Page() {
 
   const bizSettings  = (settings.data as any)?.data?.settings ?? {};
   const defaultCustId: string = bizSettings?.defaultCustomerContactId ?? "";
+
+  // Resolve the default customer's name via a dedicated query. The previous
+  // code read ["contacts-search", ""] which is never populated (search is only
+  // cached for non-empty queries), so the name always fell back to a literal.
+  const defaultContactQuery = useQuery({
+    queryKey: ["contact", defaultCustId],
+    queryFn: () => apiRequest<{ data: Contact[] }>(`/api/contacts?id=${encodeURIComponent(defaultCustId)}`),
+    enabled: defaultCustId.length > 0,
+    staleTime: 5 * 60_000,
+  });
+  const defaultContact = (defaultContactQuery.data?.data ?? []).find((c) => c.id === defaultCustId);
   const role = me.data?.data?.role;
   const hardMutation = Boolean(me.data?.data?.hardMutation);
 
@@ -268,19 +286,16 @@ export default function Page() {
     setItems((prev) => prev.map((item, idx) => {
       if (idx !== 0) return item;
       if (item.contacts.find((c) => c.contactId === defaultCustId)) return item;
-      // Fetch nama kontak dari daftar kontak (jika sudah di-cache)
-      const cachedContacts: any[] = (qc.getQueryData(["contacts-search", ""]) as any)?.data ?? [];
-      const found = cachedContacts.find((c: any) => c.id === defaultCustId);
       const tag: ContactTag = {
         contactId: defaultCustId,
-        name: found?.name ?? "Pelanggan Default",
-        category: found?.category ?? "INDIVIDUAL",
+        name: defaultContact?.name ?? "Pelanggan Default",
+        category: defaultContact?.category ?? "INDIVIDUAL",
         amount: "",
         notes: "",
       };
       return { ...item, contacts: [tag] };
     }));
-  }, [defaultCustId, settings.isSuccess]);
+  }, [defaultCustId, settings.isSuccess, defaultContact]);
 
   useEffect(() => {
     const dailySaleId = searchParams.get("dailySaleId");
@@ -566,8 +581,8 @@ export default function Page() {
               onClick={() => {
                 const defaultContacts: ContactTag[] = defaultCustId ? [{
                   contactId: defaultCustId,
-                  name: (qc.getQueryData(["contacts-search", ""]) as any)?.data?.find((c: any) => c.id === defaultCustId)?.name ?? "Pelanggan Default",
-                  category: "INDIVIDUAL",
+                  name: defaultContact?.name ?? "Pelanggan Default",
+                  category: defaultContact?.category ?? "INDIVIDUAL",
                   amount: "",
                   notes: "",
                 }] : [];

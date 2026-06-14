@@ -1,5 +1,10 @@
 import { DashboardDateRange, DashboardError, DashboardInput, DashboardOverview, FloatDashboardAnalytics, InventoryDashboardAnalytics, RankedAmount, SalesDashboardAnalytics } from "./dashboard-types";
 
+/** Sign of (a - b) without precision loss from casting large bigints to Number. */
+function cmpBigInt(a: bigint, b: bigint): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 export class DashboardEngine {
   getDashboardOverview(range: DashboardDateRange, input: DashboardInput): DashboardOverview {
     const activeSalesOrders = (input.salesOrders ?? []).filter((order) => this.inRange(range, order.businessId, order.saleDate) && order.status !== "VOID");
@@ -46,10 +51,10 @@ export class DashboardEngine {
     const balances = (input.inventoryBalances ?? []).filter((balance) => balance.businessId === range.businessId);
     const movements = (input.inventoryMovements ?? []).filter((movement) => this.inRange(range, movement.businessId, movement.movementDate));
     const inventoryValue = balances.reduce((sum, balance) => sum + balance.inventoryValue, 0n);
-    const lowStockItems = balances.filter((balance) => balance.quantity <= threshold).map((balance) => ({ productId: balance.productId, sku: productById.get(balance.productId)?.sku ?? balance.productId, name: productById.get(balance.productId)?.name ?? balance.productId, quantity: balance.quantity, inventoryValue: balance.inventoryValue })).sort((a, b) => Number(a.quantity - b.quantity) || a.name.localeCompare(b.name));
+    const lowStockItems = balances.filter((balance) => balance.quantity <= threshold).map((balance) => ({ productId: balance.productId, sku: productById.get(balance.productId)?.sku ?? balance.productId, name: productById.get(balance.productId)?.name ?? balance.productId, quantity: balance.quantity, inventoryValue: balance.inventoryValue })).sort((a, b) => cmpBigInt(a.quantity, b.quantity) || a.name.localeCompare(b.name));
     const stockOutTotals = new Map<string, bigint>();
     for (const movement of movements.filter((movement) => movement.type === "STOCK_OUT" || movement.type === "DIGITAL_CONSUMPTION")) stockOutTotals.set(movement.productId, (stockOutTotals.get(movement.productId) ?? 0n) + movement.quantity);
-    const ranked = [...stockOutTotals.entries()].map(([id, quantity]) => ({ id, name: productById.get(id)?.name ?? id, amount: quantity, count: 1, quantity })).sort((a, b) => Number(b.quantity! - a.quantity!) || a.name.localeCompare(b.name));
+    const ranked = [...stockOutTotals.entries()].map(([id, quantity]) => ({ id, name: productById.get(id)?.name ?? id, amount: quantity, count: 1, quantity })).sort((a, b) => cmpBigInt(b.quantity!, a.quantity!) || a.name.localeCompare(b.name));
     return { inventoryValue, lowStockItems, fastMovingItems: ranked.slice(0, 5), slowMovingItems: ranked.slice().reverse().slice(0, 5) };
   }
 
@@ -71,7 +76,7 @@ export class DashboardEngine {
     const floatUsageToday = transactions.filter((tx) => tx.type === "CONSUME" && this.sameUtcDate(tx.transactionDate, today)).reduce((sum, tx) => sum + tx.amount, 0n);
     const byProvider = new Map<string, { provider: string; balance: bigint; accountCount: number }>();
     for (const account of accounts) { const row = byProvider.get(account.provider) ?? { provider: account.provider, balance: 0n, accountCount: 0 }; row.balance += account.currentBalance; row.accountCount += 1; byProvider.set(account.provider, row); }
-    return { totalFloatBalance, floatUsageToday, lowFloatProviders: [...byProvider.values()].filter((row) => row.balance <= threshold).sort((a, b) => Number(a.balance - b.balance) || a.provider.localeCompare(b.provider)) };
+    return { totalFloatBalance, floatUsageToday, lowFloatProviders: [...byProvider.values()].filter((row) => row.balance <= threshold).sort((a, b) => cmpBigInt(a.balance, b.balance) || a.provider.localeCompare(b.provider)) };
   }
 
   getCustomerAnalytics(range: DashboardDateRange, input: DashboardInput) {
@@ -95,7 +100,7 @@ export class DashboardEngine {
   private topSalesCategories(orders: NonNullable<DashboardInput["salesOrders"]>, input: DashboardInput): RankedAmount[] { const products = new Map((input.products ?? []).map((p) => [p.id, p])); const categories = new Map((input.productCategories ?? []).map((c) => [c.id, c])); const rows = new Map<string, RankedAmount>(); for (const order of orders) for (const item of order.items) { const product = products.get(item.productId); const id = product?.categoryId ?? "uncategorized"; const row = rows.get(id) ?? { id, name: categories.get(id)?.name ?? "Uncategorized", amount: 0n, count: 0, quantity: 0n }; row.amount += item.lineTotal; row.count += 1; row.quantity = (row.quantity ?? 0n) + item.quantity; rows.set(id, row); } return this.rank(rows); }
   private topByCustomer(invoices: NonNullable<DashboardInput["invoices"]>, customers: NonNullable<DashboardInput["customers"]>): RankedAmount[] { const names = new Map(customers.map((c) => [c.id, c.name])); const rows = new Map<string, RankedAmount>(); for (const invoice of invoices) { const row = rows.get(invoice.customerId) ?? { id: invoice.customerId, name: names.get(invoice.customerId) ?? invoice.customerId, amount: 0n, count: 0 }; row.amount += invoice.subtotal; row.count += 1; rows.set(invoice.customerId, row); } return this.rank(rows); }
   private topByVendor(bills: NonNullable<DashboardInput["bills"]>, vendors: NonNullable<DashboardInput["vendors"]>): RankedAmount[] { const names = new Map(vendors.map((v) => [v.id, v.name])); const rows = new Map<string, RankedAmount>(); for (const bill of bills) { const row = rows.get(bill.vendorId) ?? { id: bill.vendorId, name: names.get(bill.vendorId) ?? bill.vendorId, amount: 0n, count: 0 }; row.amount += bill.subtotal; row.count += 1; rows.set(bill.vendorId, row); } return this.rank(rows); }
-  private rank(rows: Map<string, RankedAmount>): RankedAmount[] { return [...rows.values()].sort((a, b) => Number(b.amount - a.amount) || a.name.localeCompare(b.name)).slice(0, 5); }
+  private rank(rows: Map<string, RankedAmount>): RankedAmount[] { return [...rows.values()].sort((a, b) => cmpBigInt(b.amount, a.amount) || a.name.localeCompare(b.name)).slice(0, 5); }
   private outstanding(total: bigint, paid: bigint): bigint { const value = total - paid; return value > 0n ? value : 0n; }
   private asOf(range: DashboardDateRange): Date { return range.asOf ?? range.endsOn; }
   private inRange(range: DashboardDateRange, businessId: string, date: Date): boolean { if (businessId !== range.businessId) return false; if (date < range.startsOn || date > range.endsOn) return false; return true; }

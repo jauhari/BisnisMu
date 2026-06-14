@@ -28,6 +28,12 @@ jobs:
       - name: Type check
         run: npm run typecheck
 
+      - name: Lint
+        run: npm run lint
+
+      - name: Run tests
+        run: npm test
+
   migrate:
     name: Run migrations
     runs-on: ubuntu-latest
@@ -41,33 +47,24 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Check production database secret
-        id: database-secret
+      - name: Require production database secret
         shell: bash
         env:
           DIRECT_URL: ${{ secrets.DIRECT_URL }}
         run: |
           if [ -z "$DIRECT_URL" ]; then
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::DIRECT_URL secret is not configured; skipping production migrations."
-          else
-            echo "available=true" >> "$GITHUB_OUTPUT"
+            echo "::error::DIRECT_URL secret is not configured. Refusing to deploy against an un-migrated schema."
+            exit 1
           fi
 
       - name: Install dependencies
-        if: steps.database-secret.outputs.available == 'true'
         run: npm ci
 
       - name: Deploy migrations
-        if: steps.database-secret.outputs.available == 'true'
         run: npm run prisma:migrate:deploy
         env:
           DATABASE_URL: ${{ secrets.DIRECT_URL }}
           DIRECT_URL: ${{ secrets.DIRECT_URL }}
-
-      - name: Skip migrations
-        if: steps.database-secret.outputs.available != 'true'
-        run: echo "Production migrations skipped because DIRECT_URL is not configured."
 
   deploy:
     name: Deploy to Vercel

@@ -1,5 +1,6 @@
 import { AccountSnapshot } from "../../accounting/domain/accounting-types";
 import { CreateRevenueCategoryInput, CreateRevenueItemInput, CreateRevenuePackageInput, CreateRevenuePricingInput, RevenueCategory, RevenueDraftInput, RevenueItem, RevenuePackage, RevenuePricing, RevenueTransactionEntity, TenantContext } from "../domain/revenue-types";
+import type { TxClient } from "../../shared/tx";
 
 export interface RevenueAuditEvent {
   action: "REVENUE_CATEGORY_CREATED" | "REVENUE_ITEM_CREATED" | "REVENUE_PACKAGE_CREATED" | "REVENUE_PRICING_CREATED" | "REVENUE_TRANSACTION_DRAFTED" | "REVENUE_TRANSACTION_POSTED" | "REVENUE_TRANSACTION_VOIDED";
@@ -24,8 +25,8 @@ export interface RevenueRepository {
   nextTransactionNumber(ctx: TenantContext, date: Date): Promise<string>;
   createDraft(ctx: TenantContext, input: RevenueDraftInput & { unitPrice: bigint; amount: bigint; pricingId?: string | null }, transactionNumber: string): Promise<RevenueTransactionEntity>;
   findTransaction(ctx: TenantContext, transactionId: string): Promise<RevenueTransactionEntity | null>;
-  markPosted(ctx: TenantContext, transactionId: string, journalId: string): Promise<RevenueTransactionEntity>;
-  markVoided(ctx: TenantContext, transactionId: string, journalId: string, reason: string): Promise<RevenueTransactionEntity>;
+  markPosted(ctx: TenantContext, transactionId: string, journalId: string, tx?: TxClient): Promise<RevenueTransactionEntity>;
+  markVoided(ctx: TenantContext, transactionId: string, journalId: string, reason: string, tx?: TxClient): Promise<RevenueTransactionEntity>;
   createAuditLog(ctx: TenantContext, event: RevenueAuditEvent): Promise<void>;
 }
 

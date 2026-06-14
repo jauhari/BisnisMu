@@ -1,11 +1,20 @@
 #!/usr/bin/env node
 import argon2 from "argon2";
+import { randomBytes } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
+
+// Refuse to plant a god-mode account in production unless explicitly forced.
+if (process.env.NODE_ENV === "production" && !process.argv.includes("--force")) {
+  console.error("Refusing to seed a SUPER_ADMIN in production. Re-run with --force if you really mean it.");
+  process.exit(1);
+}
 
 const prisma = new PrismaClient();
 
 const email = process.env.SEED_OWNER_EMAIL ?? "admin@bisnismu.local";
-const password = process.env.SEED_OWNER_PASSWORD ?? "Password123!";
+// Generate a strong random password unless one is explicitly supplied.
+const generatedPassword = randomBytes(12).toString("base64url");
+const password = process.env.SEED_OWNER_PASSWORD ?? generatedPassword;
 const name = process.env.SEED_OWNER_NAME ?? "BisnisMu Owner";
 const businessName = process.env.SEED_BUSINESS_NAME ?? "Demo BisnisMu";
 
@@ -44,7 +53,7 @@ async function main() {
 
   console.log("Seed owner ready");
   console.log(`Email: ${email}`);
-  console.log(`Password: ${password}`);
+  console.log(`Password: ${password}${process.env.SEED_OWNER_PASSWORD ? "" : "  (generated — save it now, it will not be shown again)"}`);
   console.log(`Business: ${business.name} (${business.id})`);
 }
 

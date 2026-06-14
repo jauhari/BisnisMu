@@ -1,6 +1,7 @@
 import { AccountingEngine } from "../domain/accounting-engine";
 import { AccountingError, TenantContext } from "../domain/accounting-types";
 import { JournalRepository, PostJournalCommand, PostedJournalResult } from "./journal-repository";
+import type { TxClient } from "../../shared/tx";
 
 export class JournalPostingService {
   constructor(
@@ -8,7 +9,7 @@ export class JournalPostingService {
     private readonly engine = new AccountingEngine()
   ) {}
 
-  async post(command: PostJournalCommand): Promise<PostedJournalResult> {
+  async post(command: PostJournalCommand, tx?: TxClient): Promise<PostedJournalResult> {
     const ctx: TenantContext = {
       businessId: command.businessId,
       actorUserId: command.actorUserId
@@ -37,7 +38,7 @@ export class JournalPostingService {
       }
 
       const journal = this.engine.validateJournal(command, accounts, fiscalPeriod);
-      const result = await this.repository.createPostedJournal(ctx, journal);
+      const result = await this.repository.createPostedJournal(ctx, journal, tx);
 
       await this.repository.createAuditLog(ctx, {
         action: "JOURNAL_POSTED",
@@ -57,19 +58,24 @@ export class JournalPostingService {
 
       return result;
     } catch (error) {
-      await this.repository.createAuditLog(ctx, {
-        action: "JOURNAL_POST_REJECTED",
-        businessId: ctx.businessId,
-        actorUserId: ctx.actorUserId,
-        entityType: "journal",
-        metadata: {
-          source: command.source,
-          sourceId: command.sourceId,
-          idempotencyKey: command.idempotencyKey,
-          errorCode: error instanceof AccountingError ? error.code : "UNKNOWN_ERROR",
-          errorMessage: error instanceof Error ? error.message : "Unknown error"
-        }
-      });
+      // Best-effort audit; must never mask the original posting error.
+      try {
+        await this.repository.createAuditLog(ctx, {
+          action: "JOURNAL_POST_REJECTED",
+          businessId: ctx.businessId,
+          actorUserId: ctx.actorUserId,
+          entityType: "journal",
+          metadata: {
+            source: command.source,
+            sourceId: command.sourceId,
+            idempotencyKey: command.idempotencyKey,
+            errorCode: error instanceof AccountingError ? error.code : "UNKNOWN_ERROR",
+            errorMessage: error instanceof Error ? error.message : "Unknown error"
+          }
+        });
+      } catch (auditError) {
+        console.error("[journal-posting] failed to write rejection audit log", auditError);
+      }
 
       throw error;
     }

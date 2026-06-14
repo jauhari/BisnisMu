@@ -96,7 +96,7 @@ export default function Page() {
         <GlassStatsCard title="Laba Kotor" value={formatRupiah(grossProfit)} detail={`Margin ${pct(grossProfit, revenue)}`} />
         <GlassStatsCard
           title="Laba Bersih"
-          value={formatRupiah(netIncome)}
+          value={`${isLoss ? "▼ Rugi " : netIncome > 0 ? "▲ Laba " : ""}${formatRupiah(netIncome)}`}
           detail={`Margin ${pct(netIncome, revenue)}`}
           className={isLoss ? "border-danger/30 bg-danger/5" : netIncome > 0 ? "border-success/30 bg-success/5" : ""}
         />

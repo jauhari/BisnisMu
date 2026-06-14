@@ -33,6 +33,7 @@ import { PrismaTourismRepository } from "@/features/tourism/infrastructure/prism
 import { OrganizationService } from "@/features/organization/application/organization-service";
 import { ConsolidationService } from "@/features/organization/application/consolidation-service";
 import { PrismaOrganizationRepository } from "@/features/organization/infrastructure/prisma-organization-repository";
+import { prismaTransactionRunner } from "./transaction-runner";
 
 const journalRepository = new PrismaJournalRepository(prisma);
 const journal = new JournalPostingService(journalRepository);
@@ -50,13 +51,13 @@ const floatRepository = new PrismaFloatRepository(prisma);
 const payment = new PaymentService(paymentRepository, journal);
 const float = new FloatManagementService(floatRepository, journal);
 const inventory = new InventoryService(inventoryRepository, journal, float);
-const arAp = new ArApService(arApRepository, journal);
+const arAp = new ArApService(arApRepository, journal, undefined, prismaTransactionRunner);
 const cashSession = new CashService(cashSessionRepository, journal);
 const sales = new SalesService(salesRepository, journal, inventory, payment);
 const posRepository = new PrismaPosRepository(prisma);
 const pos = new PosService(posRepository, sales, payment, cashSession);
 const revenueRepository = new PrismaRevenueRepository(prisma);
-const revenue = new RevenueService(revenueRepository, journal);
+const revenue = new RevenueService(revenueRepository, journal, undefined, prismaTransactionRunner);
 const tourismRepository = new PrismaTourismRepository(prisma);
 const tourism = new TourismService(tourismRepository, revenue);
 
@@ -64,7 +65,7 @@ export const serverServices = {
   journal,
   business: new BusinessService(businessRepository, journal),
   chartOfAccounts: new ChartOfAccountsService(chartRepository),
-  cashManagement: new CashManagementService(cashRepository, journal),
+  cashManagement: new CashManagementService(cashRepository, journal, undefined, prismaTransactionRunner),
   cashSession,
   arAp,
   payment,
