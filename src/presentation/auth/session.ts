@@ -53,14 +53,36 @@ export async function requireGodModeContext(request: Request): Promise<Authentic
   return ctx;
 }
 
+/** better-auth signs session cookies as `<token>.<signature>`; DB stores the raw token. */
+export function normalizeSessionToken(token: string): string {
+  const trimmed = decodeURIComponent(token.trim());
+  if (!trimmed) return trimmed;
+  const dot = trimmed.indexOf(".");
+  return dot > 0 ? trimmed.slice(0, dot) : trimmed;
+}
+
+export function getSessionTokenFromCookieValue(raw: string | undefined | null): string | null {
+  if (!raw) return null;
+  return normalizeSessionToken(raw);
+}
+
+export async function getServerSessionToken(): Promise<string | null> {
+  const { cookies } = await import("next/headers");
+  const cookieStore = await cookies();
+  const raw =
+    cookieStore.get("better-auth.session_token")?.value ??
+    cookieStore.get("__Secure-better-auth.session_token")?.value;
+  return getSessionTokenFromCookieValue(raw);
+}
+
 export function getRequestSessionToken(request: Request): string | null {
   const cookieToken = getSessionCookie(request);
-  if (cookieToken) return cookieToken;
+  if (cookieToken) return normalizeSessionToken(cookieToken);
   const rawCookie = request.headers.get("cookie") ?? "";
   const directCookie = rawCookie.split(/;\s*/).find((part) => part.startsWith("better-auth.session_token=") || part.startsWith("__Secure-better-auth.session_token="));
-  if (directCookie) return decodeURIComponent(directCookie.slice(directCookie.indexOf("=") + 1));
+  if (directCookie) return normalizeSessionToken(directCookie.slice(directCookie.indexOf("=") + 1));
   const authorization = request.headers.get("authorization");
-  if (authorization?.toLowerCase().startsWith("bearer ")) return authorization.slice(7).trim();
+  if (authorization?.toLowerCase().startsWith("bearer ")) return normalizeSessionToken(authorization.slice(7).trim());
   return null;
 }
 

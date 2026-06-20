@@ -1,14 +1,11 @@
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
 import { prisma } from "@/presentation/api/prisma";
+import { getServerSessionToken } from "@/presentation/auth/session";
 
 // Reset data bersifat destruktif -> hanya SUPER_ADMIN.
 async function requireSuperAdminPage() {
-  const cookieStore = await cookies();
-  const token =
-    cookieStore.get("better-auth.session_token")?.value ??
-    cookieStore.get("__Secure-better-auth.session_token")?.value;
+  const token = await getServerSessionToken();
   if (!token) redirect("/login");
 
   const session = await prisma.session.findUnique({

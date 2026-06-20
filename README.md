@@ -4,6 +4,7 @@ BisnisMu adalah aplikasi akuntansi web untuk UMKM dan BUMDes dengan fokus pada p
 
 ## Update Terbaru
 
+- **Login production diperbaiki (v0.11.1):** form login memakai better-auth (`/api/auth/sign-in/email`) + bootstrap usaha aktif; cookie sesi ditangani dengan benar sehingga tidak langsung redirect balik ke halaman login.
 - Riwayat Transaksi menyatukan Penjualan Harian, Sales Order, dan Transaksi Kas dengan aksi role-based untuk edit, delete, void, post, dan confirm.
 - Organisasi tertentu dapat mengaktifkan mode edit/delete langsung untuk transaksi posted/confirmed lewat setting `transactionHardMutationEnabled`.
 - Form Penjualan Harian kini default tersembunyi, dibuka lewat tombol `Tambah penjualan`, dan layoutnya lebih ringkas untuk layar kecil.

@@ -4,6 +4,15 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { GlassForm, GlassInput, GlassField } from "@/components/forms/glass-form";
 
+function readErrorMessage(json: Record<string, unknown>, fallback: string): string {
+  if (typeof json.message === "string" && json.message.trim()) return json.message;
+  if (typeof json.error === "object" && json.error && typeof (json.error as { message?: string }).message === "string") {
+    return (json.error as { message: string }).message;
+  }
+  if (typeof json.code === "string" && json.code.trim()) return json.code;
+  return fallback;
+}
+
 export function LoginForm() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -14,16 +23,37 @@ export function LoginForm() {
   async function submit() {
     setLoading(true);
     setError(null);
+    const normalizedEmail = email.toLowerCase().trim();
+
     try {
-      // Try primary login (argon2 credential auth)
-      const res = await fetch("/api/auth/dev-login", {
+      const signInRes = await fetch("/api/auth/sign-in/email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ email: email.toLowerCase().trim(), password }),
+        body: JSON.stringify({ email: normalizedEmail, password }),
       });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json?.message || json?.code || "Email atau password salah.");
+      const signInJson = (await signInRes.json().catch(() => ({}))) as Record<string, unknown>;
+
+      if (!signInRes.ok) {
+        throw new Error(readErrorMessage(signInJson, "Email atau password salah."));
+      }
+
+      const bootstrapRes = await fetch("/api/auth/bootstrap", {
+        method: "POST",
+        credentials: "include",
+      });
+      const bootstrapJson = (await bootstrapRes.json().catch(() => ({}))) as Record<string, unknown>;
+
+      if (!bootstrapRes.ok) {
+        const message = readErrorMessage(bootstrapJson, "Gagal menyiapkan sesi.");
+        if (message.toLowerCase().includes("business not found") || message.toLowerCase().includes("usaha")) {
+          router.push("/select-business");
+          router.refresh();
+          return;
+        }
+        throw new Error(message);
+      }
+
       router.push("/dashboard");
       router.refresh();
     } catch (err) {

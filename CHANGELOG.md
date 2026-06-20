@@ -2,6 +2,14 @@
 
 All notable changes to BisnisMu are documented in this file.
 
+## [0.11.1] - 2026-06-20
+
+### Fixed — Login Production & Sesi Better Auth
+- Form login tidak lagi memakai `/api/auth/dev-login` (endpoint dev yang diblokir di production sejak v0.11.0). Alur resmi kini: `POST /api/auth/sign-in/email` → `POST /api/auth/bootstrap` → dashboard.
+- Cookie sesi better-auth (`token.signature`) dinormalisasi sebelum lookup Prisma lewat `normalizeSessionToken()` dan `getServerSessionToken()`, sehingga layout terproteksi tidak lagi menendang user balik ke `/login` setelah autentikasi berhasil.
+- Layout `app/(app)`, admin reset, dan admin changelog memakai helper sesi server yang sama agar pembacaan cookie konsisten dengan middleware/API.
+- Test baru memverifikasi pemisahan signature cookie better-auth dari token database.
+
 ## [0.11.0] - 2026-06-14
 
 ### Security — Hardening Kredensial, Auth, CSP, dan Rate Limiting

@@ -1,7 +1,24 @@
 # BisnisMu — Handoff Document
 
-Date: 2026-06-14  
-Session scope: Audit menyeluruh (security, bug, performa, arsitektur, DevOps) lalu remediasi seluruh temuan Critical, High, dan Medium. Verifikasi typecheck + ESLint + 212 test + coverage gate + production build, dan deploy migration index ke DB live.
+Date: 2026-06-20  
+Session scope: Perbaikan login production — form login pindah ke better-auth, normalisasi cookie sesi, update changelog & dokumentasi, deploy v0.11.1.
+
+---
+
+## Phase 15: Login Production Fix (v0.11.1 — 2026-06-20)
+
+### Masalah
+- Form login memanggil `/api/auth/dev-login` yang diblokir di production (404 sejak v0.11.0).
+- Layout server membaca cookie `better-auth.session_token` mentah (`token.signature`) tanpa menormalisasi ke token DB → user ter-autentikasi lalu langsung di-redirect ke `/login`.
+
+### Perbaikan
+- `components/auth/login-form.tsx` — alur resmi: `sign-in/email` → `bootstrap` → dashboard.
+- `src/presentation/auth/session.ts` — `normalizeSessionToken()`, `getServerSessionToken()`.
+- Layout terproteksi (`app/(app)`, admin reset, admin changelog) memakai helper sesi yang sama.
+- Test: `normalizeSessionToken` di `tests/presentation/auth-session.test.ts` (213 test total, semua lulus).
+
+### Deploy
+- Versi `0.11.1`; commit & push ke `origin/main` → CI/CD Vercel otomatis deploy bila secrets tersedia.
 
 ---
 
