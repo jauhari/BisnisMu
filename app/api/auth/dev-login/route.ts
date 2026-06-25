@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import argon2 from "argon2";
+import { verifyPassword } from "@/presentation/auth/password";
 import { cookies } from "next/headers";
 
 import { prisma } from "@/presentation/api/prisma";
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     const account = user?.accounts.find((item) => item.providerId === "credential" && item.password);
     if (!user || !account?.password) throw new Error("Invalid email or password");
 
-    const valid = await argon2.verify(account.password, password);
+    const valid = await verifyPassword(account.password, password);
     if (!valid) throw new Error("Invalid email or password");
 
     const membership = await prisma.businessMember.findFirst({

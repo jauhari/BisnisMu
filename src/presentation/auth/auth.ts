@@ -1,9 +1,9 @@
 import { prismaAdapter } from "@better-auth/prisma-adapter";
 import { betterAuth } from "better-auth";
 import { nextCookies } from "better-auth/next-js";
-import argon2 from "argon2";
 
 import { prisma } from "@/presentation/api/prisma";
+import { hashPassword, verifyPassword } from "@/presentation/auth/password";
 
 /** Production + preview origins that better-auth should accept for CSRF. */
 const trustedOrigins: string[] = [
@@ -48,8 +48,8 @@ export const auth = betterAuth({
     enabled: true,
     minPasswordLength: 8,
     password: {
-      hash: (password) => argon2.hash(password, { type: argon2.argon2id }),
-      verify: ({ hash, password }) => argon2.verify(hash, password),
+      hash: (password) => hashPassword(password),
+      verify: ({ hash, password }) => verifyPassword(hash, password),
     },
   },
   plugins: [nextCookies()],

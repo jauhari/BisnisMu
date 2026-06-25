@@ -5,10 +5,10 @@ import { securityHeaders } from "./src/presentation/security/security-headers";
 
 const nextConfig: NextConfig = {
   output: process.env.BUILD_STANDALONE === "1" ? "standalone" : undefined,
-  serverExternalPackages: ["better-auth", "@better-auth/core", "@better-auth/prisma-adapter", "@better-auth/kysely-adapter", "better-call", "kysely", "argon2"],
+  serverExternalPackages: ["better-auth", "@better-auth/core", "@better-auth/prisma-adapter", "@better-auth/kysely-adapter", "better-call", "kysely"],
   webpack: (config, { isServer }) => {
     if (isServer) {
-      config.externals = [...(config.externals ?? []), "better-auth", "@better-auth/core", "@better-auth/prisma-adapter", "@better-auth/kysely-adapter", "better-call", "kysely", "argon2"];
+      config.externals = [...(config.externals ?? []), "better-auth", "@better-auth/core", "@better-auth/prisma-adapter", "@better-auth/kysely-adapter", "better-call", "kysely"];
     }
     return config;
   },

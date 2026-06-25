@@ -1,4 +1,4 @@
-import argon2 from "argon2";
+import { hashPassword } from "@/presentation/auth/password";
 import { prisma } from "@/presentation/api/prisma";
 import { handleApi } from "@/presentation/api/route-handler";
 import { requireGodModeContext } from "@/presentation/auth/session";
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
     if (existing) throw new Error("Email sudah terdaftar.");
 
     const pwd = password?.trim() || Math.random().toString(36).slice(-10) + "A1!";
-    const hash = await argon2.hash(pwd, { type: argon2.argon2id });
+    const hash = await hashPassword(pwd);
 
     const user = await prisma.user.create({
       data: {

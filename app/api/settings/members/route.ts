@@ -1,4 +1,4 @@
-import argon2 from "argon2";
+import { hashPassword } from "@/presentation/auth/password";
 import { prisma } from "@/presentation/api/prisma";
 import { handleApi } from "@/presentation/api/route-handler";
 import { requireTenantContext } from "@/presentation/auth/session";
@@ -28,7 +28,7 @@ export async function POST(request: Request) {
     let user = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (!user) {
       const pwd = password?.trim() || Math.random().toString(36).slice(-10) + "A1!";
-      const hash = await argon2.hash(pwd, { type: argon2.argon2id });
+      const hash = await hashPassword(pwd);
       user = await prisma.user.create({ data: { email: normalizedEmail, name: name.trim(), emailVerified: true } });
       await prisma.authAccount.create({ data: { userId: user.id, providerId: "credential", accountId: normalizedEmail, password: hash } });
     }

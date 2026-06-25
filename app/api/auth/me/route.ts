@@ -3,7 +3,7 @@ import { handleApi } from "@/presentation/api/route-handler";
 import { getRequestSessionToken, requireTenantContext } from "@/presentation/auth/session";
 import { canHardMutateOrganizationTransaction, organizationHardMutationEnabled } from "@/presentation/auth/permissions";
 import { z } from "zod";
-import argon2 from "argon2";
+import { verifyPassword, hashPassword } from "@/presentation/auth/password";
 
 async function getSessionUser(request: Request) {
   const token = getRequestSessionToken(request);
@@ -38,9 +38,9 @@ export async function PUT(request: Request) {
         where: { providerId_accountId: { providerId: "credential", accountId: user.email } },
       });
       if (!authAccount?.password) throw new Error("Akun tidak menggunakan password.");
-      const valid = await argon2.verify(authAccount.password, body.currentPassword);
+      const valid = await verifyPassword(authAccount.password, body.currentPassword);
       if (!valid) throw new Error("Password saat ini tidak cocok.");
-      const hashed = await argon2.hash(body.newPassword, { type: argon2.argon2id });
+      const hashed = await hashPassword(body.newPassword);
       await prisma.authAccount.update({
         where: { providerId_accountId: { providerId: "credential", accountId: user.email } },
         data: { password: hashed },

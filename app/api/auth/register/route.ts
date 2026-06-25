@@ -1,9 +1,9 @@
 import { randomBytes } from "node:crypto";
-import argon2 from "argon2";
 import { cookies } from "next/headers";
 import { BusinessType } from "@prisma/client";
 import { prisma } from "@/presentation/api/prisma";
 import { handleApi } from "@/presentation/api/route-handler";
+import { hashPassword } from "@/presentation/auth/password";
 import { ChartOfAccountsService } from "@/features/chart-of-accounts/application/chart-of-accounts-service";
 import { PrismaChartOfAccountsRepository } from "@/features/chart-of-accounts/infrastructure/prisma-chart-of-accounts-repository";
 
@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     if (existing) throw new Error("Email sudah terdaftar.");
 
     const user = await prisma.user.create({ data: { email: normalizedEmail, name: name.trim(), emailVerified: true } });
-    const hash = await argon2.hash(password, { type: argon2.argon2id });
+    const hash = await hashPassword(password);
     await prisma.authAccount.create({ data: { userId: user.id, providerId: "credential", accountId: normalizedEmail, password: hash } });
 
     const business = await prisma.business.create({
