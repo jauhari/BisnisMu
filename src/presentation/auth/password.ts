@@ -29,18 +29,10 @@ export async function verifyPassword(hash: string, password: string): Promise<bo
     return bcrypt.compare(password, hash);
   }
 
-  // argon2id hashes start with $argon2id$
+  // argon2id hashes start with $argon2
   if (hash.startsWith("$argon2")) {
-    try {
-      // Dynamic import — works locally but fails silently on Vercel
-      const argon2 = await import("argon2");
-      return argon2.default.verify(hash, password);
-    } catch {
-      // argon2 native module unavailable (Vercel serverless)
-      // Return false — user will see "wrong password" and can reset via admin
-      console.warn("[password] argon2 not available; legacy hash cannot be verified on this platform");
-      return false;
-    }
+    console.warn("[password] argon2 legacy hash encountered; cannot be verified in this environment. Please reset password.");
+    return false;
   }
 
   // Unknown hash format

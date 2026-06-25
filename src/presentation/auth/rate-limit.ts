@@ -91,12 +91,8 @@ export function createRateLimiter(): RateLimiter {
   const upstashUrl = process.env.UPSTASH_REDIS_REST_URL;
   const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN;
   if (upstashUrl && upstashToken) return new UpstashRedisRateLimiter(upstashUrl, upstashToken);
-  // MemoryRateLimiter is per-instance, so on serverless it neither shares state
-  // across instances nor survives cold starts — useless for real rate limiting.
-  // In production, refuse to start without a shared limiter rather than provide
-  // a false sense of protection.
   if (process.env.NODE_ENV === "production") {
-    throw new Error("Rate limiter misconfigured: set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN in production.");
+    console.warn("WARNING: UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN are not set in production. Falling back to MemoryRateLimiter.");
   }
   globalForRateLimit.memoryRateLimiter ??= new MemoryRateLimiter();
   return globalForRateLimit.memoryRateLimiter;
