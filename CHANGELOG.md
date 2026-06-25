@@ -2,6 +2,31 @@
 
 All notable changes to BisnisMu are documented in this file.
 
+## [0.12.0] - 2026-06-25
+
+### Added — Password Visibility Toggle (UX)
+- Komponen baru `GlassPasswordInput` di `components/forms/glass-form.tsx` (menggunakan lucide-react `Eye` / `EyeOff`).
+- Toggle show/hide password tersedia di **semua** input password:
+  - Login form
+  - Register form
+  - Edit Profil → Ganti Password (current + new + confirm)
+  - Settings → Members (undang anggota)
+  - Admin panel (buat user)
+- `aria-label` dan `title` dalam Bahasa Indonesia untuk aksesibilitas.
+
+### Fixed — Legacy Argon2 Password Login
+- Banyak akun lama (seed owner, register awal) menyimpan password hash **argon2id** (`$argon2...`).
+- `verifyPassword()` sebelumnya selalu return `false` untuk argon2 → login selalu "Invalid email or password" meski password benar.
+- Sekarang:
+  - Mendukung verifikasi argon2 penuh via dynamic `import("argon2")` (bekerja di local/dev).
+  - Setelah verifikasi berhasil → otomatis migrasi hash ke bcrypt (`AuthAccount.password`) supaya akun bisa dipakai di mana saja (termasuk Vercel).
+- Contoh akun terdampak: `barookahjaya@gmail.com`, `admin@bisnismu.local`, `budi@tokobudi.com`, dll.
+- `scripts/seed-dev-owner.mjs` diubah menggunakan `bcryptjs` (bukan argon2) untuk seed baru.
+- `src/presentation/auth/auth.ts` menambahkan `http://localhost:3333` ke `trustedOrigins`.
+
+### Changed
+- Dokumentasi: HANDOFF.md dan CHANGELOG.md diupdate.
+
 ## [0.11.1] - 2026-06-20
 
 ### Fixed — Login Production & Sesi Better Auth

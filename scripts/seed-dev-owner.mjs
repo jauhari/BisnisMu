@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import argon2 from "argon2";
+import bcrypt from "bcryptjs";
 import { randomBytes } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 
@@ -25,7 +25,7 @@ async function main() {
     create: { email, name, emailVerified: true, platformRole: "SUPER_ADMIN" },
   });
 
-  const hash = await argon2.hash(password, { type: argon2.argon2id });
+  const hash = await bcrypt.hash(password, 12);
   await prisma.authAccount.upsert({
     where: { providerId_accountId: { providerId: "credential", accountId: user.email } },
     update: { userId: user.id, password: hash },

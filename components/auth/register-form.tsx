@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { GlassForm, GlassInput, GlassField, GlassDataSelect } from "@/components/forms/glass-form";
+import { GlassForm, GlassInput, GlassField, GlassDataSelect, GlassPasswordInput } from "@/components/forms/glass-form";
 
 const BUSINESS_TYPE_OPTIONS = [
   { value: "UMKM", label: "UMKM / Usaha Kecil Menengah" },
@@ -52,7 +52,7 @@ export function RegisterForm() {
         <GlassInput type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="budi@toko.com" />
       </GlassField>
       <GlassField label="Password (min. 8 karakter)">
-        <GlassInput type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
+        <GlassPasswordInput value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="new-password" />
       </GlassField>
       <GlassField label="Nama usaha">
         <GlassInput value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="Toko Budi Jaya" />

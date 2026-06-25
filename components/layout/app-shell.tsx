@@ -9,7 +9,7 @@ import Link from "next/link";
 import { Menu, X, PanelLeftClose, PanelLeftOpen, LogOut, ChevronDown, UserCircle, KeyRound, Pencil, Plus } from "lucide-react";
 import { useActiveBusiness, useCurrentUser } from "@/presentation/query/report-hooks";
 import { useQueryClient } from "@tanstack/react-query";
-import { GlassInput } from "@/components/forms/glass-form";
+import { GlassInput, GlassPasswordInput } from "@/components/forms/glass-form";
 import { toast } from "sonner";
 import { apiRequest } from "@/presentation/api/client";
 
@@ -87,9 +87,9 @@ function ProfileModal({ user, onClose }: { user: { name: string; email: string }
           <div className="border-t border-border/60 pt-3">
             <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted"><KeyRound className="h-3.5 w-3.5" /> Ganti Password (opsional)</p>
             <div className="space-y-2">
-              <GlassInput type="password" value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} placeholder="Password saat ini" className="h-9" />
-              <GlassInput type="password" value={newPw}     onChange={(e) => setNewPw(e.target.value)}     placeholder="Password baru (min 8 karakter)" className="h-9" />
-              <GlassInput type="password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} placeholder="Konfirmasi password baru" className="h-9" />
+              <GlassPasswordInput value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} placeholder="Password saat ini" className="h-9" autoComplete="current-password" />
+              <GlassPasswordInput value={newPw} onChange={(e) => setNewPw(e.target.value)} placeholder="Password baru (min 8 karakter)" className="h-9" autoComplete="new-password" />
+              <GlassPasswordInput value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} placeholder="Konfirmasi password baru" className="h-9" autoComplete="new-password" />
             </div>
           </div>
         </div>

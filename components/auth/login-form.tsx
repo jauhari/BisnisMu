@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { GlassForm, GlassInput, GlassField } from "@/components/forms/glass-form";
+import { GlassForm, GlassInput, GlassPasswordInput, GlassField } from "@/components/forms/glass-form";
 
 function readErrorMessage(json: Record<string, unknown>, fallback: string): string {
   if (typeof json.message === "string" && json.message.trim()) return json.message;
@@ -69,7 +69,7 @@ export function LoginForm() {
         <GlassInput type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@usaha.com" autoComplete="email" />
       </GlassField>
       <GlassField label="Password">
-        <GlassInput type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="current-password" />
+        <GlassPasswordInput value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="current-password" />
       </GlassField>
       {error ? <p className="text-sm text-danger">{error}</p> : null}
       <button type="submit" disabled={loading || !email || !password} className="h-11 rounded-md bg-foreground px-4 text-sm font-medium text-background disabled:opacity-60">

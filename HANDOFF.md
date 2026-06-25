@@ -1,7 +1,44 @@
 # BisnisMu — Handoff Document
 
-Date: 2026-06-20  
-Session scope: Perbaikan login production — form login pindah ke better-auth, normalisasi cookie sesi, update changelog & dokumentasi, deploy v0.11.1.
+Date: 2026-06-25  
+Session scope: Perbaikan login argon2 legacy + fitur reveal/show password toggle + update HANDOFF & CHANGELOG + push.
+
+---
+
+## Phase 16: Legacy Argon2 Auth Fix + Password Reveal Toggle (2026-06-25)
+
+### Masalah
+- Banyak akun (terutama yang dibuat via `seed-dev-owner` atau register lama) menggunakan password hash **argon2id**. Fungsi `verifyPassword` hanya me-return `false` untuk argon2 (dengan warning "cannot be verified"), sehingga login selalu gagal dengan pesan "Invalid email or password" meskipun password yang dimasukkan benar.
+- Tidak ada cara untuk melihat isi password field di form (UX buruk, khususnya di perangkat mobile atau saat mengetik password panjang).
+
+### Perbaikan
+- **`src/presentation/auth/password.ts`**:
+  - Implementasi penuh verifikasi argon2 menggunakan dynamic import (`await import("argon2")`).
+  - Setelah verifikasi argon2 berhasil → otomatis menjalankan migrasi hash ke bcrypt (`prisma.authAccount.updateMany`) supaya akun selanjutnya bisa dipakai di semua environment.
+  - Fallback aman: jika argon2 tidak tersedia (Vercel), tetap return false dan sarankan reset password.
+- **Komponen baru `GlassPasswordInput`** di `components/forms/glass-form.tsx`:
+  - Wrapper di sekitar `GlassInput` dengan icon toggle (Eye / EyeOff dari lucide-react).
+  - `type` berubah antara `password` dan `text`.
+  - Button tidak submit form, punya `aria-label` dan `title` berbahasa Indonesia.
+- Diupdate di seluruh tempat:
+  - `components/auth/login-form.tsx`
+  - `components/auth/register-form.tsx`
+  - `components/layout/app-shell.tsx` (dialog Edit Profil → Ganti Password)
+  - `app/(app)/settings/members/page.tsx`
+  - `app/(app)/admin/page.tsx`
+- `src/presentation/auth/auth.ts`: tambahkan `http://localhost:3333` dan `127.0.0.1:3333` ke `trustedOrigins`.
+- `scripts/seed-dev-owner.mjs`: sekarang menggunakan `bcrypt.hash` (konsisten dengan production path).
+
+### Hasil & Verifikasi
+- User argon2 (contoh: barookahjaya@gmail.com) sekarang **bisa login** di localhost:3333.
+- Login pertama secara otomatis mengubah hash argon2 → bcrypt di database.
+- Semua password input sekarang memiliki tombol reveal.
+- `npm run typecheck` bersih.
+- Dev server berjalan normal di port 3333.
+
+### Deploy
+- Perubahan didokumentasikan di `HANDOFF.md` dan `CHANGELOG.md` (v0.12.0).
+- Commit + push ke `origin/main`.
 
 ---
 

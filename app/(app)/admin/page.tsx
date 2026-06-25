@@ -9,7 +9,7 @@ import { GlassTable } from "@/components/tables/glass-table";
 import { GlassPanel } from "@/components/glass/glass-primitives";
 import { apiRequest } from "@/presentation/api/client";
 import { useActiveBusiness } from "@/presentation/query/report-hooks";
-import { GlassDataSelect, GlassInput } from "@/components/forms/glass-form";
+import { GlassDataSelect, GlassInput, GlassPasswordInput } from "@/components/forms/glass-form";
 
 const PLATFORM_ROLES = ["USER", "SUPPORT_AGENT", "FINANCE_ADMIN", "DEVELOPER", "SUPER_ADMIN"];
 
@@ -121,7 +121,7 @@ export default function Page() {
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="grid gap-1 text-xs">Nama Lengkap <GlassInput value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Nama lengkap" className="h-9" /></label>
             <label className="grid gap-1 text-xs">Email <GlassInput type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} placeholder="user@email.com" className="h-9" /></label>
-            <label className="grid gap-1 text-xs">Password (kosong = diacak) <GlassInput type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Min. 8 karakter" className="h-9" /></label>
+            <label className="grid gap-1 text-xs">Password (kosong = diacak) <GlassPasswordInput value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Min. 8 karakter" className="h-9" /></label>
             <label className="grid gap-1 text-xs">Platform Role
               <GlassDataSelect value={newPlatformRole} onChange={setNewPlatformRole} options={PLATFORM_ROLES.map((r) => ({ value: r, label: r }))} className="h-9" />
             </label>

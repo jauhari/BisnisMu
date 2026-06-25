@@ -1,9 +1,11 @@
 /**
  * Password hashing utility — uses bcryptjs (pure JS, Vercel-compatible).
  *
- * argon2 (native C++ binding) crash di Vercel serverless environment.
- * Semua hash baru menggunakan bcrypt. Hash lama argon2id ($argon2id$...)
- * masih bisa di-verify dan akan di-rehash ke bcrypt saat login berikutnya.
+ * - New passwords are always hashed with bcrypt.
+ * - Legacy argon2id hashes (from early seeds/registers) are supported for verification
+ *   on local/dev environments via dynamic import. On first successful login, the hash
+ *   is automatically migrated to bcrypt in the DB.
+ * - On Vercel (no native argon2), argon2 users will get "invalid" and must reset password.
  */
 import bcrypt from "bcryptjs";
 
@@ -16,12 +18,10 @@ export async function hashPassword(password: string): Promise<string> {
 
 /**
  * Verify a password against a stored hash.
- * Supports both bcrypt ($2a$/$2b$) and legacy argon2id ($argon2id$) hashes.
+ * Supports bcrypt ($2a$/$2b$) and legacy argon2id hashes.
  *
- * For argon2 hashes: since the native argon2 module cannot run on Vercel,
- * we return false and the caller should prompt password reset if needed.
- * In practice, we attempt a dynamic import of argon2 for local dev and
- * gracefully fall back to false on Vercel.
+ * When an argon2 hash verifies successfully on a capable environment (local dev),
+ * we proactively migrate it to bcrypt so the account works everywhere.
  */
 export async function verifyPassword(hash: string, password: string): Promise<boolean> {
   // bcrypt hashes start with $2a$ or $2b$
@@ -31,8 +31,31 @@ export async function verifyPassword(hash: string, password: string): Promise<bo
 
   // argon2id hashes start with $argon2
   if (hash.startsWith("$argon2")) {
-    console.warn("[password] argon2 legacy hash encountered; cannot be verified in this environment. Please reset password.");
-    return false;
+    try {
+      // Dynamic import: works on local (native bindings available) but fails gracefully on Vercel
+      const argon2 = await import("argon2");
+      const ok = await argon2.verify(hash, password);
+      if (ok) {
+        // Auto-migrate to bcrypt so the user can login in all environments going forward
+        try {
+          // Use relative import so this works reliably even if TS path aliases are not resolved
+          const prismaMod = await import("../api/prisma") as { prisma?: any };
+          const prisma = prismaMod.prisma;
+          const newHash = await hashPassword(password);
+          await prisma.authAccount.updateMany({
+            where: { password: hash },
+            data: { password: newHash },
+          });
+          console.log("[password] Migrated argon2 → bcrypt hash for a legacy credential account");
+        } catch (migErr) {
+          console.warn("[password] Verified via argon2 but could not migrate hash:", migErr);
+        }
+      }
+      return ok;
+    } catch (err) {
+      console.warn("[password] argon2 verification unavailable (likely Vercel or missing native). Legacy account requires password reset.");
+      return false;
+    }
   }
 
   // Unknown hash format

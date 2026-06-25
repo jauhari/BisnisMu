@@ -3,7 +3,7 @@
 import type { FormHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
 import { forwardRef, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, Search } from "lucide-react";
+import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, Clock3, Eye, EyeOff, Search } from "lucide-react";
 import { cn } from "@/presentation/theme/cn";
 import { glassTokens } from "@/presentation/theme/tokens";
 import { formatDateLong } from "@/presentation/format/number";
@@ -42,6 +42,31 @@ export const GlassInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLI
   ({ className, ...props }, ref) => <input ref={ref} className={cn(glassTokens.focus, "h-11 rounded-md border border-border bg-white/60 px-3 text-sm tabular-nums shadow-sm backdrop-blur dark:bg-white/8", className)} {...props} />
 );
 GlassInput.displayName = "GlassInput";
+
+/** Password input with built-in reveal/hide toggle (eye icon). */
+export function GlassPasswordInput(props: InputHTMLAttributes<HTMLInputElement>) {
+  const [visible, setVisible] = useState(false);
+  const { className, ...rest } = props;
+
+  return (
+    <div className="relative">
+      <GlassInput
+        {...rest}
+        type={visible ? "text" : "password"}
+        className={cn("pr-10", className)}
+      />
+      <button
+        type="button"
+        onClick={() => setVisible((v) => !v)}
+        className="absolute inset-y-0 right-0 flex items-center px-3 text-muted transition hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/40 rounded-r-md"
+        aria-label={visible ? "Sembunyikan password" : "Tampilkan password"}
+        title={visible ? "Sembunyikan password" : "Tampilkan password"}
+      >
+        {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+      </button>
+    </div>
+  );
+}
 
 function useDismissible(
   open: boolean,

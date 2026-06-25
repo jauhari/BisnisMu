@@ -8,7 +8,7 @@ import { GlassPanel } from "@/components/glass/glass-primitives";
 import { GlassSkeleton, GlassErrorState } from "@/components/feedback/glass-feedback";
 import { GlassTable } from "@/components/tables/glass-table";
 import { useListQuery } from "@/presentation/query/dashboard-hooks";
-import { GlassDataSelect, GlassInput } from "@/components/forms/glass-form";
+import { GlassDataSelect, GlassInput, GlassPasswordInput } from "@/components/forms/glass-form";
 
 const ROLES = ["ADMIN", "ACCOUNTANT", "EDITOR", "CASHIER", "VIEWER"];
 
@@ -135,7 +135,7 @@ export default function Page() {
           <h2 className="text-sm font-semibold">Undang anggota baru</h2>
           <label className="grid gap-1 text-xs">Nama<GlassInput value={name} onChange={(e) => setName(e.target.value)} placeholder="Nama lengkap" className="h-9" /></label>
           <label className="grid gap-1 text-xs">Email<GlassInput type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="user@email.com" className="h-9" /></label>
-          <label className="grid gap-1 text-xs">Password (opsional — diacak bila kosong)<GlassInput type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Min. 8 karakter" className="h-9" /></label>
+          <label className="grid gap-1 text-xs">Password (opsional — diacak bila kosong)<GlassPasswordInput value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Min. 8 karakter" className="h-9" /></label>
           <label className="grid gap-1 text-xs">Role
             <GlassDataSelect value={role} onChange={setRole} options={ROLES.map((r) => ({ value: r, label: r }))} className="h-9" />
           </label>

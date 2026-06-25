@@ -10,6 +10,9 @@ const trustedOrigins: string[] = [
   "https://bisnismu.net",
   "https://www.bisnismu.net",
   "http://localhost:3000",
+  "http://localhost:3333",
+  "http://127.0.0.1:3000",
+  "http://127.0.0.1:3333",
 ];
 
 // Include Vercel preview URL if available
