@@ -1,7 +1,7 @@
 # BisnisMu — Handoff Document
 
 Date: 2026-06-25  
-Session scope: Perbaikan login argon2 legacy + fitur reveal/show password toggle + UI refinement (icon now inside input) + login/register form polish + update docs + push.
+Session scope: Perbaikan performa besar-besaran (RSC conversion, server caching, auth dedup, skeletons, bundle optimization) + UI fix untuk password reveal + argon2 login fix + dokumentasi + push git.
 
 ---
 
