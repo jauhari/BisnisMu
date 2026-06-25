@@ -5,10 +5,24 @@ import argon2 from "argon2";
 
 import { prisma } from "@/presentation/api/prisma";
 
+/** Production + preview origins that better-auth should accept for CSRF. */
+const trustedOrigins: string[] = [
+  "https://bisnismu.net",
+  "https://www.bisnismu.net",
+  "http://localhost:3000",
+];
+
+// Include Vercel preview URL if available
+if (process.env.VERCEL_URL) {
+  trustedOrigins.push(`https://${process.env.VERCEL_URL}`);
+}
+
 export const auth = betterAuth({
   appName: "BisnisMu",
+  baseURL: process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
   basePath: "/api/auth",
   secret: process.env.BETTER_AUTH_SECRET ?? process.env.AUTH_SECRET,
+  trustedOrigins,
   database: prismaAdapter(prisma, {
     provider: "postgresql",
     transaction: false, // PgBouncer transaction pooling tidak support Prisma interactive transactions
