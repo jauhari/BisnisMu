@@ -1,4 +1,5 @@
 import { getSessionCookie } from "better-auth/cookies";
+import { cache } from "react";
 
 import { prisma } from "@/presentation/api/prisma";
 import { AuthError } from "./auth-error";
@@ -35,7 +36,7 @@ export function requireGodMode(context: Pick<AuthenticatedUserContext, "platform
   if (!allowed.includes(context.platformRole)) throw new AuthError("FORBIDDEN", "God mode access required");
 }
 
-export async function requireGodModeContext(request: Request): Promise<AuthenticatedUserContext> {
+export const requireGodModeContext = cache(async (request: Request): Promise<AuthenticatedUserContext> => {
   const token = getRequestSessionToken(request);
   if (!token) throw new AuthError("UNAUTHENTICATED", "Unauthorized");
   const session = await prisma.session.findUnique({ where: { token }, include: { user: true } });
@@ -51,7 +52,7 @@ export async function requireGodModeContext(request: Request): Promise<Authentic
   };
   requireGodMode(ctx);
   return ctx;
-}
+});
 
 /** better-auth signs session cookies as `<token>.<signature>`; DB stores the raw token. */
 export function normalizeSessionToken(token: string): string {
@@ -90,7 +91,9 @@ export async function getAuthenticatedUserContext(request: Request): Promise<Aut
   return getAuthenticatedUserContextByToken(getRequestSessionToken(request));
 }
 
-export async function getAuthenticatedUserContextByToken(token: string | null | undefined): Promise<AuthenticatedUserContext> {
+// Cached per-request (React cache) so multiple calls to requireTenantContext / layout / handler
+// within the same server render only hit the DB once. Huge win for nested layouts + API handlers.
+export const getAuthenticatedUserContextByToken = cache(async (token: string | null | undefined): Promise<AuthenticatedUserContext> => {
   if (!token) throw new AuthError("UNAUTHENTICATED", "Unauthorized");
 
   const session = await prisma.session.findUnique({
@@ -114,7 +117,7 @@ export async function getAuthenticatedUserContextByToken(token: string | null | 
     user,
     session: sessionRecord,
   };
-}
+});
 
 export async function requireActorUserId(request: Request): Promise<string> {
   const context = await getAuthenticatedUserContext(request);

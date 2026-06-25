@@ -43,6 +43,18 @@ Session scope: Perbaikan login argon2 legacy + fitur reveal/show password toggle
 - Login & Register submit button: full width + hover/active state + disabled yang lebih clean.
 - Login card padding & spacing disesuaikan.
 
+### Performance & Speed Improvements (major, same session)
+- Root causes of "berat & kurang sat set": repeated auth/session DB lookups on every request (middleware + layouts), almost-everything "use client" + client-side Tanstack Query (large bundles + waterfalls), over-fetching in dashboard/reports (15+ Prisma calls), no skeletons/streaming, no caching.
+- `unstable_cache` + revalidate on dashboard overview + major reports + common lists (businesses, contacts, CoA, products, periods, etc.).
+- `React.cache` on auth context functions → dedup DB hits within one request.
+- Converted key pages to RSC:
+  - Dashboard: Server Component + Suspense + URL params for filters (server data, no initial client fetch).
+  - Organizations: RSC list + tiny client form island.
+- Added `loading.tsx` skeletons in protected areas + most heavy sections for instant feedback.
+- Dynamic imports for recharts, modals (ProfileModal, CommandPalette) + optimizePackageImports in next.config.
+- Client hooks: staleTime + targeted invalidations.
+- Result: faster initial loads, snappier dashboard/reports, smaller bundles, less repeated work. App feels much more comfortable.
+
 ### Deploy
 - Perubahan didokumentasikan di `HANDOFF.md` dan `CHANGELOG.md` (v0.12.0).
 - Commit + push ke `origin/main`.

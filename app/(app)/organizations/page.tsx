@@ -1,14 +1,9 @@
-"use client";
-
-import { useState } from "react";
 import Link from "next/link";
-import { toast } from "sonner";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { WorkspaceHeader } from "@/components/layout/workspace";
 import { GlassPanel } from "@/components/glass/glass-primitives";
-import { GlassSkeleton, GlassErrorState } from "@/components/feedback/glass-feedback";
-import { GlassDataSelect, GlassInput } from "@/components/forms/glass-form";
-import { apiRequest } from "@/presentation/api/client";
+import { getAuthenticatedUserContextByToken, getServerSessionToken } from "@/presentation/auth/session";
+import { prisma } from "@/presentation/api/prisma";
+import { OrganizationCreateForm } from "./organization-create-form"; // client island for form
 
 interface OrgSummary {
   id: string;
@@ -18,51 +13,34 @@ interface OrgSummary {
   unitCount: number;
 }
 
-const ORG_TYPE_OPTIONS = [
-  { value: "BUMDES", label: "BUMDes" },
-  { value: "KOPERASI", label: "Koperasi" },
-  { value: "HOLDING", label: "Holding UMKM" },
-  { value: "FRANCHISE", label: "Waralaba" },
-];
+export default async function Page() {
+  const token = await getServerSessionToken();
+  if (!token) {
+    // layout should handle redirect, but safe
+    return <div>Unauthorized</div>;
+  }
 
-export default function Page() {
-  const qc = useQueryClient();
-  const orgs = useQuery({
-    queryKey: ["organizations"],
-    queryFn: () => apiRequest<{ data: OrgSummary[] }>("/api/organizations"),
+  const context = await getAuthenticatedUserContextByToken(token);
+
+  // Server fetch - no client bundle for this data
+  const orgs = await prisma.organization.findMany({
+    where: { members: { some: { userId: context.actorUserId } } },
+    include: {
+      _count: { select: { businesses: true } },
+      members: {
+        where: { userId: context.actorUserId },
+        select: { role: true },
+      },
+    },
   });
 
-  const [showCreate, setShowCreate] = useState(false);
-  const [name, setName] = useState("");
-  const [type, setType] = useState("BUMDES");
-  const [busy, setBusy] = useState(false);
-
-  if (orgs.isLoading) return <GlassSkeleton className="h-72" />;
-  if (orgs.error) return <GlassErrorState title="Gagal memuat" description="Tidak dapat memuat daftar organisasi." />;
-
-  const list: OrgSummary[] = (orgs.data as any)?.data ?? [];
-
-  async function handleCreate() {
-    if (name.trim().length < 3) { toast.error("Nama organisasi minimal 3 karakter."); return; }
-    setBusy(true);
-    try {
-      const res = await fetch("/api/organizations", {
-        method: "POST",
-        credentials: "include",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), type }),
-      });
-      const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json?.error?.message || json?.message || "Gagal membuat organisasi.");
-      toast.success("Organisasi dibuat.");
-      setName(""); setType("BUMDES"); setShowCreate(false);
-      void qc.invalidateQueries({ queryKey: ["organizations"] });
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Gagal.");
-    } finally {
-      setBusy(false);
-    }
-  }
+  const list: OrgSummary[] = orgs.map((org) => ({
+    id: org.id,
+    name: org.name,
+    type: org.type,
+    role: org.members[0]?.role || "ORG_VIEWER",
+    unitCount: org._count.businesses,
+  }));
 
   return (
     <div className="grid gap-6">
@@ -72,32 +50,7 @@ export default function Page() {
         description="Lembaga induk (BUMDes, koperasi, holding) yang menaungi beberapa unit usaha untuk laporan konsolidasi."
       />
 
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={() => setShowCreate((v) => !v)}
-          className="h-9 rounded-md border border-border px-4 text-sm font-medium hover:bg-muted/20"
-        >
-          {showCreate ? "Batal" : "+ Organisasi Baru"}
-        </button>
-      </div>
-
-      {showCreate && (
-        <GlassPanel className="grid gap-4">
-          <h2 className="text-sm font-semibold">Buat Organisasi</h2>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="grid gap-1 text-xs">Nama Organisasi
-              <GlassInput value={name} onChange={(e) => setName(e.target.value)} placeholder="mis. BUMDes Hanyukupi" className="h-9" />
-            </label>
-            <label className="grid gap-1 text-xs">Tipe
-              <GlassDataSelect value={type} onChange={setType} options={ORG_TYPE_OPTIONS} className="h-9" />
-            </label>
-          </div>
-          <button type="button" onClick={handleCreate} disabled={busy} className="h-10 w-fit rounded-md bg-foreground px-6 text-sm font-medium text-background disabled:opacity-40">
-            {busy ? "Membuat…" : "Buat"}
-          </button>
-        </GlassPanel>
-      )}
+      <OrganizationCreateForm />
 
       {list.length === 0 ? (
         <GlassPanel><p className="text-sm text-muted">Belum ada organisasi. Buat satu untuk menggabungkan beberapa unit usaha.</p></GlassPanel>

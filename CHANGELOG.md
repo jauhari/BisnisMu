@@ -31,6 +31,19 @@ All notable changes to BisnisMu are documented in this file.
 - Login page card padding increased (`p-8`) and form spacing tightened for better visual balance.
 - Removed boxy hover backgrounds on the eye icon for a cleaner, more integrated look.
 
+### Improved — Performance & Perceived Speed (major)
+- Server-side caching (`unstable_cache` + revalidate 30-60s) on dashboard overview, all major reports (P&L, Balance Sheet, Cash Flow, Trial Balance), and common list endpoints (businesses, contacts, inventory/products, fiscal periods, CoA, etc.) to eliminate repeated heavy Prisma queries.
+- `React.cache` on auth/session context functions (`getAuthenticatedUserContextByToken`, etc.) to deduplicate DB lookups within a single server request (huge win for layouts + handlers).
+- Key pages converted to React Server Components for faster initial loads with server data fetching:
+  - Dashboard: RSC + Suspense + URL-driven filters (server-rendered KPIs, no client fetch waterfall for initial view).
+  - Organizations: RSC for list (server-rendered) + small client island for create form.
+- Added `loading.tsx` skeletons (instant visual feedback) across protected app, reports, inventory, sales, cash, POS, accounting, AR/AP, purchase, contacts, transactions, settings, installments, etc.
+- Dynamic imports + `optimizePackageImports` in next.config for heavy libs (recharts, lucide-react, react-table, framer-motion) and modals (ProfileModal, CommandPalette) → smaller initial JS bundle and better TTI.
+- Client data fetching improvements: `staleTime: 30s` on lists, targeted invalidation keys on mutations (avoid broad "list" refetch storms).
+- Minor: password reveal icon truly inside input, full-width buttons with proper hover states, tighter spacing.
+
+These changes target the main sources of slowness (repeated auth DB hits, client-heavy waterfall, over-fetching, large bundles, lack of skeletons/streaming).
+
 ### Changed
 - Dokumentasi: HANDOFF.md dan CHANGELOG.md diupdate.
 

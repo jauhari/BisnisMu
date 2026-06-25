@@ -44,14 +44,25 @@ export function useOperationalReport<T>(path: string, reportName: string, reques
 }
 
 export function useListQuery<T>(path: string, key: readonly unknown[]) {
-  return useQuery({ queryKey: key, queryFn: () => apiRequest<{ data: T }>(path) });
+  return useQuery({
+    queryKey: key,
+    queryFn: () => apiRequest<{ data: T }>(path),
+    staleTime: 30_000, // Lists are reasonably fresh for 30s, reduces chatty requests
+  });
 }
 
-export function usePostMutation<TPayload extends object, TResult = unknown>(path: string) {
+export function usePostMutation<TPayload extends object, TResult = unknown>(path: string, invalidateKeys?: readonly unknown[]) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (payload: TPayload) => apiRequest<TResult>(path, { method: "POST", body: JSON.stringify(payload) }),
-    onSuccess: () => { void queryClient.invalidateQueries({ queryKey: ["list"] }); },
+    onSuccess: () => {
+      // More targeted invalidation to avoid refetching every list in the app on every mutation.
+      if (invalidateKeys) {
+        void queryClient.invalidateQueries({ queryKey: invalidateKeys });
+      } else {
+        void queryClient.invalidateQueries({ queryKey: ["list"] });
+      }
+    },
   });
 }
 

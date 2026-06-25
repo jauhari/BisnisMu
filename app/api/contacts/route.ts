@@ -1,3 +1,5 @@
+import { unstable_cache } from "next/cache";
+
 import { prisma } from "@/presentation/api/prisma";
 import { handleApi } from "@/presentation/api/route-handler";
 import { requireTenantContext } from "@/presentation/auth/session";
@@ -23,21 +25,28 @@ export async function GET(request: Request) {
     if (id) {
       return prisma.contact.findMany({ where: { businessId, isActive: true, id } });
     }
-    return prisma.contact.findMany({
-      where: {
-        businessId,
-        isActive: true,
-        ...(q ? {
-          OR: [
-            { name:    { contains: q, mode: "insensitive" } },
-            { picName: { contains: q, mode: "insensitive" } },
-            { phone:   { contains: q } },
-          ],
-        } : {}),
-      },
-      orderBy: { name: "asc" },
-      take: 30,
-    });
+
+    const getCachedContacts = unstable_cache(
+      async (bizId: string, search: string) => prisma.contact.findMany({
+        where: {
+          businessId: bizId,
+          isActive: true,
+          ...(search ? {
+            OR: [
+              { name:    { contains: search, mode: "insensitive" } },
+              { picName: { contains: search, mode: "insensitive" } },
+              { phone:   { contains: search } },
+            ],
+          } : {}),
+        },
+        orderBy: { name: "asc" },
+        take: 100,
+      }),
+      ["contacts", businessId, q],
+      { revalidate: 60 }
+    );
+
+    return getCachedContacts(businessId, q);
   });
 }
 

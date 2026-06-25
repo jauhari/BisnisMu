@@ -1,3 +1,5 @@
+import { unstable_cache } from "next/cache";
+
 import { DashboardEngine } from "@/features/dashboard";
 import { prisma } from "@/presentation/api/prisma";
 import { serverServices } from "@/presentation/api/server-services";
@@ -8,14 +10,16 @@ import { requireTenantContext } from "@/presentation/auth/session";
 
 const engine = new DashboardEngine();
 
-export async function POST(request: Request) {
-  return handleApi(async () => {
-    const body = await parseAndValidate(request, dashboardRequestSchema);
-    const { businessId, actorUserId } = await requireTenantContext(request);
-    const startsOn = body.startsOn;
-    const endsOn = body.endsOn;
-    const lowStockThreshold = body.lowStockThreshold ?? 5n;
-    const lowFloatThreshold = body.lowFloatThreshold ?? 100n;
+// Cache the heavy dashboard computation for 30s to make repeated views (and same filter) instant.
+// Keyed by business + time range + thresholds. This dramatically improves perceived speed for the cockpit.
+export const getCachedDashboardOverview = unstable_cache(
+  async (input: any) => {
+    // The original heavy logic (many finds + reporting + engine)
+    const {
+      businessId, actorUserId, startsOn, endsOn,
+      lowStockThreshold = 5n,
+      lowFloatThreshold = 100n,
+    } = input;
 
     const [
       salesOrders,
@@ -55,7 +59,6 @@ export async function POST(request: Request) {
       prisma.account.findMany({ where: { businessId, subtype: { in: ["cash", "bank"] }, isActive: true } })
     ]);
 
-    // Generate P&L from reporting service
     let profitAndLoss;
     try {
       profitAndLoss = await serverServices.reporting.generateProfitLoss({
@@ -65,7 +68,6 @@ export async function POST(request: Request) {
       profitAndLoss = undefined;
     }
 
-    // Compute cash balances from journal lines
     const cashBalanceRows = await prisma.journalLine.groupBy({
       by: ["accountId"],
       where: { businessId, account: { subtype: { in: ["cash", "bank"] } } },
@@ -77,7 +79,7 @@ export async function POST(request: Request) {
     });
 
     const range = { businessId, startsOn, endsOn, asOf: new Date(), lowStockThreshold, lowFloatThreshold };
-    const input = {
+    const engineInput = {
       salesOrders: salesOrders as any,
       purchaseOrders: purchaseOrders as any,
       products: products as any,
@@ -98,6 +100,30 @@ export async function POST(request: Request) {
       cashBalances
     };
 
-    return engine.getDashboardOverview(range, input);
+    return engine.getDashboardOverview(range, engineInput);
+  },
+  ["dashboard-overview"],
+  { revalidate: 30, tags: ["dashboard"] }
+);
+
+export async function POST(request: Request) {
+  return handleApi(async () => {
+    const body = await parseAndValidate(request, dashboardRequestSchema);
+    const { businessId, actorUserId } = await requireTenantContext(request);
+    const startsOn = body.startsOn;
+    const endsOn = body.endsOn;
+    const lowStockThreshold = body.lowStockThreshold ?? 5n;
+    const lowFloatThreshold = body.lowFloatThreshold ?? 100n;
+
+    // Use the cached version — this is the big win for "sat set".
+    // Subsequent loads with same params within 30s are nearly instant (no 15+ queries).
+    return getCachedDashboardOverview({
+      businessId,
+      actorUserId,
+      startsOn,
+      endsOn,
+      lowStockThreshold,
+      lowFloatThreshold,
+    });
   });
 }

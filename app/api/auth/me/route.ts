@@ -1,3 +1,5 @@
+import { unstable_cache } from "next/cache";
+
 import { prisma } from "@/presentation/api/prisma";
 import { handleApi } from "@/presentation/api/route-handler";
 import { getRequestSessionToken, requireTenantContext } from "@/presentation/auth/session";
@@ -5,12 +7,20 @@ import { canHardMutateOrganizationTransaction, organizationHardMutationEnabled }
 import { z } from "zod";
 import { verifyPassword, hashPassword } from "@/presentation/auth/password";
 
+const getCachedSessionUser = unstable_cache(
+  async (token: string) => {
+    const session = await prisma.session.findUnique({ where: { token }, include: { user: true } });
+    if (!session || session.expiresAt <= new Date()) throw new Error("Sesi tidak valid.");
+    return session.user;
+  },
+  ["session-user"],
+  { revalidate: 300 }
+);
+
 async function getSessionUser(request: Request) {
   const token = getRequestSessionToken(request);
   if (!token) throw new Error("Tidak ada sesi aktif.");
-  const session = await prisma.session.findUnique({ where: { token }, include: { user: true } });
-  if (!session || session.expiresAt <= new Date()) throw new Error("Sesi tidak valid.");
-  return session.user;
+  return getCachedSessionUser(token);
 }
 
 export async function GET(request: Request) {

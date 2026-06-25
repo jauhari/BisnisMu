@@ -13,6 +13,10 @@ const nextConfig: NextConfig = {
     return config;
   },
   typedRoutes: false,
+  // Reduce client bundle size for common heavy libs
+  experimental: {
+    optimizePackageImports: ["lucide-react", "recharts", "@tanstack/react-table", "framer-motion"],
+  },
   async headers() {
     return [
       {
