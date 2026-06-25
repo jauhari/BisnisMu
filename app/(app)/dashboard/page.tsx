@@ -6,17 +6,7 @@ import { GlassTable } from "@/components/tables/glass-table";
 import { formatMoney, formatNumber } from "@/presentation/format/number";
 import { getAuthenticatedUserContextByToken, getServerSessionToken } from "@/presentation/auth/session";
 import { getCachedDashboardOverview } from "@/app/api/dashboard/overview/route";
-
-// Lazy load heavy chart libs (reduces initial JS)
-import dynamic from "next/dynamic";
-const RevenueTrendChart = dynamic(() => import("@/components/charts/financial-charts").then(m => ({ default: m.RevenueTrendChart })), {
-  loading: () => <GlassSkeleton className="h-80" />,
-  ssr: false,
-});
-const ActivityBarChart = dynamic(() => import("@/components/charts/financial-charts").then(m => ({ default: m.ActivityBarChart })), {
-  loading: () => <GlassSkeleton className="h-80" />,
-  ssr: false,
-});
+import { DashboardCharts } from "./dashboard-charts";
 
 type FilterOption = "1w" | "1m" | "3m" | "6m" | "1y";
 
@@ -96,10 +86,7 @@ async function DashboardContent({ filter }: { filter: FilterOption }) {
         { title: "Inventory value", value: formatMoney(overview.inventory?.inventoryValue ?? 0), detail: `${overview.inventory?.lowStockItems?.length ?? 0} low stock alerts` }
       ]} />
 
-      <section className="grid gap-6 xl:grid-cols-2">
-        <RevenueTrendChart data={salesTrend} title="Sales trend" />
-        <ActivityBarChart data={cashTrend} title="Cash movement" />
-      </section>
+      <DashboardCharts salesTrend={salesTrend} cashTrend={cashTrend} />
 
       <DashboardExceptionPanel>
         <GlassTable
