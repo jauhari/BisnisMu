@@ -41,6 +41,7 @@ All notable changes to BisnisMu are documented in this file.
 - Dynamic imports + `optimizePackageImports` in next.config for heavy libs (recharts, lucide-react, react-table, framer-motion) and modals (ProfileModal, CommandPalette) → smaller initial JS bundle and better TTI.
 - Client data fetching improvements: `staleTime: 30s` on lists, targeted invalidation keys on mutations (avoid broad "list" refetch storms).
 - Minor: password reveal icon truly inside input, full-width buttons with proper hover states, tighter spacing.
+- Additional: more unstable_cache on list endpoints (contacts, products, CoA, periods), targeted invalidations, auth dedup in layout, small RSC prep.
 
 These changes target the main sources of slowness (repeated auth DB hits, client-heavy waterfall, over-fetching, large bundles, lack of skeletons/streaming).
 

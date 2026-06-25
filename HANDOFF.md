@@ -53,6 +53,7 @@ Session scope: Perbaikan login argon2 legacy + fitur reveal/show password toggle
 - Added `loading.tsx` skeletons in protected areas + most heavy sections for instant feedback.
 - Dynamic imports for recharts, modals (ProfileModal, CommandPalette) + optimizePackageImports in next.config.
 - Client hooks: staleTime + targeted invalidations.
+- Additional refinements: more unstable_cache on contacts/products/CoA/periods, targeted invalidations in mutations, auth dedup in (app) layout, small RSC prep in reports.
 - Result: faster initial loads, snappier dashboard/reports, smaller bundles, less repeated work. App feels much more comfortable.
 
 ### Deploy
