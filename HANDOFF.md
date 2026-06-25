@@ -1,7 +1,7 @@
 # BisnisMu — Handoff Document
 
 Date: 2026-06-25  
-Session scope: Perbaikan login argon2 legacy + fitur reveal/show password toggle + update HANDOFF & CHANGELOG + push.
+Session scope: Perbaikan login argon2 legacy + fitur reveal/show password toggle + UI refinement (icon now inside input) + login/register form polish + update docs + push.
 
 ---
 
@@ -35,6 +35,13 @@ Session scope: Perbaikan login argon2 legacy + fitur reveal/show password toggle
 - Semua password input sekarang memiliki tombol reveal.
 - `npm run typecheck` bersih.
 - Dev server berjalan normal di port 3333.
+
+### UI Refinement (same session)
+- Awal implementasi `GlassPasswordInput` membuat icon reveal (eye) terlihat "ngambang" di luar input box (jelek secara visual).
+- Di-refine: gunakan wrapper `relative w-full`, `GlassInput` dengan `pr-10 w-full`, dan icon di-absolute `right-3 top-1/2`.
+- Hasil: icon sekarang benar-benar di **dalam** rounded border input (sama seperti field email).
+- Login & Register submit button: full width + hover/active state + disabled yang lebih clean.
+- Login card padding & spacing disesuaikan.
 
 ### Deploy
 - Perubahan didokumentasikan di `HANDOFF.md` dan `CHANGELOG.md` (v0.12.0).

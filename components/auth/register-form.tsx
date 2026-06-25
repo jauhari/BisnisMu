@@ -65,7 +65,11 @@ export function RegisterForm() {
         />
       </GlassField>
       {error ? <p className="text-sm text-danger">{error}</p> : null}
-      <button type="submit" disabled={loading || !name || !email || !password || !businessName} className="h-11 rounded-md bg-foreground px-4 text-sm font-medium text-background disabled:opacity-60">
+      <button
+        type="submit"
+        disabled={loading || !name || !email || !password || !businessName}
+        className="h-11 w-full rounded-md bg-foreground px-4 text-sm font-medium text-background transition hover:bg-foreground/90 active:bg-foreground/95 disabled:cursor-not-allowed disabled:opacity-50"
+      >
         {loading ? "Mendaftar…" : "Daftar & masuk"}
       </button>
     </GlassForm>

@@ -64,7 +64,7 @@ export function LoginForm() {
   }
 
   return (
-    <GlassForm className="mt-6" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
+    <GlassForm className="mt-4" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
       <GlassField label="Email">
         <GlassInput type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@usaha.com" autoComplete="email" />
       </GlassField>
@@ -72,7 +72,11 @@ export function LoginForm() {
         <GlassPasswordInput value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="current-password" />
       </GlassField>
       {error ? <p className="text-sm text-danger">{error}</p> : null}
-      <button type="submit" disabled={loading || !email || !password} className="h-11 rounded-md bg-foreground px-4 text-sm font-medium text-background disabled:opacity-60">
+      <button
+        type="submit"
+        disabled={loading || !email || !password}
+        className="h-11 w-full rounded-md bg-foreground px-4 text-sm font-medium text-background transition hover:bg-foreground/90 active:bg-foreground/95 disabled:cursor-not-allowed disabled:opacity-50"
+      >
         {loading ? "Masuk…" : "Masuk"}
       </button>
     </GlassForm>

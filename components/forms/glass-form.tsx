@@ -43,22 +43,26 @@ export const GlassInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLI
 );
 GlassInput.displayName = "GlassInput";
 
-/** Password input with built-in reveal/hide toggle (eye icon). */
+/** Password input with built-in reveal/hide toggle (eye icon). 
+ * The icon is positioned inside the input field (in the right padding area)
+ * so it looks integrated, not floating outside.
+ */
 export function GlassPasswordInput(props: InputHTMLAttributes<HTMLInputElement>) {
   const [visible, setVisible] = useState(false);
   const { className, ...rest } = props;
 
   return (
-    <div className="relative">
+    <div className="relative w-full">
       <GlassInput
         {...rest}
         type={visible ? "text" : "password"}
-        className={cn("pr-10", className)}
+        className={cn("pr-10 w-full", className)}
       />
       <button
         type="button"
+        tabIndex={-1}
         onClick={() => setVisible((v) => !v)}
-        className="absolute inset-y-0 right-0 flex items-center px-3 text-muted transition hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/40 rounded-r-md"
+        className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted/70 transition-all hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/40 rounded"
         aria-label={visible ? "Sembunyikan password" : "Tampilkan password"}
         title={visible ? "Sembunyikan password" : "Tampilkan password"}
       >

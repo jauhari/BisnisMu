@@ -24,6 +24,13 @@ All notable changes to BisnisMu are documented in this file.
 - `scripts/seed-dev-owner.mjs` diubah menggunakan `bcryptjs` (bukan argon2) untuk seed baru.
 - `src/presentation/auth/auth.ts` menambahkan `http://localhost:3333` ke `trustedOrigins`.
 
+### Improved — Login Form UX & Password Toggle Integration
+- `GlassPasswordInput` refined so the reveal icon sits properly **inside** the input field (using relative wrapper + `pr-10` + absolute positioning at `right-3`).
+- Added explicit `w-full` on the password field wrapper and input for consistent full width (matching the email field).
+- Submit buttons on Login & Register forms: now `w-full`, with hover/active transitions and cleaner disabled state (`opacity-50` + `cursor-not-allowed`).
+- Login page card padding increased (`p-8`) and form spacing tightened for better visual balance.
+- Removed boxy hover backgrounds on the eye icon for a cleaner, more integrated look.
+
 ### Changed
 - Dokumentasi: HANDOFF.md dan CHANGELOG.md diupdate.
 
