@@ -34,7 +34,7 @@ function nextSku(products: any[], floor: number): string {
 }
 
 export default function Page() {
-  const createMutation = usePostMutation("/api/inventory/products");
+  const createMutation = usePostMutation("/api/inventory/products", ["list", "inventory-products"]);
   const updateMutation = usePatchMutation<ProductForm & { productId: string }>((payload) => `/api/inventory/products/${payload.productId}`);
   const products = useListQuery<any[]>("/api/inventory/products", ["list", "inventory-products"]);
   const categories = useListQuery<any[]>("/api/inventory/categories", ["list", "inventory-categories"]);

@@ -1,6 +1,6 @@
 "use client";
 
-import { RevenueTrendChart } from "@/components/charts/financial-charts";
+import dynamic from "next/dynamic";
 import { ReportWorkspace } from "@/components/charts/report-layout";
 import { GlassErrorState, GlassSkeleton } from "@/components/feedback/glass-feedback";
 import { GlassStatsCard } from "@/components/glass/glass-primitives";
@@ -9,6 +9,11 @@ import { useProfitLossReport } from "@/presentation/query/dashboard-hooks";
 import { useActiveBusiness, useReportRange, buildRequest } from "@/presentation/query/report-hooks";
 import { formatRupiah } from "@/presentation/format/number";
 import { exportProfitLossPdf, exportProfitLossExcel } from "@/presentation/export/report-exports";
+
+const RevenueTrendChart = dynamic(
+  () => import("@/components/charts/financial-charts").then((m) => ({ default: m.RevenueTrendChart })),
+  { loading: () => <GlassSkeleton className="h-80" />, ssr: false }
+);
 
 const n = (v: any) => Number(v ?? 0);
 
