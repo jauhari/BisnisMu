@@ -41,8 +41,11 @@ export async function POST(request: Request) {
     const file = formData.get("image") as File | null;
     if (!file) throw new Error("File gambar tidak ditemukan.");
 
-    // Kompres/batasi ukuran — kalau > 4MB resize dulu (Anthropic max 5MB)
+    // Client mengompres ke ~1.4MB JPEG sebelum upload; tolak jika masih terlalu besar.
     const bytes = await file.arrayBuffer();
+    if (bytes.byteLength > 4_500_000) {
+      throw new Error("Gambar terlalu besar. Coba foto ulang dengan pencahayaan lebih terang.");
+    }
     const base64 = Buffer.from(bytes).toString("base64");
     const mediaType = (file.type || "image/jpeg") as "image/jpeg" | "image/png" | "image/webp" | "image/gif";
 

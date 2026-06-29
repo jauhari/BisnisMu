@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { WorkspaceHeader } from "@/components/layout/workspace";
 import { GlassPanel } from "@/components/glass/glass-primitives";
 import { GlassDataSelect, GlassDatePicker, GlassInput } from "@/components/forms/glass-form";
@@ -12,6 +12,17 @@ import { Camera, Upload, X, Plus, Trash2, CheckCircle, AlertCircle, Loader2, Sca
 import { ContactPicker } from "@/components/shared/contact-picker";
 import { toast } from "sonner";
 import { formatRupiah } from "@/presentation/format/number";
+import { compressImageForOcr, formatBytes } from "@/presentation/media/compress-image";
+
+type ScanPhase = "idle" | "compressing" | "uploading" | "analyzing" | "parsing";
+type SubmitPhase = "idle" | "saving" | "done";
+
+const SCAN_LABELS: Record<Exclude<ScanPhase, "idle">, string> = {
+  compressing: "Mengompres foto…",
+  uploading: "Mengunggah…",
+  analyzing: "AI membaca tulisan tangan…",
+  parsing: "Menyusun data…",
+};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface OcrItem  { nama: string; jumlah: number; }
@@ -94,9 +105,15 @@ export default function Page() {
   // State
   const [imageUrl,    setImageUrl]    = useState<string | null>(null);
   const [imageFile,   setImageFile]   = useState<File | null>(null);
-  const [scanning,    setScanning]    = useState(false);
-  const [ocrDone,     setOcrDone]     = useState(false);
-  const [submitting,  setSubmitting]  = useState(false);
+  const [scanning,       setScanning]       = useState(false);
+  const [scanPhase,      setScanPhase]      = useState<ScanPhase>("idle");
+  const [scanProgress,   setScanProgress]   = useState(0);
+  const [compressInfo,   setCompressInfo]   = useState<string | null>(null);
+  const [ocrDone,        setOcrDone]        = useState(false);
+  const [submitting,     setSubmitting]     = useState(false);
+  const [submitPhase,    setSubmitPhase]    = useState<SubmitPhase>("idle");
+  const [submitProgress, setSubmitProgress] = useState(0);
+  const progressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [tanggal,      setTanggal]      = useState(() => new Date().toLocaleDateString("en-CA"));
   const [cashAccountId,setCashAccountId] = useState(() => {
@@ -107,10 +124,34 @@ export default function Page() {
   const [expenseItems, setExpenseItems] = useState<ReviewItem[]>([]);
 
   // ── Pilih / ambil foto ─────────────────────────────────────────────────────
+  useEffect(() => {
+    void fetch("/api/health", { credentials: "include", keepalive: true }).catch(() => {});
+    return () => {
+      if (progressTimerRef.current) clearInterval(progressTimerRef.current);
+    };
+  }, []);
+
+  function clearProgressTimer() {
+    if (progressTimerRef.current) {
+      clearInterval(progressTimerRef.current);
+      progressTimerRef.current = null;
+    }
+  }
+
+  function startAnalyzingProgress() {
+    clearProgressTimer();
+    progressTimerRef.current = setInterval(() => {
+      setScanProgress((p) => (p < 88 ? p + 2 : p));
+    }, 700);
+  }
+
   function handleFile(file: File) {
     setImageFile(file);
     setImageUrl(URL.createObjectURL(file));
     setOcrDone(false);
+    setCompressInfo(null);
+    setScanPhase("idle");
+    setScanProgress(0);
     setIncomeItems([]);
     setExpenseItems([]);
   }
@@ -130,17 +171,36 @@ export default function Page() {
   async function scan() {
     if (!imageFile) return;
     setScanning(true);
+    setScanPhase("compressing");
+    setScanProgress(8);
     try {
-      const fd = new FormData();
-      fd.append("image", imageFile);
+      const compressed = await compressImageForOcr(imageFile);
+      setCompressInfo(
+        compressed.originalBytes !== compressed.compressedBytes
+          ? `${formatBytes(compressed.originalBytes)} → ${formatBytes(compressed.compressedBytes)} · ${compressed.width}×${compressed.height}px`
+          : `${formatBytes(compressed.compressedBytes)} · ${compressed.width}×${compressed.height}px`
+      );
 
-      // Timeout 55 detik — vision API bisa lambat untuk gambar besar
+      setScanPhase("uploading");
+      setScanProgress(22);
+      const fd = new FormData();
+      fd.append("image", compressed.file);
+
+      setScanPhase("analyzing");
+      setScanProgress(30);
+      startAnalyzingProgress();
+
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 55_000);
       let res: Response;
       try {
         res = await fetch("/api/reports/scan", { method: "POST", body: fd, credentials: "include", signal: controller.signal });
       } finally { clearTimeout(timer); }
+
+      clearProgressTimer();
+      setScanPhase("parsing");
+      setScanProgress(92);
+
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error?.message ?? json?.message ?? "Gagal scan.");
       const data: OcrResult = json.data;
@@ -183,12 +243,15 @@ export default function Page() {
         accountId: byCode(matchAccount(item.nama, EXPENSE_KEYWORD_MAP)),
       })));
 
+      setScanProgress(100);
       setOcrDone(true);
       toast.success(`Berhasil membaca ${data.pemasukan.length} item pemasukan dan ${data.pengeluaran.length} pengeluaran.`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal scan gambar.");
     } finally {
+      clearProgressTimer();
       setScanning(false);
+      setScanPhase("idle");
     }
   }
 
@@ -217,40 +280,34 @@ export default function Page() {
     }
 
     setSubmitting(true);
+    setSubmitPhase("saving");
+    setSubmitProgress(15);
+    const submitTimer = setInterval(() => {
+      setSubmitProgress((p) => (p < 88 ? p + 4 : p));
+    }, 350);
     try {
-      // 1. Submit pemasukan → DailySale
-      if (validIncome.length) {
-        await apiRequest("/api/sales/daily", {
-          method: "POST",
-          body: JSON.stringify({
-            saleDate:     tanggal,
-            cashAccountId,
-            description: `Laporan Harian ${tanggal}`,
-            items: validIncome.map((it) => ({
-              revenueAccountId: it.accountId,
-              description:      it.keterangan ? `${it.nama} — ${it.keterangan}` : it.nama,
-              amount:           parseInt(it.jumlah),
-              contacts:         it.contactId ? [{ contactId: it.contactId, amount: parseInt(it.jumlah) }] : [],
-            })),
-          }),
-        });
-      }
-
-      // 2. Submit pengeluaran → cash transactions (CASH_OUT per item)
-      for (const it of validExpense) {
-        await apiRequest("/api/cash/transactions", {
-          method: "POST",
-          body: JSON.stringify({
-            type:             "CASH_OUT",
-            transactionDate:  tanggal,
-            cashAccountId,
+      await apiRequest("/api/sales/daily/report", {
+        method: "POST",
+        body: JSON.stringify({
+          saleDate: tanggal,
+          cashAccountId,
+          description: `Laporan Harian ${tanggal}`,
+          incomeItems: validIncome.map((it) => ({
+            revenueAccountId: it.accountId,
+            description: it.keterangan ? `${it.nama} — ${it.keterangan}` : it.nama,
+            amount: parseInt(it.jumlah),
+            contacts: it.contactId ? [{ contactId: it.contactId, amount: parseInt(it.jumlah) }] : [],
+          })),
+          expenseItems: validExpense.map((it) => ({
             categoryAccountId: it.accountId,
-            amount:           parseInt(it.jumlah),
-            description:      it.nama || "Pengeluaran harian",
-          }),
-        });
-      }
+            description: it.nama || "Pengeluaran harian",
+            amount: parseInt(it.jumlah),
+          })),
+        }),
+      });
 
+      setSubmitProgress(100);
+      setSubmitPhase("done");
       toast.success("Laporan berhasil disimpan! Jurnal dibuat otomatis.");
       void qc.invalidateQueries({ queryKey: ["list"] });
 
@@ -261,7 +318,10 @@ export default function Page() {
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal menyimpan.");
     } finally {
+      clearInterval(submitTimer);
       setSubmitting(false);
+      setSubmitPhase("idle");
+      setSubmitProgress(0);
     }
   }
 
@@ -321,6 +381,25 @@ export default function Page() {
             onChange={onFileChange}
           />
 
+          {compressInfo && (
+            <p className="mt-2 text-center text-[11px] text-muted">Ukuran upload: {compressInfo}</p>
+          )}
+
+          {scanning && scanPhase !== "idle" && (
+            <div className="mt-3 space-y-1.5">
+              <div className="flex justify-between text-xs text-muted">
+                <span>{SCAN_LABELS[scanPhase]}</span>
+                <span className="tabular-nums">{scanProgress}%</span>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-border/60">
+                <div
+                  className="h-full rounded-full bg-accent transition-all duration-300"
+                  style={{ width: `${scanProgress}%` }}
+                />
+              </div>
+            </div>
+          )}
+
           {imageFile && (
             <button
               type="button"
@@ -329,7 +408,7 @@ export default function Page() {
               className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-accent py-3 text-sm font-semibold text-white disabled:opacity-60"
             >
               {scanning
-                ? <><Loader2 className="h-4 w-4 animate-spin" /> Menganalisis dengan AI…</>
+                ? <><Loader2 className="h-4 w-4 animate-spin" /> {scanPhase !== "idle" ? SCAN_LABELS[scanPhase] : "Memproses…"}</>
                 : <><ScanLine className="h-4 w-4" /> Scan & Ekstrak Data</>}
             </button>
           )}
@@ -523,6 +602,20 @@ export default function Page() {
                   </p>
                 </div>
               </div>
+              {submitting && (
+                <div className="mb-3 space-y-1.5">
+                  <div className="flex justify-between text-xs text-muted">
+                    <span>{submitPhase === "saving" ? "Menyimpan laporan & jurnal…" : "Selesai"}</span>
+                    <span className="tabular-nums">{submitProgress}%</span>
+                  </div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-border/60">
+                    <div
+                      className="h-full rounded-full bg-foreground transition-all duration-300"
+                      style={{ width: `${submitProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
               <button
                 type="button"
                 onClick={() => void submit()}
