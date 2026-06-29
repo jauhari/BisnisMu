@@ -36,15 +36,17 @@ export async function nextJournalNumber(tx: Prisma.TransactionClient, businessId
   const year = transactionDate.getUTCFullYear();
   const month = String(transactionDate.getUTCMonth() + 1).padStart(2, "0");
   const prefix = "JV-" + year + month + "-";
-  const latestRows = await tx.$queryRaw<Array<{ journal_number: string }>>`
-    SELECT journal_number FROM journal_entries
+  const seqStart = prefix.length + 1;
+  const rows = await tx.$queryRaw<Array<{ next_seq: number | bigint | null }>>`
+    SELECT COALESCE(MAX(
+      CAST(SUBSTRING(journal_number FROM ${seqStart}) AS INTEGER)
+    ), 0) + 1 AS next_seq
+    FROM journal_entries
     WHERE business_id = ${businessId}
       AND journal_number LIKE ${prefix + "%"}
-    ORDER BY journal_number DESC
-    LIMIT 1
   `;
-  const latest = latestRows[0]?.journal_number;
-  return prefix + String(latest ? Number(latest.slice(prefix.length)) + 1 : 1).padStart(5, "0");
+  const nextSeq = Number(rows[0]?.next_seq ?? 1);
+  return prefix + String(nextSeq).padStart(5, "0");
 }
 
 export async function createJournal(prisma: PrismaClient, ctx: TenantContext, body: JournalDraftBody, status: "DRAFT" | "POSTED") {

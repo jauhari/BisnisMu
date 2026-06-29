@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { handleApi } from "@/presentation/api/route-handler";
-import { prisma } from "@/presentation/api/prisma";
+import { prisma, prismaDirect } from "@/presentation/api/prisma";
 import { requireTenantContext } from "@/presentation/auth/session";
 import { nextJournalNumber } from "@/presentation/accounting/journal-workflows";
 import { z } from "zod";
@@ -53,7 +53,7 @@ export async function POST(request: Request) {
     let result: { sale: Awaited<ReturnType<typeof prisma.dailySale.create>>; journalNumber: string } | undefined;
     for (let attempt = 0; attempt < 10; attempt++) {
       try {
-        result = await prisma.$transaction(async (tx) => {
+        result = await prismaDirect.$transaction(async (tx) => {
           const journalNumber = await nextJournalNumber(tx, businessId, txDate);
 
           const journal = await tx.journalEntry.create({

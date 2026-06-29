@@ -95,16 +95,16 @@ export class PrismaJournalRepository implements JournalRepository {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${ctx.businessId + ":journal"}))`;
 
     const prefix = this.journalPrefix(journal.transactionDate);
-    const latestRows = await tx.$queryRaw<Array<{ journal_number: string }>>`
-      SELECT journal_number FROM journal_entries
+    const seqStart = prefix.length + 1;
+    const rows = await tx.$queryRaw<Array<{ next_seq: number | bigint | null }>>`
+      SELECT COALESCE(MAX(
+        CAST(SUBSTRING(journal_number FROM ${seqStart}) AS INTEGER)
+      ), 0) + 1 AS next_seq
+      FROM journal_entries
       WHERE business_id = ${ctx.businessId}
         AND journal_number LIKE ${prefix + "%"}
-      ORDER BY journal_number DESC
-      LIMIT 1
     `;
-    const latest = latestRows[0]?.journal_number;
-    const nextSequence = latest ? Number(latest.slice(prefix.length)) + 1 : 1;
-    const journalNumber = prefix + String(nextSequence).padStart(5, "0");
+    const journalNumber = prefix + String(Number(rows[0]?.next_seq ?? 1)).padStart(5, "0");
 
     const created = await tx.journalEntry.create({
       data: {
