@@ -95,10 +95,9 @@ export class PrismaJournalRepository implements JournalRepository {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${ctx.businessId + ":journal"}))`;
 
     const prefix = this.journalPrefix(journal.transactionDate);
-    const seqStart = prefix.length + 1;
     const rows = await tx.$queryRaw<Array<{ next_seq: number | bigint | null }>>`
       SELECT COALESCE(MAX(
-        CAST(SUBSTRING(journal_number FROM ${seqStart}) AS INTEGER)
+        CAST(NULLIF(SPLIT_PART(journal_number, '-', 3), '') AS INTEGER)
       ), 0) + 1 AS next_seq
       FROM journal_entries
       WHERE business_id = ${ctx.businessId}
