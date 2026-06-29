@@ -1,4 +1,5 @@
 import { getSessionCookie } from "better-auth/cookies";
+import { cache } from "react";
 
 import { prisma } from "@/presentation/api/prisma";
 import { AuthError } from "./auth-error";
@@ -16,25 +17,73 @@ interface SessionRecord {
     email: string;
     emailVerified: boolean;
     image: string | null;
+    platformRole: string;
   };
 }
+
+export type PlatformRole = "USER" | "SUPER_ADMIN" | "SUPPORT_AGENT" | "FINANCE_ADMIN" | "DEVELOPER";
 
 export interface AuthenticatedUserContext {
   actorUserId: string;
   businessId: string;
   role: "OWNER" | "ADMIN" | "ACCOUNTANT" | "CASHIER" | "VIEWER";
+  platformRole: PlatformRole;
   user: SessionRecord["user"];
   session: Omit<SessionRecord, "user">;
 }
 
+export function requireGodMode(context: Pick<AuthenticatedUserContext, "platformRole">, allowed: PlatformRole[] = ["SUPER_ADMIN"]): void {
+  if (!allowed.includes(context.platformRole)) throw new AuthError("FORBIDDEN", "God mode access required");
+}
+
+export const requireGodModeContext = cache(async (request: Request): Promise<AuthenticatedUserContext> => {
+  const token = getRequestSessionToken(request);
+  if (!token) throw new AuthError("UNAUTHENTICATED", "Unauthorized");
+  const session = await prisma.session.findUnique({ where: { token }, include: { user: true } });
+  if (!session?.user?.id || session.expiresAt <= new Date()) throw new AuthError("UNAUTHENTICATED", "Unauthorized");
+  const { user, ...sessionRecord } = session;
+  const ctx: AuthenticatedUserContext = {
+    actorUserId: user.id,
+    businessId: session.activeBusinessId ?? "",
+    role: "VIEWER",
+    platformRole: (user.platformRole ?? "USER") as PlatformRole,
+    user,
+    session: sessionRecord,
+  };
+  requireGodMode(ctx);
+  return ctx;
+});
+
+/** better-auth signs session cookies as `<token>.<signature>`; DB stores the raw token. */
+export function normalizeSessionToken(token: string): string {
+  const trimmed = decodeURIComponent(token.trim());
+  if (!trimmed) return trimmed;
+  const dot = trimmed.indexOf(".");
+  return dot > 0 ? trimmed.slice(0, dot) : trimmed;
+}
+
+export function getSessionTokenFromCookieValue(raw: string | undefined | null): string | null {
+  if (!raw) return null;
+  return normalizeSessionToken(raw);
+}
+
+export async function getServerSessionToken(): Promise<string | null> {
+  const { cookies } = await import("next/headers");
+  const cookieStore = await cookies();
+  const raw =
+    cookieStore.get("better-auth.session_token")?.value ??
+    cookieStore.get("__Secure-better-auth.session_token")?.value;
+  return getSessionTokenFromCookieValue(raw);
+}
+
 export function getRequestSessionToken(request: Request): string | null {
   const cookieToken = getSessionCookie(request);
-  if (cookieToken) return cookieToken;
+  if (cookieToken) return normalizeSessionToken(cookieToken);
   const rawCookie = request.headers.get("cookie") ?? "";
   const directCookie = rawCookie.split(/;\s*/).find((part) => part.startsWith("better-auth.session_token=") || part.startsWith("__Secure-better-auth.session_token="));
-  if (directCookie) return decodeURIComponent(directCookie.slice(directCookie.indexOf("=") + 1));
+  if (directCookie) return normalizeSessionToken(directCookie.slice(directCookie.indexOf("=") + 1));
   const authorization = request.headers.get("authorization");
-  if (authorization?.toLowerCase().startsWith("bearer ")) return authorization.slice(7).trim();
+  if (authorization?.toLowerCase().startsWith("bearer ")) return normalizeSessionToken(authorization.slice(7).trim());
   return null;
 }
 
@@ -42,7 +91,9 @@ export async function getAuthenticatedUserContext(request: Request): Promise<Aut
   return getAuthenticatedUserContextByToken(getRequestSessionToken(request));
 }
 
-export async function getAuthenticatedUserContextByToken(token: string | null | undefined): Promise<AuthenticatedUserContext> {
+// Cached per-request (React cache) so multiple calls to requireTenantContext / layout / handler
+// within the same server render only hit the DB once. Huge win for nested layouts + API handlers.
+export const getAuthenticatedUserContextByToken = cache(async (token: string | null | undefined): Promise<AuthenticatedUserContext> => {
   if (!token) throw new AuthError("UNAUTHENTICATED", "Unauthorized");
 
   const session = await prisma.session.findUnique({
@@ -62,10 +113,11 @@ export async function getAuthenticatedUserContextByToken(token: string | null | 
     actorUserId: user.id,
     businessId: session.activeBusinessId,
     role: membership.role,
+    platformRole: (user.platformRole ?? "USER") as PlatformRole,
     user,
     session: sessionRecord,
   };
-}
+});
 
 export async function requireActorUserId(request: Request): Promise<string> {
   const context = await getAuthenticatedUserContext(request);

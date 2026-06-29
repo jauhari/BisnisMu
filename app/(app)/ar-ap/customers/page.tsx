@@ -11,7 +11,7 @@ const schema = z.object({ name: z.string().min(2), email: z.string().email().or(
 type CustomerForm = z.infer<typeof schema>;
 
 export default function Page() {
-  const mutation = usePostMutation("/api/ar-ap/customers");
+  const mutation = usePostMutation("/api/ar-ap/customers", ["list", "ar-ap-customers"]);
   const { data, isLoading, error } = useListQuery<any[]>("/api/ar-ap/customers", ["list", "ar-ap-customers"]);
   if (isLoading) return <GlassSkeleton className="h-72" />;
   if (error || !data) return <GlassErrorState title="Customers unavailable" description="Unable to load customers." />;

@@ -58,6 +58,8 @@ export interface DashboardOverview {
   float: FloatDashboardAnalytics;
   customer: CustomerDashboardAnalytics;
   vendor: VendorDashboardAnalytics;
+  salesTrend: Array<{ label: string; value: number }>;
+  cashTrend: Array<{ label: string; value: number }>;
 }
 
 export class DashboardError extends Error {

@@ -7,11 +7,10 @@ import { GlassTable } from "@/components/tables/glass-table";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/presentation/api/client";
 
-const now = new Date();
-const startsOn = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-const endsOn = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
-
 function useDashboard() {
+  const now = new Date();
+  const startsOn = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  const endsOn = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
   return useQuery({ queryKey: ["dashboard", "customers"], queryFn: () => apiRequest<{ data: any }>("/api/dashboard/overview", { method: "POST", body: JSON.stringify({ startsOn, endsOn }) }) });
 }
 

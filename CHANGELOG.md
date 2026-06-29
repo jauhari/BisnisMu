@@ -1,6 +1,268 @@
 # Changelog
 
-All notable changes to AkuntansiMu are documented in this file.
+All notable changes to BisnisMu are documented in this file.
+
+## [0.12.0] - 2026-06-25
+
+### Added — Password Visibility Toggle (UX)
+- Komponen baru `GlassPasswordInput` di `components/forms/glass-form.tsx` (menggunakan lucide-react `Eye` / `EyeOff`).
+- Toggle show/hide password tersedia di **semua** input password:
+  - Login form
+  - Register form
+  - Edit Profil → Ganti Password (current + new + confirm)
+  - Settings → Members (undang anggota)
+  - Admin panel (buat user)
+- `aria-label` dan `title` dalam Bahasa Indonesia untuk aksesibilitas.
+
+### Fixed — Legacy Argon2 Password Login
+- Banyak akun lama (seed owner, register awal) menyimpan password hash **argon2id** (`$argon2...`).
+- `verifyPassword()` sebelumnya selalu return `false` untuk argon2 → login selalu "Invalid email or password" meski password benar.
+- Sekarang:
+  - Mendukung verifikasi argon2 penuh via dynamic `import("argon2")` (bekerja di local/dev).
+  - Setelah verifikasi berhasil → otomatis migrasi hash ke bcrypt (`AuthAccount.password`) supaya akun bisa dipakai di mana saja (termasuk Vercel).
+- Contoh akun terdampak: `barookahjaya@gmail.com`, `admin@bisnismu.local`, `budi@tokobudi.com`, dll.
+- `scripts/seed-dev-owner.mjs` diubah menggunakan `bcryptjs` (bukan argon2) untuk seed baru.
+- `src/presentation/auth/auth.ts` menambahkan `http://localhost:3333` ke `trustedOrigins`.
+
+### Improved — Login Form UX & Password Toggle Integration
+- `GlassPasswordInput` refined so the reveal icon sits properly **inside** the input field (using relative wrapper + `pr-10` + absolute positioning at `right-3`).
+- Added explicit `w-full` on the password field wrapper and input for consistent full width (matching the email field).
+- Submit buttons on Login & Register forms: now `w-full`, with hover/active transitions and cleaner disabled state (`opacity-50` + `cursor-not-allowed`).
+- Login page card padding increased (`p-8`) and form spacing tightened for better visual balance.
+- Removed boxy hover backgrounds on the eye icon for a cleaner, more integrated look.
+
+### Improved — Performance & Perceived Speed (major)
+- Server-side caching (`unstable_cache` + revalidate 30-60s) on dashboard overview, all major reports (P&L, Balance Sheet, Cash Flow, Trial Balance), and common list endpoints (businesses, contacts, inventory/products, fiscal periods, CoA, etc.) to eliminate repeated heavy Prisma queries.
+- `React.cache` on auth/session context functions (`getAuthenticatedUserContextByToken`, etc.) to deduplicate DB lookups within a single server request (huge win for layouts + handlers).
+- Key pages converted to React Server Components for faster initial loads with server data fetching:
+  - Dashboard: RSC + Suspense + URL-driven filters (server-rendered KPIs, no client fetch waterfall for initial view).
+  - Organizations: RSC for list (server-rendered) + small client island for create form.
+- Added `loading.tsx` skeletons (instant visual feedback) across protected app, reports, inventory, sales, cash, POS, accounting, AR/AP, purchase, contacts, transactions, settings, installments, etc.
+- Dynamic imports + `optimizePackageImports` in next.config for heavy libs (recharts, lucide-react, react-table, framer-motion) and modals (ProfileModal, CommandPalette) → smaller initial JS bundle and better TTI.
+- Client data fetching improvements: `staleTime: 30s` on lists, targeted invalidation keys on mutations (avoid broad "list" refetch storms).
+- Minor: password reveal icon truly inside input, full-width buttons with proper hover states, tighter spacing.
+- Additional: more unstable_cache on list endpoints (contacts, products, CoA, periods), targeted invalidations, auth dedup in layout, small RSC prep.
+
+These changes target the main sources of slowness (repeated auth DB hits, client-heavy waterfall, over-fetching, large bundles, lack of skeletons/streaming).
+
+### Changed
+- Dokumentasi: HANDOFF.md dan CHANGELOG.md diupdate.
+
+## [0.11.1] - 2026-06-20
+
+### Fixed — Login Production & Sesi Better Auth
+- Form login tidak lagi memakai `/api/auth/dev-login` (endpoint dev yang diblokir di production sejak v0.11.0). Alur resmi kini: `POST /api/auth/sign-in/email` → `POST /api/auth/bootstrap` → dashboard.
+- Cookie sesi better-auth (`token.signature`) dinormalisasi sebelum lookup Prisma lewat `normalizeSessionToken()` dan `getServerSessionToken()`, sehingga layout terproteksi tidak lagi menendang user balik ke `/login` setelah autentikasi berhasil.
+- Layout `app/(app)`, admin reset, dan admin changelog memakai helper sesi server yang sama agar pembacaan cookie konsisten dengan middleware/API.
+- Test baru memverifikasi pemisahan signature cookie better-auth dari token database.
+
+## [0.11.0] - 2026-06-14
+
+### Security — Hardening Kredensial, Auth, CSP, dan Rate Limiting
+- `.env` dibersihkan ke placeholder; panduan rotasi kredensial (Neon, Anthropic, `BETTER_AUTH_SECRET`) ditambahkan di `README.md`.
+- Endpoint `/api/auth/dev-login` kini diblokir di production (404) kecuali `ALLOW_DEV_LOGIN=1`.
+- `scripts/seed-dev-owner.mjs` menolak berjalan di production tanpa `--force` dan membuat password acak (tidak lagi hardcode `Password123!`).
+- Content-Security-Policy menghapus `'unsafe-eval'` di production (tetap di dev untuk HMR); helper CSP berbasis nonce ditambahkan.
+- Rate limiter `fail-closed` di production bila Upstash belum dikonfigurasi, dan `clientIp` memakai hop proxy tepercaya (anti-spoof `x-forwarded-for`).
+- Semua jalur ekspor/cetak (`glass-table`, jadwal angsuran) kini melakukan HTML-escape pada nilai sel untuk mencegah XSS.
+
+### Fixed — Integritas Data Keuangan
+- Posting jurnal kini bisa berjalan dalam transaksi eksternal; modul Revenue, Cash Management, dan AR/AP membungkus posting jurnal + update status dalam satu transaksi atomik (via koneksi `DIRECT_URL`).
+- Saldo wallet pelanggan dan float memakai increment SQL atomik (`current_balance + delta`), menghilangkan lost-update pada operasi konkuren.
+- Penulisan lintas-tenant ditutup: semua `update`/`delete` di Sales, Purchase, POS, dan Installment menyertakan `businessId` pada klausa `where`.
+- Audit log pada blok catch posting jurnal dibungkus try/catch agar tidak menutupi error asli.
+- Valuasi stok keluar memakai porsi proporsional dari `inventory_value` (mengurangi akumulasi error pembulatan average cost).
+- Perbandingan sorting dashboard memakai komparator bigint (tanpa kehilangan presisi di atas 2^53).
+- Bug React conditional hooks di halaman Transaksi Kas diperbaiki (early return dipindah setelah semua hook).
+- Laporan buku pembantu (subsidiary-ledger) memfilter invoice/bill dengan kolom yang benar (`customerId`/`vendorId`, `subtotal`).
+
+### Performance
+- Index baru: `accounts(businessId, subtype)`, `journal_entries(businessId, status, transactionDate)`, `invoices(businessId, issueDate)`, `bills(businessId, issueDate)`, `inventory_movements(businessId, movementDate)`. Migration `20260614000000_add_performance_indexes`.
+- N+1 dihapus pada subsidiary-ledger (piutang/utang) dan seeding bagan akun (batch fetch + `createMany`).
+- Query reporting memakai `select` alih-alih `include` penuh.
+- `QueryClient` diberi default (`staleTime`, `refetchOnWindowFocus: false`), pencarian kontak di-debounce, dan ekspor tabel dihitung lazy saat menu dibuka.
+
+### Changed — DevOps & Tooling
+- `lint` kini ESLint sungguhan (`next lint`) menggantikan alias `tsc`; konfigurasi `.eslintrc.json` ditambahkan.
+- Threshold coverage Vitest ditambahkan (lines/functions/statements 60%, branches 50%).
+- CI: `build` bergantung pada `test`, ada job `audit` dependensi; deploy menjalankan typecheck+lint+test dan **gagal** (bukan skip) bila `DIRECT_URL` tidak ada.
+- Dockerfile memakai dependensi lengkap saat build dan menyetel `BUILD_STANDALONE=1`.
+- `new Date()` skala-modul dipindah ke dalam render di 12 halaman (menghindari hydration mismatch & staleness).
+- Aksesibilitas: modal profil mendapat semantik dialog + manajemen fokus + Escape, checkbox tabel jadi kontrol aksesibel, indikator laba/rugi & nominal tidak lagi hanya warna.
+
+## [0.10.0] - 2026-06-10
+
+### Added — CRUD Transaksi Berbasis Role dan Setting Organisasi
+- Halaman `Riwayat Transaksi` baru menggabungkan Penjualan Harian, Sales Order, dan Transaksi Kas dalam satu tabel operasional.
+- Aksi `Edit`, `Delete`, `Void`, `Post`, dan `Confirm` mengikuti role user dan status transaksi.
+- Setting organisasi baru `transactionHardMutationEnabled` memungkinkan organisasi tertentu mengaktifkan edit/delete langsung untuk role di atas Cashier.
+- Bisnis Hanyukupi dapat memakai mode edit/delete langsung untuk transaksi yang sudah posted/confirmed tanpa alur void, dengan audit tetap tercatat.
+- API baru untuk riwayat transaksi, update/delete sales order, update/delete penjualan harian, update/delete transaksi kas, dan setting hard mutation organisasi.
+
+### Changed — UI/UX Penjualan, Tabel, dan CoA Query
+- Form `Penjualan Harian` kini default tersembunyi dan dibuka lewat tombol `Tambah penjualan`; saat edit dari tabel, form otomatis terbuka.
+- Layout form penjualan dipadatkan: tanggal dibuat ringkas, akun/keterangan mendapat ruang lebih proporsional, dan total tampil di header form.
+- `GlassDataSelect` otomatis berubah menjadi query field cerdas untuk pilihan akun CoA: daftar tidak muncul sebelum user mengetik, hasil dibatasi maksimal 5 akun, dan bisa dicari lewat nama/kode/grup akun.
+- Tabel data memformat akun CoA dengan fokus pada nama akun, sementara kode akun tampil kecil sebagai metadata di kanan.
+- Tabel data memformat tanggal ke format lokal Indonesia dan memberi warna grup per tanggal agar perbedaan tanggal lebih mudah dipindai.
+- Layout workspace dan tabel dibuat lebih nyaman di layar kecil: panel samping turun ke bawah, filter dapat membungkus, dan scroll horizontal dibatasi di area tabel.
+- Kolom nomor internal panjang di Riwayat Transaksi disembunyikan agar tabel lebih fokus pada tanggal, status, keterangan, nominal, dan aksi.
+
+## [0.9.0] - 2026-06-09
+
+### Added — Jurnal Draft, Reversal, dan Koreksi Standar Akuntansi
+- Jurnal manual kini mendukung alur `DRAFT` → `POSTED`; draft bisa diedit/dihapus, sedangkan jurnal posted terkunci.
+- Koreksi jurnal posted dilakukan lewat aksi `Reverse` yang membuat jurnal pembalik, lalu user bisa `Copy` untuk membuat jurnal koreksi baru.
+- Migration `20260609090000_add_journal_drafts` menambahkan status `DRAFT` pada `JournalStatus`.
+- API baru: `/api/accounting/journals/drafts`, `/api/accounting/journals/drafts/:journalId`, `/api/accounting/journals/:journalId/post`, dan `/api/accounting/journals/:journalId/reverse`.
+
+### Changed — UI/UX Jurnal dan Tabel Data
+- Form jurnal manual kini tersembunyi di drawer dan hanya muncul lewat tombol `Tambah jurnal manual`, sehingga tabel jurnal lebih lega untuk review data.
+- Halaman kas kini difokuskan menjadi `Pengeluaran Kas` untuk biaya operasional harian; transaksi otomatis dibuat sebagai `CASH_OUT` dan langsung diposting ke jurnal.
+- Form jurnal memakai date picker ringkas, amount auto-format ribuan Indonesia, serta warna debit/kredit yang lebih informatif.
+- Dropdown akun dibuat lebih bersih: nama akun sebagai fokus, metadata grup/saldo normal ringkas, tanpa kode akun yang terlalu dominan.
+- Tabel data mendapat zebra row, header lebih kuat, hover row, selected state, dan opsi `selectable={false}` untuk halaman yang tidak punya bulk action.
+- Date input pembelian dan filter laporan memakai glass date/date-range picker, dengan format tanggal Indonesia konsisten.
+
+### Changed — Bagan Akun (CoA) Lebih Hierarkis
+- Halaman CoA kini menampilkan struktur akun sebagai tree dengan indent level, status `Header`/`Posting`, badge grup, dan kode akun sebagai metadata kanan.
+- Akun header diberi background dan penanda kiri yang lebih tegas agar struktur kategori terlihat jelas.
+- CoA kini mendukung aksi edit nama akun, aktif/nonaktif, dan hapus/deaktif melalui route akun per-ID.
+- Form CoA dilokalkan ke Bahasa Indonesia dan mendukung pembuatan akun header maupun akun posting.
+- Kode akun dibuat otomatis berdasarkan grup, induk akun, dan nomor terakhir yang sudah ada; saldo normal ditampilkan sebagai informasi read-only.
+## [0.8.0] - 2026-06-09
+
+### Added — Multi-Unit Organization (Hierarki Organisasi → Unit Usaha)
+- Layer additive di atas model flat: `Organization` (lembaga induk: BUMDes/Koperasi/Holding/Waralaba) menaungi beberapa `Business` (unit usaha). Satu Business hanya milik satu Organization.
+- Schema baru: enum `OrgType`, `OrgRole`; model `Organization`, `OrgMember`; kolom nullable `organizationId` di `Business` (migration `202606090001_add_organization_layer`). Tidak ada perubahan breaking — semua data & kode existing tetap valid.
+- Peran organisasi `ORG_OWNER`/`ORG_ADMIN`/`ORG_VIEWER` dengan cascade ke unit (OWNER/ADMIN → ADMIN, VIEWER → VIEWER). Proteksi "ORG_OWNER terakhir".
+- **Laporan konsolidasi** (agregasi langsung, tanpa eliminasi antar unit): laba rugi & neraca gabungan + perbandingan antar unit dengan skor kesehatan (🟢 ≥30%, 🟡 10–30%, 🔴 <10%/rugi).
+- API baru `/api/organizations/*`: CRUD organisasi, attach/detach unit, kelola anggota, dan `reports/{profit-loss,balance-sheet,unit-comparison}` + `dashboard`. `ReportingService` existing dipakai apa adanya (zero perubahan).
+- Fitur baru: `src/features/organization/` (domain/application/infrastructure), `orgServices` di `server-services.ts`, halaman `/organizations` & `/organizations/[orgId]`.
+- Tests: `tests/organization/` (engine + consolidation service).
+
+### Changed — Switch Bisnis Terintegrasi di Header
+- Pemilih "Usaha aktif" di header kini berupa **dropdown inline** (`BusinessSwitcher`) — ganti usaha langsung tanpa pindah ke halaman `/select-business`. Menandai usaha aktif, ada "+ Buat usaha baru", invalidasi cache + refresh otomatis setelah ganti.
+
+## [0.7.0] - 2026-06-09
+
+### Added — God Mode: Reset Data Bisnis
+- Menu baru **Admin (God Mode) → Reset Data** (`/admin/reset`) untuk mereset data per bisnis. Hanya `SUPER_ADMIN`.
+- Reset granular per kategori: data transaksi (Jurnal & Buku Besar, Penjualan Harian/Scan, Kas, Pendapatan, Wisata, AR/AP, Sales & POS, Pembayaran & Wallet, Float, Stok, Sesi Kas, Pembelian, Cicilan, Saldo Awal, Log Audit), khusus (reset saldo loyalty kontak), dan master data (Metode Pembayaran, Master Pendapatan, Master Wisata, Produk, Kontak, Pelanggan & Vendor, Akun Float, Terminal POS & Laci Kas, Periode Fiskal, Bagan Akun).
+- **Dry-run / pratinjau**: menjalankan langkah penghapusan di dalam transaksi lalu rollback, sehingga jumlah baris yang dilaporkan persis sama dengan eksekusi nyata tanpa menghapus data.
+- **Penghapusan atomik** dengan urutan child→parent sesuai relasi FK `onDelete: Restrict`; bila subset tidak konsisten, transaksi rollback penuh (tidak ada data terhapus sebagian).
+- **Auto-dependency**: memilih master data otomatis menarik grup transaksi terkait agar konsisten.
+- Pengaman: konfirmasi ketik nama bisnis + centang persetujuan, dicatat di `GodModeAuditLog` (action `BUSINESS_DATA_RESET`).
+- File baru: `src/presentation/admin/reset-data.ts`, `app/api/admin/reset/route.ts`, `app/(app)/admin/reset/{page,layout}.tsx`.
+- Submenu navigasi Admin (God Mode): Panel Admin, Reset Data, Changelog.
+
+### Fixed — Scan Laporan Harian (Transaction Timeout)
+- `POST /api/sales/daily` (`prisma.dailySale.create`) gagal dengan "Transaction already closed: ... timeout 5000ms" pada DB Neon remote.
+- Update loyalty kontak kini diagregasi per kontak unik (mengurangi round-trip di dalam transaksi), perilaku hitungan kunjungan/omzet tidak berubah.
+- Timeout transaksi dilonggarkan (`maxWait 10s`, `timeout 20s`) di route tersebut.
+- Default global `transactionOptions` (`maxWait 10s`, `timeout 20s`) ditambahkan di `prisma.ts` agar seluruh `$transaction` punya headroom untuk DB remote.
+
+### Fixed — Tampilan Halaman Changelog
+- Butir changelog tidak lagi dipotong satu baris (`truncate` dihapus) dan ukuran font dinaikkan agar terbaca; badge kode inline membungkus normal.
+
+## [0.6.0] - 2026-06-05
+
+### Added — Brand Identity & Layout Polishing
+- **Favicons & Logo**: Generated 3D glassmorphic transparent icon assets (`favicon.ico`, `icon.png`, `apple-icon.png`, `public/logo.png`) and integrated the new logo into the sidebar layout.
+- **Header Alignment**: Aligned sidebar logo header height to `h-16` to match the top header exactly.
+- **Custom Scrollbar**: Implemented modern, thin (5px), rounded, and floating scrollbars globally in `globals.css` to replace default browser scrollbars.
+
+### Added — Dashboard Date Filters & Real-time Trends
+- **Range Filters**: Implemented rolling range selectors (1 Minggu, 1 Bulan, 3 Bulan, 6 Bulan, 1 Tahun) on the main dashboard page.
+- **Dynamic Grouping Trend**: Connected charts to actual sales and cash flow trend data calculated from database records in `dashboard-engine.ts`, with auto-grouping by day, week, or month.
+
+### Changed — Cashier RBAC Permissions
+- **Scan Access**: Allowed Cashiers to use the daily scan reports tool by mapping `/api/reports/scan` (POST) to `sales:write`.
+- **COA Read-only Access**: Configured GET requests on `/api/accounting/chart-of-accounts` to require `dashboard:read` (allowing Cashiers to list accounts in dropdowns) while keeping mutations (`POST, PUT, DELETE, PATCH`) under `coa:write`.
+- **RBAC Tests**: Added assertions verifying Cashier's new scan and COA list permissions in `rbac-permissions.test.ts`.
+
+## [0.5.0] - 2026-06-03
+
+
+### Added — UI Compliance (Glass Design System)
+- `GlassDataSelect` — dropdown data-driven baru, tanpa native `<select>`. Dipakai di semua 20+ page
+- `GlassCheckbox` — wrapper checkbox untuk row selection di `glass-table.tsx`
+- `GlassDatePicker`, `GlassDateTimePicker`, `GlassTimePicker` direfactor menjadi **controlled components** (`value`/`onChange` prop)
+- Semua 26 file frontend dibersihkan dari native elements: `<select>`, `<input>`, `<input type="date">`, `<input type="datetime-local">`, `confirm()`
+- `RhfDataSelect` diupdate menggunakan `GlassDataSelect`
+
+### Added — Export PDF & Excel
+- Installed: `jspdf`, `jspdf-autotable`, `xlsx`
+- `src/presentation/export/report-exports.ts` — 8 fungsi export (4 laporan × 2 format)
+- `ExportDropdown` component di `ReportWorkspace` — dropdown "📄 PDF / 📊 Excel (.xlsx)"
+- 4 halaman laporan terhubung: Laba Rugi, Neraca, Buku Besar, Neraca Saldo
+- Dynamic import — library hanya di-load saat tombol diklik (tidak membebani bundle)
+- Nama file otomatis: `laba-rugi-2026-06.pdf`, `neraca-2026-06.xlsx`, dll
+
+### Added — Onboarding Flow
+- `app/(auth)/onboarding/page.tsx` — wizard 3 langkah setelah registrasi
+  - Step 1 & 2 (akun + COA) otomatis selesai, Step 3 (buka fiscal period) oleh user
+  - Pilihan tahun, tombol buka → redirect ke dashboard
+- Register form: tambah field "Jenis usaha" (UMKM/Perorangan/BUMDes/CV/UD)
+- Register API: terima `businessType`, redirect ke `/onboarding` bukan `/dashboard`
+
+### Added — Session Revocation
+- `DELETE /api/auth/sessions` — user logout dari semua perangkat lain (`?all=true` untuk termasuk sekarang)
+- `DELETE /api/admin/users/[id]/sessions` — SUPER_ADMIN/SUPPORT_AGENT force logout user
+- Settings page: section "Keamanan Sesi" dengan tombol "Keluar dari semua perangkat lain"
+- Admin panel: kolom "Aksi" dengan tombol "Force logout" per user
+
+### Added — Error Tracking (Sentry, opt-in)
+- Installed: `@sentry/nextjs@10.56.0`
+- `sentry.client.config.ts`, `sentry.server.config.ts`, `sentry.edge.config.ts`
+- `app/global-error.tsx` — Next.js global error boundary dengan `Sentry.captureException`
+- `next.config.ts` — `withSentryConfig` wrapper kondisional (aktif hanya jika `SENTRY_DSN` di-set)
+- `.env.example` — dokumentasi variabel Sentry (`SENTRY_DSN`, `NEXT_PUBLIC_SENTRY_DSN`, `SENTRY_ORG`, dll)
+
+### Fixed — CI/CD & Connection Pooling
+- `prisma/schema.prisma`: tambah `directUrl = env("DIRECT_URL")`
+- `.env`: hapus `channel_binding=require`, tambah `pgbouncer=true&connection_limit=1`, tambah `DIRECT_URL`
+- `ci.yml`: tambah `DIRECT_URL` di semua job, step `npm run lint`, `NEXT_PUBLIC_SENTRY_DSN: ""`
+- `deploy.yml`: job `check` (typecheck) sebelum migrate, migrate pakai `DIRECT_URL`, `SENTRY_AUTH_TOKEN`
+
+### Fixed — Bugs
+- `GlassCalendar`: header hari duplikat `["Min","Sel","Rab","Kam","Jum","Sab","Min"]` → `["Min","Sen","Sel","Rab","Kam","Jum","Sab"]`
+
+## [0.4.0] - 2026-06-03
+
+### Added — Authentication System
+- `better-auth` dengan Prisma adapter untuk email/password authentication
+- Password hashing menggunakan **argon2id** via `argon2` package
+- Cookie-based sessions (7-day expiry, 1-day sliding update)
+- Prisma models baru: `User`, `Session`, `AuthAccount`, `VerificationToken`
+- `PlatformRole` enum: `USER`, `SUPER_ADMIN`, `SUPPORT_AGENT`, `FINANCE_ADMIN`, `DEVELOPER`
+
+### Added — Authorization & RBAC
+- `middleware.ts` — melindungi semua `/api/*` routes, memvalidasi session token, mengecek business membership
+- `BusinessMember` + `BusinessMemberRole` (OWNER, ADMIN, ACCOUNTANT, EDITOR, CASHIER, VIEWER) di Prisma schema
+- `ROUTE_PERMISSION_RULES` — mapping route pattern → permission yang diperlukan
+- `getAuthenticatedUserContextByToken()` — builds full auth context dari session + BusinessMember; `businessId` dan `actorUserId` tidak lagi dipercaya dari client
+- God Mode: `/api/admin/*` routes hanya bisa diakses `SUPER_ADMIN`, `SUPPORT_AGENT`, `DEVELOPER`
+
+### Added — Rate Limiting
+- `MemoryRateLimiter` untuk development
+- `UpstashRedisRateLimiter` untuk production (auto-detect via env vars)
+- Rules terpisah per endpoint type: auth login (5/min), register (3/min), API read (300/min), write (100/min), reports (30/min), POS checkout (60/min)
+
+### Added — Security Headers
+- Content-Security-Policy, X-Frame-Options (DENY), HSTS (1 year), X-Content-Type-Options, Referrer-Policy, Permissions-Policy
+- Applied via `withSecurityHeaders()` pada semua API responses di middleware
+
+### Added — Auth API Routes
+- `POST /api/auth/register` — registrasi user baru
+- `POST /api/auth/select-business` — pilih active business untuk session
+- `GET  /api/auth/businesses` — list bisnis yang bisa diakses user
+- `POST /api/auth/logout` — invalidate session
+- `POST /api/auth/bootstrap` — seed SUPER_ADMIN pertama (hanya jika belum ada)
+- `POST /api/auth/dev-login` — shortcut login untuk development (disabled di production)
+- `GET/POST /api/admin/users` — God Mode: list dan manage platform users
+- `PATCH /api/admin/users/[id]/platform-role` — assign platform role
+- `GET /api/admin/businesses` — God Mode: list semua bisnis
 
 ## [0.3.0] - 2026-06-01
 

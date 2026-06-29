@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isPublicApiPath, withActorUserId, withTenantContext } from "../../src/presentation/auth/session";
+import { isPublicApiPath, normalizeSessionToken, withActorUserId, withTenantContext } from "../../src/presentation/auth/session";
 
 describe("auth session helpers", () => {
   it("allows auth and health API paths without middleware session enforcement", () => {
@@ -15,6 +15,13 @@ describe("auth session helpers", () => {
     const command = withActorUserId({ businessId: "biz-1", actorUserId: "spoofed" }, "user-1");
 
     expect(command).toEqual({ businessId: "biz-1", actorUserId: "user-1" });
+  });
+
+  it("strips better-auth cookie signatures before session lookup", () => {
+    expect(normalizeSessionToken("abc123.signature-part")).toBe("abc123");
+    expect(normalizeSessionToken("ed5d66e4deab20be8c6d29606a11b7ecbd3f327c1332d92328e7efcb7a7f24c0")).toBe(
+      "ed5d66e4deab20be8c6d29606a11b7ecbd3f327c1332d92328e7efcb7a7f24c0",
+    );
   });
 
   it("overrides client-supplied tenant ids with authenticated tenant context", () => {

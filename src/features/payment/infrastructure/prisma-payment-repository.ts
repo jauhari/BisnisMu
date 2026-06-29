@@ -34,9 +34,16 @@ export class PrismaPaymentRepository implements PaymentRepository {
     return row ? this.toWallet(row) : null;
   }
 
-  async updateWalletBalance(ctx: TenantContext, walletId: string, balance: bigint): Promise<CustomerWalletEntity> {
-    const row = await this.prisma.customerWallet.update({ where: { id: walletId, businessId: ctx.businessId }, data: { currentBalance: balance } });
-    return this.toWallet(row);
+  async incrementWalletBalance(ctx: TenantContext, walletId: string, delta: bigint): Promise<bigint> {
+    // Atomic in-SQL increment avoids the lost-update race of read-modify-write.
+    const rows = await this.prisma.$queryRaw<Array<{ current_balance: bigint }>>`
+      UPDATE customer_wallets
+      SET current_balance = current_balance + ${delta}, updated_at = ${new Date()}
+      WHERE id = ${walletId} AND business_id = ${ctx.businessId}
+      RETURNING current_balance
+    `;
+    if (rows.length === 0) throw new Error("Customer wallet not found for balance update.");
+    return rows[0]!.current_balance;
   }
 
   async createWalletTransaction(ctx: TenantContext, input: CreateWalletTransactionRecord): Promise<CustomerWalletTransactionEntity> {

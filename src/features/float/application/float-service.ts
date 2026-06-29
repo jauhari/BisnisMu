@@ -23,8 +23,7 @@ export class FloatManagementService {
     const validation = await this.validationContext(ctx, input, [command.cashAccountId]);
     const preview = this.engine.previewTopup(input, validation);
     const journal = await this.postJournal(ctx, input, "TOPUP", preview.lines, "float-topup:" + ctx.businessId + ":" + command.floatAccountId + ":" + command.transactionDate.toISOString() + ":" + command.amount.toString() + ":" + (command.referenceNumber ?? command.description));
-    const balanceAfter = this.engine.balanceAfterDebit(validation.floatAccount!, command.amount);
-    await this.repository.updateFloatBalance(ctx, command.floatAccountId, balanceAfter);
+    const balanceAfter = await this.repository.incrementFloatBalance(ctx, command.floatAccountId, command.amount);
     const record = { ...input, type: "TOPUP" as const, transactionNumber: await this.repository.nextTransactionNumber(ctx, command.transactionDate), balanceAfter, postedJournalId: journal.journalId };
     if (command.cashAccountId !== undefined) Object.assign(record, { cashAccountId: command.cashAccountId });
     const tx = await this.repository.createTransaction(ctx, record);
@@ -38,8 +37,7 @@ export class FloatManagementService {
     const validation = await this.validationContext(ctx, input, [command.expenseAccountId]);
     const preview = this.engine.previewConsumption(input, validation);
     const journal = await this.postJournal(ctx, input, "CONSUME", preview.lines, "float-consume:" + ctx.businessId + ":" + command.floatAccountId + ":" + command.transactionDate.toISOString() + ":" + command.amount.toString() + ":" + (command.referenceNumber ?? command.description));
-    const balanceAfter = this.engine.balanceAfterCredit(validation.floatAccount!, command.amount);
-    await this.repository.updateFloatBalance(ctx, command.floatAccountId, balanceAfter);
+    const balanceAfter = await this.repository.incrementFloatBalance(ctx, command.floatAccountId, -command.amount);
     const tx = await this.repository.createTransaction(ctx, { ...input, type: "CONSUME", transactionNumber: await this.repository.nextTransactionNumber(ctx, command.transactionDate), balanceAfter, postedJournalId: journal.journalId });
     await this.auditTransaction(ctx, "FLOAT_CONSUMPTION_POSTED", tx.id, journal.journalId, tx.transactionNumber, balanceAfter);
     return { transaction: tx, journal, preview };
@@ -51,10 +49,8 @@ export class FloatManagementService {
     const validation = await this.validationContext(ctx, input);
     const preview = this.engine.previewTransfer(input, validation);
     const journal = await this.postJournal(ctx, input, "TRANSFER", preview.lines, "float-transfer:" + ctx.businessId + ":" + command.floatAccountId + ":" + command.destinationFloatAccountId + ":" + command.transactionDate.toISOString() + ":" + command.amount.toString() + ":" + (command.referenceNumber ?? command.description));
-    const sourceBalanceAfter = this.engine.balanceAfterCredit(validation.floatAccount!, command.amount);
-    const destinationBalanceAfter = this.engine.balanceAfterDebit(validation.destinationFloatAccount!, command.amount);
-    await this.repository.updateFloatBalance(ctx, command.floatAccountId, sourceBalanceAfter);
-    await this.repository.updateFloatBalance(ctx, command.destinationFloatAccountId, destinationBalanceAfter);
+    const sourceBalanceAfter = await this.repository.incrementFloatBalance(ctx, command.floatAccountId, -command.amount);
+    const destinationBalanceAfter = await this.repository.incrementFloatBalance(ctx, command.destinationFloatAccountId, command.amount);
     const tx = await this.repository.createTransaction(ctx, { ...input, type: "TRANSFER", transactionNumber: await this.repository.nextTransactionNumber(ctx, command.transactionDate), balanceAfter: sourceBalanceAfter, postedJournalId: journal.journalId, destinationFloatAccountId: command.destinationFloatAccountId });
     await this.auditTransaction(ctx, "FLOAT_TRANSFER_POSTED", tx.id, journal.journalId, tx.transactionNumber, sourceBalanceAfter, { destinationFloatAccountId: command.destinationFloatAccountId, destinationBalanceAfter: destinationBalanceAfter.toString() });
     return { transaction: tx, journal, preview, destinationBalanceAfter };
@@ -66,8 +62,7 @@ export class FloatManagementService {
     const validation = await this.validationContext(ctx, input, [command.adjustmentAccountId]);
     const preview = this.engine.previewAdjustment(input, validation);
     const journal = await this.postJournal(ctx, input, "ADJUSTMENT", preview.lines, "float-adjustment:" + ctx.businessId + ":" + command.floatAccountId + ":" + command.direction + ":" + command.transactionDate.toISOString() + ":" + command.amount.toString() + ":" + (command.referenceNumber ?? command.description));
-    const balanceAfter = command.direction === "INCREASE" ? this.engine.balanceAfterDebit(validation.floatAccount!, command.amount) : this.engine.balanceAfterCredit(validation.floatAccount!, command.amount);
-    await this.repository.updateFloatBalance(ctx, command.floatAccountId, balanceAfter);
+    const balanceAfter = await this.repository.incrementFloatBalance(ctx, command.floatAccountId, command.direction === "INCREASE" ? command.amount : -command.amount);
     const tx = await this.repository.createTransaction(ctx, { ...input, type: "ADJUSTMENT", transactionNumber: await this.repository.nextTransactionNumber(ctx, command.transactionDate), balanceAfter, postedJournalId: journal.journalId });
     await this.auditTransaction(ctx, "FLOAT_ADJUSTMENT_POSTED", tx.id, journal.journalId, tx.transactionNumber, balanceAfter, { direction: command.direction });
     return { transaction: tx, journal, preview };

@@ -1,6 +1,7 @@
 import { Prisma, PrismaClient } from "@prisma/client";
 import { AccountGroupCode, AccountSnapshot, FiscalPeriodSnapshot, TenantContext, ValidatedJournal } from "../domain/accounting-types";
 import { JournalAuditEvent, JournalRepository, PostedJournalResult } from "../application/journal-repository";
+import type { TxClient } from "../../shared/tx";
 
 const groupMap = {
   ASSET: 1,
@@ -11,6 +12,8 @@ const groupMap = {
   EXPENSE: 6,
   OTHER_EXPENSE: 7
 } as const;
+
+type JournalTx = Prisma.TransactionClient;
 
 export class PrismaJournalRepository implements JournalRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -57,56 +60,19 @@ export class PrismaJournalRepository implements JournalRepository {
     return { journalId: journal.id, journalNumber: journal.journalNumber, postedAt: journal.postedAt, totalDebit: journal.totalDebit, totalCredit: journal.totalCredit };
   }
 
-  async createPostedJournal(ctx: TenantContext, journal: ValidatedJournal): Promise<PostedJournalResult> {
+  async createPostedJournal(ctx: TenantContext, journal: ValidatedJournal, tx?: TxClient): Promise<PostedJournalResult> {
+    // When the caller already owns a transaction (atomic multi-write flow),
+    // write inside it directly — the advisory lock serializes numbering within
+    // that transaction and retry is handled by the caller's transaction runner.
+    if (tx) {
+      return this.writePostedJournal(tx as JournalTx, ctx, journal);
+    }
+
     // Retry loop to handle journal number collisions under concurrency
     for (let attempt = 0; attempt < 10; attempt++) {
       try {
-        return await this.prisma.$transaction(async (tx) => {
-          // Use advisory lock to serialize journal number generation per business
-          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${ctx.businessId + ":journal"}))`;
-
-          const prefix = this.journalPrefix(journal.transactionDate);
-          const latestRows = await tx.$queryRaw<Array<{ journal_number: string }>>`
-            SELECT journal_number FROM journal_entries
-            WHERE business_id = ${ctx.businessId}
-              AND journal_number LIKE ${prefix + "%"}
-            ORDER BY journal_number DESC
-            LIMIT 1
-          `;
-          const latest = latestRows[0]?.journal_number;
-          const nextSequence = latest ? Number(latest.slice(prefix.length)) + 1 : 1;
-          const journalNumber = prefix + String(nextSequence).padStart(5, "0");
-
-          const created = await tx.journalEntry.create({
-            data: {
-              businessId: ctx.businessId,
-              fiscalPeriodId: journal.fiscalPeriod.id,
-              journalNumber,
-              transactionDate: journal.transactionDate,
-              source: journal.source,
-              sourceId: journal.sourceId ?? null,
-              description: journal.description,
-              totalDebit: journal.totalDebit,
-              totalCredit: journal.totalCredit,
-              postedByUserId: ctx.actorUserId,
-              idempotencyKey: journal.idempotencyKey ?? null,
-              lines: {
-                create: journal.lines.map((line, index) => {
-                  const data: Prisma.JournalLineUncheckedCreateWithoutJournalInput = {
-                    businessId: ctx.businessId,
-                    accountId: line.accountId,
-                    side: line.side,
-                    amount: line.amount,
-                    lineNo: index + 1
-                  };
-                  if (line.memo !== undefined) data.memo = line.memo;
-                  return data;
-                })
-              }
-            }
-          });
-
-          return { journalId: created.id, journalNumber: created.journalNumber, postedAt: created.postedAt, totalDebit: created.totalDebit, totalCredit: created.totalCredit };
+        return await this.prisma.$transaction(async (innerTx) => {
+          return this.writePostedJournal(innerTx, ctx, journal);
         }, { timeout: 30000 });
       } catch (error) {
         // Retry on unique constraint violation (P2002) or serialization failure (40001)
@@ -122,6 +88,97 @@ export class PrismaJournalRepository implements JournalRepository {
       }
     }
     throw new Error("Failed to generate unique journal number after 10 attempts.");
+  }
+
+  private async writePostedJournal(tx: JournalTx, ctx: TenantContext, journal: ValidatedJournal): Promise<PostedJournalResult> {
+    // Use advisory lock to serialize journal number generation per business
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${ctx.businessId + ":journal"}))`;
+
+    const prefix = this.journalPrefix(journal.transactionDate);
+    const rows = await tx.$queryRaw<Array<{ next_seq: number | bigint | null }>>`
+      SELECT COALESCE(MAX(
+        CAST(NULLIF(SPLIT_PART(journal_number, '-', 3), '') AS INTEGER)
+      ), 0) + 1 AS next_seq
+      FROM journal_entries
+      WHERE business_id = ${ctx.businessId}
+        AND journal_number LIKE ${prefix + "%"}
+    `;
+    const journalNumber = prefix + String(Number(rows[0]?.next_seq ?? 1)).padStart(5, "0");
+
+    const created = await tx.journalEntry.create({
+      data: {
+        businessId: ctx.businessId,
+        fiscalPeriodId: journal.fiscalPeriod.id,
+        journalNumber,
+        transactionDate: journal.transactionDate,
+        source: journal.source,
+        sourceId: journal.sourceId ?? null,
+        description: journal.description,
+        totalDebit: journal.totalDebit,
+        totalCredit: journal.totalCredit,
+        postedByUserId: ctx.actorUserId,
+        idempotencyKey: journal.idempotencyKey ?? null,
+        lines: {
+          create: journal.lines.map((line, index) => {
+            const data: Prisma.JournalLineUncheckedCreateWithoutJournalInput = {
+              businessId: ctx.businessId,
+              accountId: line.accountId,
+              side: line.side,
+              amount: line.amount,
+              lineNo: index + 1
+            };
+            if (line.memo !== undefined) data.memo = line.memo;
+            return data;
+          })
+        }
+      }
+    });
+
+    return { journalId: created.id, journalNumber: created.journalNumber, postedAt: created.postedAt, totalDebit: created.totalDebit, totalCredit: created.totalCredit };
+  }
+
+  async replacePostedJournal(ctx: TenantContext, journalId: string, journal: ValidatedJournal): Promise<PostedJournalResult> {
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.journalEntry.findFirst({ where: { id: journalId, businessId: ctx.businessId, status: "POSTED" }, select: { id: true } });
+      if (!existing) throw new Error("Posted journal was not found.");
+      await tx.journalLine.deleteMany({ where: { businessId: ctx.businessId, journalId } });
+      return tx.journalEntry.update({
+        where: { id: journalId },
+        data: {
+          fiscalPeriodId: journal.fiscalPeriod.id,
+          transactionDate: journal.transactionDate,
+          source: journal.source,
+          sourceId: journal.sourceId ?? null,
+          description: journal.description,
+          totalDebit: journal.totalDebit,
+          totalCredit: journal.totalCredit,
+          lines: {
+            create: journal.lines.map((line, index) => {
+              const data: Prisma.JournalLineUncheckedCreateWithoutJournalInput = {
+                businessId: ctx.businessId,
+                accountId: line.accountId,
+                side: line.side,
+                amount: line.amount,
+                lineNo: index + 1
+              };
+              if (line.memo !== undefined) data.memo = line.memo;
+              return data;
+            })
+          }
+        }
+      });
+    }, { timeout: 30000 });
+    return { journalId: updated.id, journalNumber: updated.journalNumber, postedAt: updated.postedAt, totalDebit: updated.totalDebit, totalCredit: updated.totalCredit };
+  }
+
+  async deletePostedJournal(ctx: TenantContext, journalId: string): Promise<boolean> {
+    const existing = await this.prisma.journalEntry.findFirst({ where: { id: journalId, businessId: ctx.businessId, status: "POSTED" }, select: { id: true } });
+    if (!existing) return false;
+    await this.prisma.$transaction(async (tx) => {
+      await tx.journalLine.deleteMany({ where: { businessId: ctx.businessId, journalId } });
+      await tx.journalEntry.delete({ where: { id: journalId } });
+    });
+    return true;
   }
 
   async createAuditLog(ctx: TenantContext, event: JournalAuditEvent): Promise<void> {

@@ -2,30 +2,58 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { GlassForm, GlassInput, GlassPasswordInput, GlassField } from "@/components/forms/glass-form";
 
-import { GlassForm, GlassInput, GlassField } from "@/components/forms/glass-form";
-
-const DEFAULT_EMAIL = "admin@akuntansimu.local";
-const DEFAULT_PASSWORD = "Password123!";
+function readErrorMessage(json: Record<string, unknown>, fallback: string): string {
+  if (typeof json.message === "string" && json.message.trim()) return json.message;
+  if (typeof json.error === "object" && json.error && typeof (json.error as { message?: string }).message === "string") {
+    return (json.error as { message: string }).message;
+  }
+  if (typeof json.code === "string" && json.code.trim()) return json.code;
+  return fallback;
+}
 
 export function LoginForm() {
   const router = useRouter();
-  const [email, setEmail] = useState(DEFAULT_EMAIL);
-  const [password, setPassword] = useState(DEFAULT_PASSWORD);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function submit() {
     setLoading(true);
     setError(null);
+    const normalizedEmail = email.toLowerCase().trim();
+
     try {
-      const response = await fetch("/api/auth/dev-login", {
+      const signInRes = await fetch("/api/auth/sign-in/email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: normalizedEmail, password }),
       });
-      if (!response.ok) throw new Error(await response.text());
+      const signInJson = (await signInRes.json().catch(() => ({}))) as Record<string, unknown>;
+
+      if (!signInRes.ok) {
+        throw new Error(readErrorMessage(signInJson, "Email atau password salah."));
+      }
+
+      const bootstrapRes = await fetch("/api/auth/bootstrap", {
+        method: "POST",
+        credentials: "include",
+      });
+      const bootstrapJson = (await bootstrapRes.json().catch(() => ({}))) as Record<string, unknown>;
+
+      if (!bootstrapRes.ok) {
+        const message = readErrorMessage(bootstrapJson, "Gagal menyiapkan sesi.");
+        if (message.toLowerCase().includes("business not found") || message.toLowerCase().includes("usaha")) {
+          router.push("/select-business");
+          router.refresh();
+          return;
+        }
+        throw new Error(message);
+      }
+
       router.push("/dashboard");
       router.refresh();
     } catch (err) {
@@ -36,16 +64,20 @@ export function LoginForm() {
   }
 
   return (
-    <GlassForm className="mt-6" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
+    <GlassForm className="mt-4" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
       <GlassField label="Email">
-        <GlassInput inputMode="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+        <GlassInput type="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@usaha.com" autoComplete="email" />
       </GlassField>
       <GlassField label="Password">
-        <GlassInput type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
+        <GlassPasswordInput value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" autoComplete="current-password" />
       </GlassField>
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
-      <button type="submit" disabled={loading} className="h-11 rounded-md bg-foreground px-4 text-sm font-medium text-background disabled:opacity-60">
-        {loading ? "Signing in..." : "Continue"}
+      {error ? <p className="text-sm text-danger">{error}</p> : null}
+      <button
+        type="submit"
+        disabled={loading || !email || !password}
+        className="h-11 w-full rounded-md bg-foreground px-4 text-sm font-medium text-background transition hover:bg-foreground/90 active:bg-foreground/95 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {loading ? "Masuk…" : "Masuk"}
       </button>
     </GlassForm>
   );

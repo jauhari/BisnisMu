@@ -3,12 +3,15 @@
 import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { FormProvider, useForm, useFormContext } from "react-hook-form";
+import { Controller, FormProvider, useForm, useFormContext } from "react-hook-form";
 import type { DefaultValues, FieldValues, Path, UseFormReturn } from "react-hook-form";
+import { MoneyField } from "./financial-inputs";
 import type { ZodTypeAny } from "zod";
 import { createFormDraft, markSaved, undoFormDraft, updateFormDraft, type FormDraftState } from "@/presentation/state/form-state";
 import { defaultAutosavePolicy, shouldAutosave } from "@/presentation/state/autosave";
-import { GlassField, GlassForm, GlassInput, GlassSelect } from "./glass-form";
+import { GlassDataSelect, GlassField, GlassForm, GlassInput, GlassSelect } from "./glass-form";
+import type { SelectOption } from "./glass-form";
+import { toast } from "sonner";
 
 export interface ManagedFormRenderProps<T extends FieldValues> {
   form: UseFormReturn<T>;
@@ -28,25 +31,21 @@ export function ManagedForm<T extends FieldValues>({ schema, defaultValues, onSu
   const undo = () => { const next = undoFormDraft(draft); form.reset(next.current); };
 
   const [submitting, setSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [submitOk, setSubmitOk] = useState(false);
 
   const handleSubmit = form.handleSubmit(async (formValues) => {
     setSubmitting(true);
-    setSubmitError(null);
-    setSubmitOk(false);
     try {
       await onSubmit(formValues as T);
-      setSubmitOk(true);
+      toast.success("Tersimpan");
       if (resetOnSuccess) form.reset(defaultValues);
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : "Gagal menyimpan. Coba lagi.");
+      toast.error(error instanceof Error ? error.message : "Gagal menyimpan. Coba lagi.");
     } finally {
       setSubmitting(false);
     }
   });
 
-  return <FormProvider {...form}><GlassForm className="contents" onSubmit={handleSubmit}>{children({ form, draft, markAsSaved, undo, submitting })}{submitError ? <p role="alert" className="text-sm text-danger">{submitError}</p> : null}{submitOk && !submitError ? <p role="status" className="text-sm text-success">Tersimpan.</p> : null}{autosaveReady ? <span className="sr-only">Autosave ready</span> : null}</GlassForm></FormProvider>;
+  return <FormProvider {...form}><GlassForm className="contents" onSubmit={handleSubmit}>{children({ form, draft, markAsSaved, undo, submitting })}{autosaveReady ? <span className="sr-only">Autosave ready</span> : null}</GlassForm></FormProvider>;
 }
 
 export function RhfTextField<T extends FieldValues>({ name, label, placeholder, type = "text" }: { name: Path<T>; label: string; placeholder?: string; type?: string }) {
@@ -56,16 +55,50 @@ export function RhfTextField<T extends FieldValues>({ name, label, placeholder, 
   return <GlassField {...fieldProps}><GlassInput type={type} placeholder={placeholder} {...register(name)} /></GlassField>;
 }
 
+/** RhfTextField khusus uang — format 1.500.000 saat blur, raw saat focus */
+export function RhfMoneyField<T extends FieldValues>({ name, label, placeholder }: { name: Path<T>; label: string; placeholder?: string }) {
+  const { control, formState: { errors } } = useFormContext<T>();
+  const error = errors[name]?.message;
+  const fieldProps = typeof error === "string" ? { label, error } : { label };
+  return (
+    <GlassField {...fieldProps}>
+      <Controller
+        name={name}
+        control={control}
+        render={({ field }) => (
+          <MoneyField
+            value={field.value ?? ""}
+            onChange={(raw) => field.onChange(raw)}
+            onBlur={field.onBlur}
+            placeholder={placeholder ?? "0"}
+            className="h-11 w-full rounded-md border border-border bg-white/60 px-3 text-sm dark:bg-white/8"
+          />
+        )}
+      />
+    </GlassField>
+  );
+}
+
 export function RhfSelectField<T extends FieldValues>({ name, label, valueLabel }: { name: Path<T>; label: string; valueLabel: string }) {
   const { setValue } = useFormContext<T>();
   return <GlassField label={label}><GlassSelect><button type="button" className="w-full text-left" onClick={() => setValue(name, valueLabel as never, { shouldDirty: true, shouldValidate: true })}>{valueLabel}</button></GlassSelect></GlassField>;
 }
 
-export interface SelectOption { value: string; label: string }
+export type { SelectOption };
 
 export function RhfDataSelect<T extends FieldValues>({ name, label, options, placeholder = "Pilih...", loading = false }: { name: Path<T>; label: string; options: SelectOption[]; placeholder?: string; loading?: boolean }) {
-  const { register, formState: { errors } } = useFormContext<T>();
+  const { setValue, watch, formState: { errors } } = useFormContext<T>();
+  const value = (watch(name) as string) ?? "";
   const error = errors[name]?.message;
   const fieldProps = typeof error === "string" ? { label, error } : { label };
-  return <GlassField {...fieldProps}><select className="h-11 rounded-md border border-border bg-white/60 px-3 text-sm dark:bg-white/8" {...register(name)}><option value="">{loading ? "Memuat..." : placeholder}</option>{options.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}</select></GlassField>;
+  return (
+    <GlassField {...fieldProps}>
+      <GlassDataSelect
+        value={value}
+        onChange={(v) => setValue(name, v as never, { shouldDirty: true, shouldValidate: true })}
+        options={loading ? [] : options}
+        placeholder={loading ? "Memuat..." : placeholder}
+      />
+    </GlassField>
+  );
 }

@@ -1,8 +1,16 @@
+import { unstable_cache } from "next/cache";
+
 import { handleApi } from "@/presentation/api/route-handler";
 import { reportRequestSchema } from "@/presentation/api/request-schemas";
 import { parseAndValidate } from "@/presentation/api/validation";
 import { serverServices } from "@/presentation/api/server-services";
 import { requireTenantContext } from "@/presentation/auth/session";
+
+const getCachedBalanceSheet = unstable_cache(
+  async (command: any) => serverServices.reporting.generateBalanceSheet(command),
+  ["balance-sheet-report"],
+  { revalidate: 60, tags: ["reports"] }
+);
 
 export async function POST(request: Request) {
   return handleApi(async () => {
@@ -15,6 +23,6 @@ export async function POST(request: Request) {
       ...(body.command.endsOn ? { endsOn: body.command.endsOn } : {}),
       ...(body.command.asOf ? { asOf: body.command.asOf } : {}),
     };
-    return serverServices.reporting.generateBalanceSheet(command);
+    return getCachedBalanceSheet(command);
   });
 }
