@@ -9,7 +9,7 @@ import { MoneyField } from "./financial-inputs";
 import type { ZodTypeAny } from "zod";
 import { createFormDraft, markSaved, undoFormDraft, updateFormDraft, type FormDraftState } from "@/presentation/state/form-state";
 import { defaultAutosavePolicy, shouldAutosave } from "@/presentation/state/autosave";
-import { GlassDataSelect, GlassField, GlassForm, GlassInput, GlassSelect } from "./glass-form";
+import { GlassDataSelect, GlassDatePicker, GlassField, GlassForm, GlassInput, GlassSelect } from "./glass-form";
 import type { SelectOption } from "./glass-form";
 import { toast } from "sonner";
 
@@ -53,6 +53,28 @@ export function RhfTextField<T extends FieldValues>({ name, label, placeholder, 
   const error = errors[name]?.message;
   const fieldProps = typeof error === "string" ? { label, error } : { label };
   return <GlassField {...fieldProps}><GlassInput type={type} placeholder={placeholder} {...register(name)} /></GlassField>;
+}
+
+export function RhfDatePicker<T extends FieldValues>({ name, label, placeholder = "Pilih tanggal" }: { name: Path<T>; label: string; placeholder?: string }) {
+  const { control, formState: { errors } } = useFormContext<T>();
+  const error = errors[name]?.message;
+  const fieldProps = typeof error === "string" ? { label, error } : { label };
+  return (
+    <GlassField {...fieldProps}>
+      <Controller
+        name={name}
+        control={control}
+        render={({ field }) => (
+          <GlassDatePicker
+            {...(typeof field.value === "string" ? { value: field.value } : {})}
+            onChange={field.onChange}
+            placeholder={placeholder}
+            className="h-11 w-full"
+          />
+        )}
+      />
+    </GlassField>
+  );
 }
 
 /** RhfTextField khusus uang — format 1.500.000 saat blur, raw saat focus */

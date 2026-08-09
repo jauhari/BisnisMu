@@ -5,6 +5,17 @@ Session scope: Import data legacy ExAct VS / Google Sheets untuk PKU Ponjong, no
 
 ---
 
+## Phase 23: Cash Transaction Date Picker (2026-08-10)
+
+### Masalah
+- Form Tambah Draft Transaksi Kas menggunakan input teks untuk tanggal, memaksa pengguna mengetik format `YYYY-MM-DD` dan tidak konsisten dengan halaman jurnal manual.
+
+### Perbaikan
+- Tambah `RhfDatePicker` pada form component bersama, yang menghubungkan `GlassDatePicker` dengan React Hook Form.
+- Form `/cash/transactions` sekarang memakai kontrol kalender untuk `transactionDate`; payload tetap mengirim format ISO `YYYY-MM-DD` yang divalidasi API.
+
+---
+
 ## Phase 22: In-App Changelog Production Fix (2026-08-09)
 
 ### Masalah

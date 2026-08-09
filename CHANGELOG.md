@@ -4,6 +4,9 @@ All notable changes to BisnisMu are documented in this file.
 
 ## [Unreleased]
 
+### Improved - Cash Transaction Entry
+- Form Transaksi Kas sekarang memakai date picker kalender untuk tanggal transaksi, sehingga pengguna tidak perlu lagi mengetik format `YYYY-MM-DD` secara manual.
+
 ### Fixed - In-App Changelog
 - Halaman admin changelog sekarang secara eksplisit menyertakan `CHANGELOG.md` dalam output trace Next.js, sehingga pembacaan file saat runtime tidak lagi gagal di deployment production.
 - Bagian `Unreleased` ditampilkan sebagai "Perubahan terbaru" dengan penanda "Belum dirilis", bukan label versi yang membingungkan.
