@@ -1,3 +1,4 @@
+import { DomainError } from "../../shared/domain/domain-error";
 import { AccountSnapshot } from "../../accounting/domain/accounting-types";
 export type DocumentStatus = "DRAFT" | "POSTED" | "PARTIALLY_PAID" | "PAID" | "VOID";
 export type PaymentDirection = "CUSTOMER_PAYMENT" | "VENDOR_PAYMENT";
@@ -14,6 +15,11 @@ export interface CreateBillInput { businessId:string; vendorId:string; issueDate
 export interface RecordPaymentInput { businessId:string; invoiceId?:string; billId?:string; paymentDate:Date; cashAccountId:string; amount:bigint; description:string; }
 export interface ApplyCreditNoteInput { businessId:string; invoiceId:string; noteDate:Date; amount:bigint; description:string; }
 export interface AgingBucket { current: bigint; days1To30: bigint; days31To60: bigint; days61To90: bigint; over90: bigint; }
-export class ArApError extends Error { constructor(public readonly code:string,message:string,public readonly details?:Record<string,unknown>){super(message);this.name='ArApError'} }
+export class ArApError extends DomainError {
+  constructor(code: string, message: string, details?: Record<string, unknown>) {
+    super(code, message, details);
+    this.name = "ArApError";
+  }
+}
 export interface AccountValidationSet { cash?:AccountSnapshot|null; ar?:AccountSnapshot|null; ap?:AccountSnapshot|null; revenue?:AccountSnapshot|null; expense?:AccountSnapshot|null; }
 

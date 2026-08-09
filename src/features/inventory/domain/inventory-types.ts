@@ -1,3 +1,4 @@
+import { DomainError } from "../../shared/domain/domain-error";
 import { AccountSnapshot, JournalLineInput } from "../../accounting/domain/accounting-types";
 
 export type ProductType = "PHYSICAL" | "DIGITAL" | "SERVICE";
@@ -30,9 +31,9 @@ export interface InventoryJournalPreview { businessId: string; transactionDate: 
 
 export interface InventoryValidationContext { product?: ProductEntity | null; category?: ProductCategoryEntity | null; balance?: InventoryBalanceEntity | null; providerProduct?: ProviderProductEntity | null; inventoryAccount?: AccountSnapshot | null; cogsAccount?: AccountSnapshot | null; revenueAccount?: AccountSnapshot | null; }
 
-export class InventoryError extends Error {
-  constructor(public readonly code: string, message: string, public readonly details?: Record<string, unknown>) {
-    super(message);
+export class InventoryError extends DomainError {
+  constructor(code: string, message: string, details?: Record<string, unknown>) {
+    super(code, message, details);
     this.name = "InventoryError";
   }
 }

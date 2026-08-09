@@ -6,7 +6,7 @@ export interface InventoryAuditEvent { action: "PRODUCT_CREATED" | "PRODUCT_UPDA
 /** Identifies the document a movement belongs to, so it can be found and undone later. */
 export interface MovementSource { sourceType: InventoryMovementSourceType; sourceId: string; }
 
-export interface CreateInventoryMovementRecord extends Omit<InventoryMovementEntity, "id"> {}
+export type CreateInventoryMovementRecord = Omit<InventoryMovementEntity, "id">;
 export interface CreateCostHistoryRecord { businessId: string; productId: string; previousCost?: bigint; buyPrice: bigint; sellPrice?: bigint | null; marginAmount?: bigint | null; marginRateBps?: bigint | null; effectiveDate: Date; source: "PRICE_UPDATE" | "STOCK_IN" | "DIGITAL_PROVIDER"; }
 
 export interface InventoryRepository {

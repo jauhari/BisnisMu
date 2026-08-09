@@ -1,4 +1,4 @@
-import { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { DbClient } from "../../shared/infrastructure/db-client";
 import { AccountGroupCode, AccountSnapshot } from "../../accounting/domain/accounting-types";
 import { CreateAllocationRecord, CreatePaymentRecord, CreateWalletRecord, CreateWalletTransactionRecord, PaymentAuditEvent, PaymentRepository } from "../application/payment-repository";

@@ -1,5 +1,5 @@
 import { AccountSnapshot } from "../../accounting/domain/accounting-types";
-import { CashDrawerEntity, CashMovementEntity, CashReconciliationEntity, CashSessionEntity, CashSessionStatus, CloseSessionInput, OpenSessionInput, ReconcileCashInput, RecordCashMovementInput, TenantContext, TransferCashInput } from "../domain/cash-types";
+import { CashDrawerEntity, CashMovementEntity, CashReconciliationEntity, CashSessionEntity, CloseSessionInput, OpenSessionInput, ReconcileCashInput, RecordCashMovementInput, TenantContext, TransferCashInput } from "../domain/cash-types";
 
 export interface CashAuditEvent { action: "CASH_SESSION_OPENED" | "CASH_SESSION_CLOSED" | "CASH_MOVEMENT_RECORDED" | "CASH_TRANSFER_RECORDED" | "CASH_RECONCILED"; businessId: string; actorUserId: string; entityType: "cash_session" | "cash_movement" | "cash_reconciliation"; entityId?: string; metadata: Record<string, unknown>; }
 export interface CashRepository {

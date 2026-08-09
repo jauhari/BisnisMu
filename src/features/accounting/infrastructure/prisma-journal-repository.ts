@@ -1,4 +1,4 @@
-import { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { DbClient, isInTransaction, isRetryablePostgresError, withTransaction } from "../../shared/infrastructure/db-client";
 import { AccountGroupCode, AccountSnapshot, FiscalPeriodSnapshot, JournalLineInput, TenantContext, ValidatedJournal } from "../domain/accounting-types";
 import { JournalAuditEvent, JournalRepository, PostedJournalDetail, PostedJournalResult } from "../application/journal-repository";

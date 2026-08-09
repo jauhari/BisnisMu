@@ -1,3 +1,4 @@
+import { DomainError } from "../../shared/domain/domain-error";
 export type TourismRentalType = "GAZEBO" | "AREA" | "EVENT";
 export type VisitorTransactionSource = "ENTRANCE_TICKET" | "PACKAGE_TICKET" | "PARKING_FEE" | "GAZEBO_RENTAL" | "AREA_RENTAL" | "TENANT_RENTAL" | "EVENT_RENTAL";
 export type VisitorTransactionStatus = "DRAFT" | "PAID" | "VOID";
@@ -27,5 +28,10 @@ export interface CreateVisitorTransactionInput { businessId: string; source: Vis
 export interface TourismPricingContext { attraction: Attraction | null; ticketType?: TicketType | null; ticketPackage?: TicketPackage | null; parkingService?: ParkingService | null; rentalService?: RentalService | null; tenantRental?: TenantRental | null; usedVisitors: number; }
 export interface TourismPricingResult { revenueCategoryId: string; revenueType: "TICKET" | "PACKAGE" | "PARKING" | "RENTAL" | "TENANT_RENT"; unitPrice: bigint; amount: bigint; quantity: number; visitorCount: number; }
 export interface TicketValidationResult { valid: boolean; reason?: string; transaction?: VisitorTransaction; }
-export class TourismError extends Error { constructor(public readonly code: string, message: string, public readonly details?: Record<string, unknown>) { super(message); this.name = "TourismError"; } }
+export class TourismError extends DomainError {
+  constructor(code: string, message: string, details?: Record<string, unknown>) {
+    super(code, message, details);
+    this.name = "TourismError";
+  }
+}
 

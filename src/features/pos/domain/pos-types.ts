@@ -1,3 +1,4 @@
+import { DomainError } from "../../shared/domain/domain-error";
 import { PaymentAllocationInput } from "../../payment/domain/payment-types";
 import { SalesItemInput } from "../../sales/domain/sales-types";
 
@@ -21,7 +22,12 @@ export interface AllocatePosPaymentInput { businessId: string; transactionId: st
 export interface SaveChangeAsDepositInput { businessId: string; transactionId: string; walletId: string; cashAccountId: string; }
 export interface VoidTransactionInput { businessId: string; transactionId: string; reason: string; }
 
-export class PosError extends Error { constructor(public readonly code: string, message: string, public readonly details?: Record<string, unknown>) { super(message); this.name = "PosError"; } }
+export class PosError extends DomainError {
+  constructor(code: string, message: string, details?: Record<string, unknown>) {
+    super(code, message, details);
+    this.name = "PosError";
+  }
+}
 
 export function cartItemToSalesItem(item: PosCartItemEntity): SalesItemInput {
   const input: SalesItemInput = { productId: item.productId, quantity: item.quantity, discountAmount: item.discountAmount, taxAmount: item.taxAmount };

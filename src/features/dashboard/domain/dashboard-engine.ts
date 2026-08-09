@@ -1,4 +1,4 @@
-import { DashboardDateRange, DashboardError, DashboardInput, DashboardOverview, FloatDashboardAnalytics, InventoryDashboardAnalytics, RankedAmount, SalesDashboardAnalytics } from "./dashboard-types";
+import { DashboardDateRange, DashboardInput, DashboardOverview, FloatDashboardAnalytics, InventoryDashboardAnalytics, RankedAmount, SalesDashboardAnalytics } from "./dashboard-types";
 
 export class DashboardEngine {
   getDashboardOverview(range: DashboardDateRange, input: DashboardInput): DashboardOverview {

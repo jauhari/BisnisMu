@@ -1,7 +1,7 @@
 import { PostJournalCommand } from "../../accounting/application/journal-repository";
 import { JournalPostingService } from "../../accounting/application/journal-posting-service";
 import { PaymentEngine } from "../domain/payment-engine";
-import { AllocatePaymentInput, PaymentAllocationEntity, PaymentAllocationInput, PaymentError, PaymentTransactionEntity, PaymentValidationContext, SettleReceivableInput, TenantContext, WalletMovementInput } from "../domain/payment-types";
+import { PaymentAllocationEntity, PaymentAllocationInput, PaymentError, PaymentTransactionEntity, PaymentValidationContext, SettleReceivableInput, TenantContext, WalletMovementInput } from "../domain/payment-types";
 import { AllocatePaymentCommand, CreateCustomerWalletCommand, CreatePaymentCommand, GetWalletBalanceCommand, ListAllocationsCommand, PaymentRepository, SettleReceivableCommand, WalletAdjustmentCommand, WalletHistoryCommand, WalletRefundCommand, WalletSpendCommand, WalletTopupCommand } from "./payment-repository";
 
 export class PaymentService {

@@ -51,9 +51,12 @@ export function buildServices(db: DbClient) {
   const purchaseRepository = new PrismaPurchaseRepository(db);
   const floatRepository = new PrismaFloatRepository(db);
   const payment = new PaymentService(paymentRepository, journal);
-  const inventory = new InventoryService(inventoryRepository, journal);
   const arAp = new ArApService(arApRepository, journal);
+  // Inventory needs the float service to book the provider cost of a digital product;
+  // without it consumeDigitalProduct throws FLOAT_SERVICE_REQUIRED and digital products
+  // cannot be sold at all.
   const float = new FloatManagementService(floatRepository, journal);
+  const inventory = new InventoryService(inventoryRepository, journal, float);
   const cashSession = new CashService(cashSessionRepository, journal);
   const sales = new SalesService(salesRepository, journal, inventory, payment);
   const posRepository = new PrismaPosRepository(db);

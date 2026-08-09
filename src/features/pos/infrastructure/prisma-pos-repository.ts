@@ -1,4 +1,4 @@
-import { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { DbClient } from "../../shared/infrastructure/db-client";
 import { ProductEntity } from "../../inventory/domain/inventory-types";
 import { PosAuditEvent, PosRepository } from "../application/pos-repository";

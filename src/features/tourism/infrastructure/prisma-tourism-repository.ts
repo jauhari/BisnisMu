@@ -1,4 +1,4 @@
-import { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { DbClient } from "../../shared/infrastructure/db-client";
 import { CreateAttractionInput, CreateParkingServiceInput, CreateRentalServiceInput, CreateTenantRentalInput, CreateTicketPackageInput, CreateTicketTypeInput, CreateVisitorTransactionInput, TenantContext, VisitorTransaction } from "../domain/tourism-types";
 import { TourismAuditEvent, TourismRepository } from "../application/tourism-repository";

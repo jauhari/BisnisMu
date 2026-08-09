@@ -2,9 +2,9 @@
 -- traceability on inventory movements so a void can restore the stock it consumed.
 
 -- AlterEnum
-ALTER TYPE "AuditAction" ADD VALUE 'JOURNAL_REVERSED';
-ALTER TYPE "AuditAction" ADD VALUE 'SALES_ORDER_VOIDED';
-ALTER TYPE "AuditAction" ADD VALUE 'INVENTORY_MOVEMENT_REVERSED';
+ALTER TYPE "AuditAction" ADD VALUE IF NOT EXISTS 'JOURNAL_REVERSED';
+ALTER TYPE "AuditAction" ADD VALUE IF NOT EXISTS 'SALES_ORDER_VOIDED';
+ALTER TYPE "AuditAction" ADD VALUE IF NOT EXISTS 'INVENTORY_MOVEMENT_REVERSED';
 
 -- AlterTable
 ALTER TABLE "inventory_movements"

@@ -1,3 +1,4 @@
+import { DomainError } from "../../shared/domain/domain-error";
 export type AccountGroupCode = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 export type NormalBalance = "DEBIT" | "CREDIT";
 export type JournalSide = "DEBIT" | "CREDIT";
@@ -65,13 +66,9 @@ export interface ValidatedJournal {
   idempotencyKey?: string;
 }
 
-export class AccountingError extends Error {
-  constructor(
-    public readonly code: string,
-    message: string,
-    public readonly details?: Record<string, unknown>
-  ) {
-    super(message);
+export class AccountingError extends DomainError {
+  constructor(code: string, message: string, details?: Record<string, unknown>) {
+    super(code, message, details);
     this.name = "AccountingError";
   }
 }

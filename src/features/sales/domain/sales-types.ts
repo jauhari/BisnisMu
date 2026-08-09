@@ -1,3 +1,4 @@
+import { DomainError } from "../../shared/domain/domain-error";
 import { AccountSnapshot, JournalLineInput } from "../../accounting/domain/accounting-types";
 import { ProductEntity, ProductPriceEntity, ProviderProductEntity } from "../../inventory/domain/inventory-types";
 import { PaymentAllocationInput } from "../../payment/domain/payment-types";
@@ -17,4 +18,9 @@ export interface JournalPreviewLine extends JournalLineInput { accountCode: stri
 export interface SalesJournalPreview { businessId: string; transactionDate: Date; source: string; description: string; lines: JournalPreviewLine[]; totalDebit: bigint; totalCredit: bigint; }
 export interface SalesValidationContext { customer?: CustomerSnapshot | null; products?: ProductEntity[]; prices?: ProductPriceEntity[]; providerProducts?: ProviderProductEntity[]; revenueSettlementAccount?: AccountSnapshot | null; arAccount?: AccountSnapshot | null; }
 
-export class SalesError extends Error { constructor(public readonly code: string, message: string, public readonly details?: Record<string, unknown>) { super(message); this.name = "SalesError"; } }
+export class SalesError extends DomainError {
+  constructor(code: string, message: string, details?: Record<string, unknown>) {
+    super(code, message, details);
+    this.name = "SalesError";
+  }
+}

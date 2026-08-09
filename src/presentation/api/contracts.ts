@@ -9,10 +9,10 @@ export interface DashboardOverviewRequest { range: DashboardDateRange; input: Da
 export type DashboardOverviewResponse = ApiEnvelope<DashboardOverview>;
 
 export interface ReportRequest { command: ReportCommand; }
-export interface GeneralLedgerResponse extends ApiEnvelope<GeneralLedgerReport> {}
-export interface TrialBalanceResponse extends ApiEnvelope<TrialBalanceReport> {}
-export interface ProfitLossResponse extends ApiEnvelope<ProfitAndLossReport> {}
-export interface BalanceSheetResponse extends ApiEnvelope<BalanceSheetReport> {}
-export interface CashFlowResponse extends ApiEnvelope<CashFlowReport> {}
+export type GeneralLedgerResponse = ApiEnvelope<GeneralLedgerReport>;
+export type TrialBalanceResponse = ApiEnvelope<TrialBalanceReport>;
+export type ProfitLossResponse = ApiEnvelope<ProfitAndLossReport>;
+export type BalanceSheetResponse = ApiEnvelope<BalanceSheetReport>;
+export type CashFlowResponse = ApiEnvelope<CashFlowReport>;
 
 export type ApiModule = "business" | "accounting" | "chart-of-accounts" | "cash" | "ar-ap" | "payment" | "float" | "inventory" | "purchase" | "sales" | "pos" | "reports" | "dashboard";

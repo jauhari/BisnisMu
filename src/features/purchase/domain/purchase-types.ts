@@ -1,3 +1,4 @@
+import { DomainError } from "../../shared/domain/domain-error";
 import { AccountSnapshot, JournalLineInput } from "../../accounting/domain/accounting-types";
 import { ProductEntity } from "../../inventory/domain/inventory-types";
 
@@ -24,4 +25,9 @@ export interface PurchaseJournalPreview { businessId: string; transactionDate: D
 
 export interface PurchaseValidationContext { supplier?: SupplierSnapshot | null; order?: PurchaseOrderEntity | null; products?: ProductEntity[]; grniAccount?: AccountSnapshot | null; apAccount?: AccountSnapshot | null; inventoryAccounts?: AccountSnapshot[]; }
 
-export class PurchaseError extends Error { constructor(public readonly code: string, message: string, public readonly details?: Record<string, unknown>) { super(message); this.name = "PurchaseError"; } }
+export class PurchaseError extends DomainError {
+  constructor(code: string, message: string, details?: Record<string, unknown>) {
+    super(code, message, details);
+    this.name = "PurchaseError";
+  }
+}

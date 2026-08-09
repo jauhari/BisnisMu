@@ -1,3 +1,4 @@
+import { DomainError } from "../../shared/domain/domain-error";
 import { AccountGroupCode, NormalBalance } from "../../accounting/domain/accounting-types";
 import { FloatAccountEntity, FloatBalanceSnapshotEntity, FloatTransactionEntity, FloatTransactionType } from "../../float/domain/float-types";
 import { InventoryBalanceEntity, InventoryMovementEntity, InventoryMovementType, ProductEntity } from "../../inventory/domain/inventory-types";
@@ -239,9 +240,9 @@ export interface FloatReport {
   latestSnapshotBalance: bigint;
 }
 
-export class ReportingError extends Error {
-  constructor(public readonly code: string, message: string, public readonly details?: Record<string, unknown>) {
-    super(message);
+export class ReportingError extends DomainError {
+  constructor(code: string, message: string, details?: Record<string, unknown>) {
+    super(code, message, details);
     this.name = "ReportingError";
   }
 }

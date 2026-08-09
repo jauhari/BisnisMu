@@ -1,6 +1,6 @@
 import { handleApi } from "@/presentation/api/route-handler";
 import { cashSessionOpenSchema, cashSessionCloseSchema } from "@/presentation/api/request-schemas";
-import { validatedBody, parseAndValidate } from "@/presentation/api/validation";
+import { validatedBody } from "@/presentation/api/validation";
 import { serverServices } from "@/presentation/api/server-services";
 import { requireTenantContext } from "@/presentation/auth/session";
 import { prisma } from "@/presentation/api/prisma";

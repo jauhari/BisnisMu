@@ -1,4 +1,4 @@
-import { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { DbClient } from "../../shared/infrastructure/db-client";
 import { AccountGroupCode } from "../../accounting/domain/accounting-types";
 import { FiscalPeriodEntity } from "../../business/domain/business-types";

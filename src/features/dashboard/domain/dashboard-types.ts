@@ -1,3 +1,4 @@
+import { DomainError } from "../../shared/domain/domain-error";
 import { Bill, Customer, Invoice, Payment as ArApPayment, Vendor } from "../../ar-ap/domain/ar-ap-types";
 import { CashTransactionEntity } from "../../cash-management/domain/cash-types";
 import { FloatAccountEntity, FloatTransactionEntity } from "../../float/domain/float-types";
@@ -60,9 +61,9 @@ export interface DashboardOverview {
   vendor: VendorDashboardAnalytics;
 }
 
-export class DashboardError extends Error {
-  constructor(public readonly code: string, message: string, public readonly details?: Record<string, unknown>) {
-    super(message);
+export class DashboardError extends DomainError {
+  constructor(code: string, message: string, details?: Record<string, unknown>) {
+    super(code, message, details);
     this.name = "DashboardError";
   }
 }
