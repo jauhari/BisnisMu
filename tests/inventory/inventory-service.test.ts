@@ -3,7 +3,7 @@ import { JournalRepository, PostedJournalResult } from "../../src/features/accou
 import { JournalPostingService } from "../../src/features/accounting/application/journal-posting-service";
 import { AccountSnapshot, FiscalPeriodSnapshot, TenantContext as ATC, ValidatedJournal } from "../../src/features/accounting/domain/accounting-types";
 import { FloatManagementService } from "../../src/features/float/application/float-service";
-import { InventoryRepository, CreateCostHistoryRecord, CreateInventoryMovementRecord, InventoryAuditEvent } from "../../src/features/inventory/application/inventory-repository";
+import { InventoryRepository, CreateCostHistoryRecord, CreateInventoryMovementRecord, InventoryAuditEvent, MovementSource } from "../../src/features/inventory/application/inventory-repository";
 import { InventoryService } from "../../src/features/inventory/application/inventory-service";
 import { CreateProductInput, InventoryBalanceEntity, InventoryMovementEntity, ProductCategoryEntity, ProductCostHistoryEntity, ProductEntity, ProductPriceEntity, ProviderProductEntity, TenantContext, UpdatePriceInput, UpdateProductInput } from "../../src/features/inventory/domain/inventory-types";
 
@@ -15,7 +15,7 @@ const accounts: AccountSnapshot[] = [
   { id: "other-revenue", businessId: "biz-2", code: "410101", name: "Revenue 2", groupCode: 4, normalBalance: "CREDIT", isPostingAllowed: true, isActive: true }
 ];
 
-class JR implements JournalRepository { posted: ValidatedJournal[] = []; async findAccountsForPosting(ctx: ATC, ids: string[]) { return accounts.filter((a) => a.businessId === ctx.businessId && ids.includes(a.id)); } async findOpenFiscalPeriod(ctx: ATC): Promise<FiscalPeriodSnapshot | null> { return { id: "p", businessId: ctx.businessId, startsOn: new Date("2026-01-01"), endsOn: new Date("2026-12-31"), isClosed: false }; } async findPostedJournalByIdempotencyKey() { return null; } async createPostedJournal(_: ATC, j: ValidatedJournal): Promise<PostedJournalResult> { this.posted.push(j); return { journalId: "j" + this.posted.length, journalNumber: "JV", postedAt: new Date(), totalDebit: j.totalDebit, totalCredit: j.totalCredit }; } async createAuditLog() {} }
+class JR implements JournalRepository { posted: ValidatedJournal[] = []; byKey = new Map<string, PostedJournalResult>(); async findAccountsForPosting(ctx: ATC, ids: string[]) { return accounts.filter((a) => a.businessId === ctx.businessId && ids.includes(a.id)); } async findOpenFiscalPeriod(ctx: ATC): Promise<FiscalPeriodSnapshot | null> { return { id: "p", businessId: ctx.businessId, startsOn: new Date("2026-01-01"), endsOn: new Date("2026-12-31"), isClosed: false }; } async findPostedJournalByIdempotencyKey(_: ATC, key: string) { return this.byKey.get(key) ?? null; } async findPostedJournalWithLines(_: ATC, journalId: string) { const j = this.posted[Number(journalId.replace("j", "")) - 1]; return j ? { journalId, journalNumber: "JV", postedAt: new Date(), totalDebit: j.totalDebit, totalCredit: j.totalCredit, transactionDate: j.transactionDate, source: j.source, sourceId: j.sourceId ?? null, description: j.description, lines: j.lines.map((l) => ({ accountId: l.accountId, side: l.side, amount: l.amount })) } : null; } async createPostedJournal(_: ATC, j: ValidatedJournal): Promise<PostedJournalResult> { this.posted.push(j); const result = { journalId: "j" + this.posted.length, journalNumber: "JV", postedAt: new Date(), totalDebit: j.totalDebit, totalCredit: j.totalCredit }; if (j.idempotencyKey) this.byKey.set(j.idempotencyKey, result); return result; } async createAuditLog() {} }
 
 class Repo implements InventoryRepository {
   categories = new Map<string, ProductCategoryEntity>(); products = new Map<string, ProductEntity>(); providers = new Map<string, ProviderProductEntity>(); prices: ProductPriceEntity[] = []; balances = new Map<string, InventoryBalanceEntity>(); movements: InventoryMovementEntity[] = []; histories: ProductCostHistoryEntity[] = []; audits: InventoryAuditEvent[] = []; seq = 1;
@@ -36,6 +36,7 @@ class Repo implements InventoryRepository {
   async findBalance(ctx: TenantContext, productId: string, locationId: string) { const b = this.balances.get(productId + ":" + locationId); return b?.businessId === ctx.businessId ? b : null; }
   async listBalances(ctx: TenantContext) { return [...this.balances.values()].filter((b) => b.businessId === ctx.businessId); }
   async listMovements(ctx: TenantContext, type?: InventoryMovementEntity["type"]) { return this.movements.filter((m) => m.businessId === ctx.businessId && (type ? m.type === type : true)); }
+  async listMovementsBySource(ctx: TenantContext, source: MovementSource) { return this.movements.filter((m) => m.businessId === ctx.businessId && m.sourceType === source.sourceType && m.sourceId === source.sourceId); }
   async upsertBalance(ctx: TenantContext, balance: InventoryBalanceEntity) { const b = { ...balance, id: balance.id || "bal" + this.seq++ }; this.balances.set(balance.productId + ":" + balance.locationId, b); return b; }
   async atomicStockIn(ctx: TenantContext, productId: string, locationId: string, quantity: bigint, unitCost: bigint) { const key = productId + ":" + locationId; const current = this.balances.get(key) ?? { id: "bal" + this.seq++, businessId: ctx.businessId, productId, locationId, quantity: 0n, averageCost: 0n, inventoryValue: 0n }; const incomingValue = quantity * unitCost; const nextQty = current.quantity + quantity; const nextValue = current.inventoryValue + incomingValue; const avgCost = nextQty === 0n ? 0n : nextValue / nextQty; const b = { ...current, quantity: nextQty, averageCost: avgCost, inventoryValue: nextValue }; this.balances.set(key, b); return b; }
   async atomicStockOut(ctx: TenantContext, productId: string, locationId: string, quantity: bigint) { const key = productId + ":" + locationId; const current = this.balances.get(key)!; const totalCost = quantity * current.averageCost; const nextQty = current.quantity - quantity; const nextValue = current.inventoryValue - totalCost; const b = { ...current, quantity: nextQty, inventoryValue: nextValue < 0n ? 0n : nextValue, averageCost: nextQty === 0n ? 0n : current.averageCost }; this.balances.set(key, b); return b; }
@@ -57,4 +58,51 @@ describe("InventoryService", () => {
   it("supports multiple active prices", async () => { const { repo, service } = setup(); const p = await physical(service); await service.updatePrice({ ...base, productId: p.id, priceType: "SELL", amount: 1000n, effectiveDate: new Date("2026-01-01") }); await service.updatePrice({ ...base, productId: p.id, priceType: "SELL", amount: 1200n, effectiveDate: new Date("2026-06-01") }); expect(await repo.listPrices({ businessId: "biz-1", actorUserId: "user" }, p.id)).toHaveLength(2); });
   it("consumes float for digital product cost", async () => { const { float, service } = setup(); const p = await digital(service); const r = await service.consumeDigitalProduct({ ...base, productId: p.id, transactionDate: new Date("2026-05-30"), quantity: 1n, description: "PLN sold" }); expect(r.movement.totalCost).toBe(98500n); expect(float.calls[0]).toMatchObject({ amount: 98500n, floatAccountId: "float-1", expenseAccountId: "cogs" }); });
   it("isolates tenants", async () => { const { service } = setup(); await expect(service.createProduct({ businessId: "biz-1", actorUserId: "user", type: "SERVICE", sku: "SVC", name: "Bad", revenueAccountId: "other-revenue" })).rejects.toThrow(/not found/i); const p = await physical(service); await expect(service.getInventoryBalance({ businessId: "biz-2", actorUserId: "user", productId: p.id, locationId: "main" })).resolves.toMatchObject({ quantity: 0n }); await expect(service.stockIn({ businessId: "biz-2", actorUserId: "user", productId: p.id, locationId: "main", movementDate: new Date(), quantity: 1n, unitCost: 1n, description: "leak" })).rejects.toThrow(/not found/i); });
+
+  it("puts stock back and reverses the journal when the source document is voided", async () => {
+    const { service } = setup();
+    const p = await physical(service);
+    const source = { sourceType: "SALES_ORDER" as const, sourceId: "sale-1" };
+    await service.stockIn({ ...base, productId: p.id, locationId: "main", movementDate: new Date("2026-05-30"), quantity: 10n, unitCost: 1000n, description: "Purchase" });
+    await service.stockOut({ ...base, productId: p.id, locationId: "main", movementDate: new Date("2026-05-31"), quantity: 4n, description: "Sale SO-1", source });
+
+    const before = await service.getInventoryBalance({ ...base, productId: p.id, locationId: "main" });
+    expect(before.quantity).toBe(6n);
+
+    const result = await service.reverseMovementsForSource({ ...base, source, reversalDate: new Date("2026-06-01"), reason: "sale voided by supervisor" });
+
+    const after = await service.getInventoryBalance({ ...base, productId: p.id, locationId: "main" });
+    expect(after.quantity).toBe(10n);
+    expect(result.reversed).toHaveLength(1);
+    expect(result.journals).toHaveLength(1);
+    expect(result.skipped).toHaveLength(0);
+  });
+
+  it("does not restore stock twice when a void is retried", async () => {
+    const { service } = setup();
+    const p = await physical(service);
+    const source = { sourceType: "SALES_ORDER" as const, sourceId: "sale-1" };
+    await service.stockIn({ ...base, productId: p.id, locationId: "main", movementDate: new Date("2026-05-30"), quantity: 10n, unitCost: 1000n, description: "Purchase" });
+    await service.stockOut({ ...base, productId: p.id, locationId: "main", movementDate: new Date("2026-05-31"), quantity: 4n, description: "Sale SO-1", source });
+
+    await service.reverseMovementsForSource({ ...base, source, reversalDate: new Date("2026-06-01"), reason: "sale voided by supervisor" });
+    const second = await service.reverseMovementsForSource({ ...base, source, reversalDate: new Date("2026-06-01"), reason: "sale voided by supervisor" });
+
+    const after = await service.getInventoryBalance({ ...base, productId: p.id, locationId: "main" });
+    expect(after.quantity).toBe(10n);
+    expect(second.reversed).toHaveLength(0);
+  });
+
+  it("leaves movements from other documents alone", async () => {
+    const { service } = setup();
+    const p = await physical(service);
+    await service.stockIn({ ...base, productId: p.id, locationId: "main", movementDate: new Date("2026-05-30"), quantity: 10n, unitCost: 1000n, description: "Purchase" });
+    await service.stockOut({ ...base, productId: p.id, locationId: "main", movementDate: new Date("2026-05-31"), quantity: 4n, description: "Sale SO-1", source: { sourceType: "SALES_ORDER", sourceId: "sale-1" } });
+
+    const result = await service.reverseMovementsForSource({ ...base, source: { sourceType: "SALES_ORDER", sourceId: "sale-2" }, reversalDate: new Date("2026-06-01"), reason: "unrelated void attempt" });
+
+    const after = await service.getInventoryBalance({ ...base, productId: p.id, locationId: "main" });
+    expect(after.quantity).toBe(6n);
+    expect(result.reversed).toHaveLength(0);
+  });
 });

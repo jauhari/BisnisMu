@@ -17,7 +17,7 @@ class PostingRepo implements JournalRepository {
   posted: ValidatedJournal[] = [];
   async findAccountsForPosting(ctx: AccountingTenantContext, ids: string[]) { return accounts.filter((a) => a.businessId === ctx.businessId && ids.includes(a.id)); }
   async findOpenFiscalPeriod(ctx: AccountingTenantContext): Promise<FiscalPeriodSnapshot | null> { return { id: "period-1", businessId: ctx.businessId, startsOn: new Date("2026-01-01T00:00:00.000Z"), endsOn: new Date("2026-12-31T00:00:00.000Z"), isClosed: false }; }
-  async findPostedJournalByIdempotencyKey() { return null; }
+  async findPostedJournalByIdempotencyKey() { return null; } async findPostedJournalWithLines() { return null; }
   async createPostedJournal(_ctx: AccountingTenantContext, journal: ValidatedJournal): Promise<PostedJournalResult> { this.posted.push(journal); return { journalId: "journal-" + this.posted.length, journalNumber: "JV-" + this.posted.length, postedAt: new Date(), totalDebit: journal.totalDebit, totalCredit: journal.totalCredit }; }
   async createAuditLog() {}
 }

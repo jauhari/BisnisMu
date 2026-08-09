@@ -22,7 +22,7 @@ class JR implements JournalRepository {
   posted: ValidatedJournal[] = [];
   async findAccountsForPosting(ctx: ATC, ids: string[]) { return accounts.filter((a) => a.businessId === ctx.businessId && ids.includes(a.id)); }
   async findOpenFiscalPeriod(ctx: ATC): Promise<FiscalPeriodSnapshot | null> { return { id: "period", businessId: ctx.businessId, startsOn: new Date("2026-01-01"), endsOn: new Date("2026-12-31"), isClosed: false }; }
-  async findPostedJournalByIdempotencyKey() { return null; }
+  async findPostedJournalByIdempotencyKey() { return null; } async findPostedJournalWithLines() { return null; }
   async createPostedJournal(_: ATC, journal: ValidatedJournal): Promise<PostedJournalResult> { this.posted.push(journal); return { journalId: "j" + this.posted.length, journalNumber: "JV-" + this.posted.length, postedAt: new Date(), totalDebit: journal.totalDebit, totalCredit: journal.totalCredit }; }
   async createAuditLog() {}
 }

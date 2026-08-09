@@ -1,9 +1,10 @@
-import { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma } from "@prisma/client";
+import { DbClient } from "../../shared/infrastructure/db-client";
 import { CreateAttractionInput, CreateParkingServiceInput, CreateRentalServiceInput, CreateTenantRentalInput, CreateTicketPackageInput, CreateTicketTypeInput, CreateVisitorTransactionInput, TenantContext, VisitorTransaction } from "../domain/tourism-types";
 import { TourismAuditEvent, TourismRepository } from "../application/tourism-repository";
 
 export class PrismaTourismRepository implements TourismRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: DbClient) {}
   async createAttraction(ctx: TenantContext, input: CreateAttractionInput) { const r = await this.prisma.attraction.create({ data: { businessId: ctx.businessId, name: input.name, description: input.description ?? null, location: input.location ?? null, visitorLimit: input.visitorLimit ?? null, startsOn: input.startsOn ?? null, endsOn: input.endsOn ?? null } }); return r; }
   async createTicketType(ctx: TenantContext, input: CreateTicketTypeInput) { return this.prisma.ticketType.create({ data: { businessId: ctx.businessId, attractionId: input.attractionId, name: input.name, revenueCategoryId: input.revenueCategoryId, dailyPrice: input.dailyPrice, weekendPrice: input.weekendPrice ?? null, seasonalPrice: input.seasonalPrice ?? null, seasonalStartsOn: input.seasonalStartsOn ?? null, seasonalEndsOn: input.seasonalEndsOn ?? null, visitorLimit: input.visitorLimit ?? null, startsOn: input.startsOn ?? null, endsOn: input.endsOn ?? null } }); }
   async createTicketPackage(ctx: TenantContext, input: CreateTicketPackageInput) { return this.prisma.ticketPackage.create({ data: { businessId: ctx.businessId, attractionId: input.attractionId, name: input.name, revenueCategoryId: input.revenueCategoryId, packagePrice: input.packagePrice, maxVisitors: input.maxVisitors ?? null, startsOn: input.startsOn ?? null, endsOn: input.endsOn ?? null } }); }

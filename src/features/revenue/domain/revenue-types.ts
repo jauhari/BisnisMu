@@ -1,3 +1,4 @@
+import { DomainError } from "../../shared/domain/domain-error";
 import { AccountSnapshot, JournalLineInput } from "../../accounting/domain/accounting-types";
 
 export type RevenueType = "TICKET" | "PACKAGE" | "PARKING" | "RENTAL" | "TENANT_RENT" | "SERVICE" | "PRODUCT_SALE" | "OTHER_REVENUE";
@@ -66,7 +67,10 @@ export interface RevenueValidationContext {
 
 export interface RevenueJournalPreview { businessId: string; transactionDate: Date; description: string; lines: JournalLineInput[]; amount: bigint; unitPrice: bigint; pricingId?: string | null; }
 
-export class RevenueError extends Error {
-  constructor(public readonly code: string, message: string, public readonly details?: Record<string, unknown>) { super(message); this.name = "RevenueError"; }
+export class RevenueError extends DomainError {
+  constructor(code: string, message: string, details?: Record<string, unknown>) {
+    super(code, message, details);
+    this.name = "RevenueError";
+  }
 }
 

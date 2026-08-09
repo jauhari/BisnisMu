@@ -1,4 +1,5 @@
-import { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma } from "@prisma/client";
+import { DbClient } from "../../shared/infrastructure/db-client";
 import { AccountGroupCode, AccountSnapshot } from "../../accounting/domain/accounting-types";
 import { ProductEntity } from "../../inventory/domain/inventory-types";
 import { CreateReceiptRecord, CreateReturnRecord, PurchaseAuditEvent, PurchaseRepository } from "../application/purchase-repository";
@@ -7,7 +8,7 @@ import { CreatePurchaseOrderInput, PurchaseOrderEntity, PurchaseOrderItemEntity,
 const domainGroupByPrisma = { ASSET: 1, LIABILITY: 2, EQUITY: 3, REVENUE: 4, COGS: 5, EXPENSE: 6, OTHER_EXPENSE: 7 } as const;
 
 export class PrismaPurchaseRepository implements PurchaseRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: DbClient) {}
 
   async findSupplier(ctx: TenantContext, supplierId: string): Promise<SupplierSnapshot | null> {
     const row = await this.prisma.vendor.findFirst({ where: { businessId: ctx.businessId, id: supplierId } });

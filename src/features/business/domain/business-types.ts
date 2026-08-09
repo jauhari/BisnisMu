@@ -1,3 +1,4 @@
+import { DomainError } from "../../shared/domain/domain-error";
 import { AccountSnapshot, JournalLineInput } from "../../accounting/domain/accounting-types";
 
 export type BusinessType = "UMKM" | "BUMDES" | "PERORANGAN" | "CV" | "UD";
@@ -51,9 +52,9 @@ export interface SaveBeginningBalancesInput { businessId: string; fiscalPeriodId
 export interface BeginningBalanceValidationContext { period: FiscalPeriodEntity; accounts: AccountSnapshot[]; }
 export interface BeginningBalanceJournalInput { businessId: string; fiscalPeriod: FiscalPeriodEntity; lines: JournalLineInput[]; }
 
-export class BusinessDomainError extends Error {
-  constructor(public readonly code: string, message: string, public readonly details?: Record<string, unknown>) {
-    super(message);
+export class BusinessDomainError extends DomainError {
+  constructor(code: string, message: string, details?: Record<string, unknown>) {
+    super(code, message, details);
     this.name = "BusinessDomainError";
   }
 }

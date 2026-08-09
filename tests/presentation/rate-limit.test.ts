@@ -40,6 +40,6 @@ describe("rate limiting", () => {
     const response = rateLimitResponse({ success: false, limit: 5, remaining: 0, resetAt: Date.now() + 30_000, retryAfter: 30 });
     expect(response.status).toBe(429);
     expect(response.headers.get("retry-after")).toBe("30");
-    await expect(response.json()).resolves.toEqual({ error: "RATE_LIMIT_EXCEEDED" });
+    await expect(response.json()).resolves.toEqual({ code: "RATE_LIMIT_EXCEEDED", message: "Too many requests. Please retry in 30 seconds." });
   });
 });

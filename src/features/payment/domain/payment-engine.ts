@@ -1,5 +1,5 @@
 import { AccountSnapshot } from "../../accounting/domain/accounting-types";
-import { AllocatePaymentInput, CreateCustomerWalletInput, CreatePaymentInput, CustomerWalletEntity, PaymentAllocationInput, PaymentError, PaymentJournalPreview, PaymentMethodType, PaymentStatus, PaymentTransactionEntity, PaymentValidationContext, ReceivableEntity, SettleReceivableInput, WalletMovementInput } from "./payment-types";
+import { AllocatePaymentInput, CreateCustomerWalletInput, CreatePaymentInput, CustomerWalletEntity, PaymentAllocationInput, PaymentError, PaymentJournalPreview, PaymentStatus, PaymentTransactionEntity, PaymentValidationContext, ReceivableEntity, SettleReceivableInput, WalletMovementInput } from "./payment-types";
 
 export class PaymentEngine {
   validateCreateWallet(input: CreateCustomerWalletInput, context: PaymentValidationContext): void {

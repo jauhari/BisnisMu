@@ -29,6 +29,11 @@ export class SalesEngine {
   }
 
   confirm(order: SalesOrderEntity): void { if (order.status !== "DRAFT") throw new SalesError("ONLY_DRAFT_CAN_BE_CONFIRMED", "Only draft sales can be confirmed."); }
+  /** A sale can be voided at any point in its life except once it is already void. */
+  validateVoid(order: SalesOrderEntity, reason: string): void {
+    if (order.status === "VOID") throw new SalesError("SALES_ORDER_ALREADY_VOID", "Sales order has already been voided.");
+    if (reason.trim().length < 10) throw new SalesError("VOID_REASON_TOO_SHORT", "Void reason must be at least 10 characters.");
+  }
   nextStatus(total: bigint, paid: bigint): SalesStatus { if (paid === 0n) return "CONFIRMED"; if (paid < total) return "PARTIALLY_PAID"; if (paid === total) return "PAID"; throw new SalesError("OVERPAYMENT", "Paid amount cannot exceed sale total."); }
   previewRevenue(order: SalesOrderEntity, revenueAccount: AccountSnapshot, debitAccount: AccountSnapshot): SalesJournalPreview { return this.preview(order.businessId, order.saleDate, "SALES_REVENUE", order.description, [this.line(debitAccount, "DEBIT", order.totalAmount), this.line(revenueAccount, "CREDIT", order.totalAmount)]); }
 

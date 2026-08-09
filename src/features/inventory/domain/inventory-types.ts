@@ -1,3 +1,4 @@
+import { DomainError } from "../../shared/domain/domain-error";
 import { AccountSnapshot, JournalLineInput } from "../../accounting/domain/accounting-types";
 
 export type ProductType = "PHYSICAL" | "DIGITAL" | "SERVICE";
@@ -10,7 +11,9 @@ export interface ProductCategoryEntity { id: string; businessId: string; name: s
 export interface ProductEntity { id: string; businessId: string; type: ProductType; sku: string; barcode?: string | null; name: string; description?: string | null; categoryId?: string | null; inventoryAccountId?: string | null; cogsAccountId?: string | null; revenueAccountId: string; trackStock: boolean; isActive: boolean; }
 export interface ProductPriceEntity { id: string; businessId: string; productId: string; priceType: "BUY" | "SELL"; amount: bigint; effectiveDate: Date; priority: number; isActive: boolean; }
 export interface InventoryBalanceEntity { id: string; businessId: string; productId: string; locationId: string; quantity: bigint; averageCost: bigint; inventoryValue: bigint; }
-export interface InventoryMovementEntity { id: string; businessId: string; productId: string; type: InventoryMovementType; movementDate: Date; quantity: bigint; unitCost: bigint; totalCost: bigint; fromLocationId?: string | null; toLocationId?: string | null; balanceAfter: bigint; averageCostAfter: bigint; postedJournalId?: string | null; description: string; }
+/** Document kinds a movement can be traced back to, for reversal on void. */
+export type InventoryMovementSourceType = "SALES_ORDER" | "PURCHASE_ORDER" | "PURCHASE_RETURN";
+export interface InventoryMovementEntity { id: string; businessId: string; productId: string; type: InventoryMovementType; movementDate: Date; quantity: bigint; unitCost: bigint; totalCost: bigint; fromLocationId?: string | null; toLocationId?: string | null; balanceAfter: bigint; averageCostAfter: bigint; postedJournalId?: string | null; description: string; sourceType?: InventoryMovementSourceType | null; sourceId?: string | null; reversesMovementId?: string | null; }
 export interface ProviderProductEntity { id: string; businessId: string; productId: string; provider: ProviderCode; providerSku: string; floatAccountId: string; dynamicBuyPrice?: bigint | null; dynamicSellPrice?: bigint | null; isActive: boolean; }
 export interface ProductCostHistoryEntity { id: string; businessId: string; productId: string; previousCost: bigint; buyPrice: bigint; sellPrice?: bigint | null; marginAmount?: bigint | null; marginRateBps?: bigint | null; effectiveDate: Date; source: "PRICE_UPDATE" | "STOCK_IN" | "DIGITAL_PROVIDER"; }
 
@@ -28,9 +31,9 @@ export interface InventoryJournalPreview { businessId: string; transactionDate: 
 
 export interface InventoryValidationContext { product?: ProductEntity | null; category?: ProductCategoryEntity | null; balance?: InventoryBalanceEntity | null; providerProduct?: ProviderProductEntity | null; inventoryAccount?: AccountSnapshot | null; cogsAccount?: AccountSnapshot | null; revenueAccount?: AccountSnapshot | null; }
 
-export class InventoryError extends Error {
-  constructor(public readonly code: string, message: string, public readonly details?: Record<string, unknown>) {
-    super(message);
+export class InventoryError extends DomainError {
+  constructor(code: string, message: string, details?: Record<string, unknown>) {
+    super(code, message, details);
     this.name = "InventoryError";
   }
 }

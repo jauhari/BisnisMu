@@ -7,16 +7,19 @@ import { apiRateLimitRule, authRateLimitRule, clientIp, getRateLimiter, rateLimi
 import { getAuthenticatedUserContextByToken, getRequestSessionToken } from "@/presentation/auth/session";
 import { withSecurityHeaders } from "@/presentation/security/security-headers";
 
+// All three use the flat {code, message} shape that route handlers return and that
+// apiRequest() in the presentation client parses. Nesting them under `error` here is
+// what made 401/403 render as "undefined" in the UI.
 function unauthorized(message = "Authentication required") {
-  return withSecurityHeaders(Response.json({ ok: false, error: { code: "UNAUTHORIZED", message } }, { status: 401 }));
+  return withSecurityHeaders(Response.json({ code: "UNAUTHORIZED", message }, { status: 401 }));
 }
 
 function forbidden(message = "Active business membership required") {
-  return withSecurityHeaders(Response.json({ ok: false, error: { code: "FORBIDDEN", message } }, { status: 403 }));
+  return withSecurityHeaders(Response.json({ code: "FORBIDDEN", message }, { status: 403 }));
 }
 
 function serviceUnavailable(message = "Service temporarily unavailable") {
-  return withSecurityHeaders(Response.json({ ok: false, error: { code: "SERVICE_UNAVAILABLE", message } }, { status: 503 }));
+  return withSecurityHeaders(Response.json({ code: "SERVICE_UNAVAILABLE", message }, { status: 503 }));
 }
 
 async function enforceAuthRateLimit(request: NextRequest, pathname: string): Promise<Response | null> {

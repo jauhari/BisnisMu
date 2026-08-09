@@ -30,7 +30,8 @@ export async function handleApi<T>(work: () => Promise<T>, requestId?: string): 
     if (isAuthError(error)) {
       return Response.json({ code: error.code, message: error.message }, { status: error.status });
     }
-    return Response.json(problem(error), { status: 400 });
+    const { status, body } = problem(error);
+    return Response.json(body, { status });
   }
 }
 

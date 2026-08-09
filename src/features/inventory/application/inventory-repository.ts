@@ -1,9 +1,12 @@
 import { AccountSnapshot } from "../../accounting/domain/accounting-types";
-import { CreateProductInput, InventoryBalanceEntity, InventoryMovementEntity, ProductCategoryEntity, ProductCostHistoryEntity, ProductEntity, ProductPriceEntity, ProviderProductEntity, TenantContext, UpdatePriceInput, UpdateProductInput } from "../domain/inventory-types";
+import { CreateProductInput, InventoryBalanceEntity, InventoryMovementEntity, InventoryMovementSourceType, ProductCategoryEntity, ProductCostHistoryEntity, ProductEntity, ProductPriceEntity, ProviderProductEntity, TenantContext, UpdatePriceInput, UpdateProductInput } from "../domain/inventory-types";
 
-export interface InventoryAuditEvent { action: "PRODUCT_CREATED" | "PRODUCT_UPDATED" | "PRODUCT_PRICE_UPDATED" | "INVENTORY_STOCK_IN" | "INVENTORY_STOCK_OUT" | "INVENTORY_ADJUSTED" | "INVENTORY_TRANSFERRED" | "DIGITAL_PRODUCT_CONSUMED"; businessId: string; actorUserId: string; entityType: "product" | "product_price" | "inventory_movement" | "provider_product"; entityId?: string; metadata: Record<string, unknown>; }
+export interface InventoryAuditEvent { action: "PRODUCT_CREATED" | "PRODUCT_UPDATED" | "PRODUCT_PRICE_UPDATED" | "INVENTORY_STOCK_IN" | "INVENTORY_STOCK_OUT" | "INVENTORY_ADJUSTED" | "INVENTORY_TRANSFERRED" | "DIGITAL_PRODUCT_CONSUMED" | "INVENTORY_MOVEMENT_REVERSED"; businessId: string; actorUserId: string; entityType: "product" | "product_price" | "inventory_movement" | "provider_product"; entityId?: string; metadata: Record<string, unknown>; }
 
-export interface CreateInventoryMovementRecord extends Omit<InventoryMovementEntity, "id"> {}
+/** Identifies the document a movement belongs to, so it can be found and undone later. */
+export interface MovementSource { sourceType: InventoryMovementSourceType; sourceId: string; }
+
+export type CreateInventoryMovementRecord = Omit<InventoryMovementEntity, "id">;
 export interface CreateCostHistoryRecord { businessId: string; productId: string; previousCost?: bigint; buyPrice: bigint; sellPrice?: bigint | null; marginAmount?: bigint | null; marginRateBps?: bigint | null; effectiveDate: Date; source: "PRICE_UPDATE" | "STOCK_IN" | "DIGITAL_PROVIDER"; }
 
 export interface InventoryRepository {
@@ -24,6 +27,7 @@ export interface InventoryRepository {
   findBalance(ctx: TenantContext, productId: string, locationId: string): Promise<InventoryBalanceEntity | null>;
   listBalances(ctx: TenantContext): Promise<InventoryBalanceEntity[]>;
   listMovements(ctx: TenantContext, type?: InventoryMovementEntity["type"]): Promise<InventoryMovementEntity[]>;
+  listMovementsBySource(ctx: TenantContext, source: MovementSource): Promise<InventoryMovementEntity[]>;
   upsertBalance(ctx: TenantContext, balance: InventoryBalanceEntity): Promise<InventoryBalanceEntity>;
   atomicStockIn(ctx: TenantContext, productId: string, locationId: string, quantity: bigint, unitCost: bigint): Promise<InventoryBalanceEntity>;
   atomicStockOut(ctx: TenantContext, productId: string, locationId: string, quantity: bigint): Promise<InventoryBalanceEntity>;
@@ -35,8 +39,9 @@ export interface Meta { actorUserId: string; requestId?: string; ipAddress?: str
 export interface CreateProductCommand extends CreateProductInput, Meta {}
 export interface UpdateProductCommand extends UpdateProductInput, Meta {}
 export interface UpdatePriceCommand extends UpdatePriceInput, Meta {}
-export interface StockInCommand { businessId: string; productId: string; locationId: string; movementDate: Date; quantity: bigint; unitCost: bigint; description: string; actorUserId: string; requestId?: string; ipAddress?: string; userAgent?: string; }
-export interface StockOutCommand { businessId: string; productId: string; locationId: string; movementDate: Date; quantity: bigint; description: string; actorUserId: string; requestId?: string; ipAddress?: string; userAgent?: string; }
+export interface StockInCommand { businessId: string; productId: string; locationId: string; movementDate: Date; quantity: bigint; unitCost: bigint; description: string; source?: MovementSource; actorUserId: string; requestId?: string; ipAddress?: string; userAgent?: string; }
+export interface StockOutCommand { businessId: string; productId: string; locationId: string; movementDate: Date; quantity: bigint; description: string; source?: MovementSource; actorUserId: string; requestId?: string; ipAddress?: string; userAgent?: string; }
+export interface ReverseMovementsCommand { businessId: string; source: MovementSource; reversalDate: Date; reason: string; actorUserId: string; requestId?: string; ipAddress?: string; userAgent?: string; }
 export interface AdjustStockCommand { businessId: string; productId: string; locationId: string; movementDate: Date; newQuantity: bigint; unitCost?: bigint; description: string; actorUserId: string; requestId?: string; ipAddress?: string; userAgent?: string; }
 export interface TransferStockCommand { businessId: string; productId: string; fromLocationId: string; toLocationId: string; movementDate: Date; quantity: bigint; description: string; actorUserId: string; requestId?: string; ipAddress?: string; userAgent?: string; }
 export interface ConsumeDigitalProductCommand { businessId: string; productId: string; providerProductId?: string; transactionDate: Date; quantity: bigint; description: string; actorUserId: string; requestId?: string; ipAddress?: string; userAgent?: string; }

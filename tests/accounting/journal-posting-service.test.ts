@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { JournalPostingService } from "../../src/features/accounting/application/journal-posting-service";
-import { JournalAuditEvent, JournalRepository, PostedJournalResult } from "../../src/features/accounting/application/journal-repository";
+import { JournalAuditEvent, JournalRepository, PostedJournalDetail, PostedJournalResult } from "../../src/features/accounting/application/journal-repository";
 import { AccountSnapshot, FiscalPeriodSnapshot, TenantContext, ValidatedJournal } from "../../src/features/accounting/domain/accounting-types";
 
 class InMemoryJournalRepository implements JournalRepository {
   auditEvents: JournalAuditEvent[] = [];
   createdJournals: ValidatedJournal[] = [];
   existingByKey = new Map<string, PostedJournalResult>();
+  detailsById = new Map<string, PostedJournalDetail>();
 
   constructor(
     private readonly accounts: AccountSnapshot[],
@@ -26,15 +27,28 @@ class InMemoryJournalRepository implements JournalRepository {
     return this.existingByKey.get(idempotencyKey) ?? null;
   }
 
+  async findPostedJournalWithLines(_ctx: TenantContext, journalId: string): Promise<PostedJournalDetail | null> {
+    return this.detailsById.get(journalId) ?? null;
+  }
+
   async createPostedJournal(_ctx: TenantContext, journal: ValidatedJournal): Promise<PostedJournalResult> {
     this.createdJournals.push(journal);
+    const sequence = this.createdJournals.length;
     const result = {
-      journalId: "journal-1",
-      journalNumber: "JV-202605-00001",
+      journalId: "journal-" + sequence,
+      journalNumber: "JV-202605-" + String(sequence).padStart(5, "0"),
       postedAt: new Date("2026-05-30T01:00:00.000Z"),
       totalDebit: journal.totalDebit,
       totalCredit: journal.totalCredit
     };
+    this.detailsById.set(result.journalId, {
+      ...result,
+      transactionDate: journal.transactionDate,
+      source: journal.source,
+      sourceId: journal.sourceId ?? null,
+      description: journal.description,
+      lines: journal.lines.map((line) => ({ accountId: line.accountId, side: line.side, amount: line.amount }))
+    });
     if (journal.idempotencyKey) this.existingByKey.set(journal.idempotencyKey, result);
     return result;
   }
@@ -116,5 +130,63 @@ describe("JournalPostingService", () => {
 
     expect(repo.auditEvents.at(-1)?.action).toBe("JOURNAL_POST_REJECTED");
     expect(repo.auditEvents.at(-1)?.metadata.errorCode).toBe("UNBALANCED_JOURNAL");
+  });
+
+  it("reverses a posted journal by flipping every line", async () => {
+    const repo = new InMemoryJournalRepository(accounts, period);
+    const service = new JournalPostingService(repo);
+    const posted = await service.post({
+      businessId: "biz-1",
+      actorUserId: "user-1",
+      transactionDate: new Date("2026-05-30T00:00:00.000Z"),
+      source: "CASH_IN",
+      description: "Penjualan tunai",
+      lines: [
+        { accountId: "cash", side: "DEBIT", amount: 50000n },
+        { accountId: "revenue", side: "CREDIT", amount: 50000n }
+      ]
+    });
+
+    const reversal = await service.reverse({ businessId: "biz-1", actorUserId: "user-1", journalId: posted.journalId, reason: "customer cancelled the order" });
+
+    const reversalJournal = repo.createdJournals.at(-1)!;
+    expect(reversalJournal.lines).toEqual([
+      expect.objectContaining({ accountId: "cash", side: "CREDIT", amount: 50000n }),
+      expect.objectContaining({ accountId: "revenue", side: "DEBIT", amount: 50000n })
+    ]);
+    expect(reversalJournal.totalDebit).toBe(reversalJournal.totalCredit);
+    expect(reversalJournal.source).toBe("REVERSAL_CASH_IN");
+    expect(reversal.journalId).not.toBe(posted.journalId);
+    expect(repo.auditEvents.at(-1)?.action).toBe("JOURNAL_REVERSED");
+  });
+
+  it("reverses a journal only once no matter how often the void is retried", async () => {
+    const repo = new InMemoryJournalRepository(accounts, period);
+    const service = new JournalPostingService(repo);
+    const posted = await service.post({
+      businessId: "biz-1",
+      actorUserId: "user-1",
+      transactionDate: new Date("2026-05-30T00:00:00.000Z"),
+      source: "CASH_IN",
+      description: "Penjualan tunai",
+      lines: [
+        { accountId: "cash", side: "DEBIT", amount: 50000n },
+        { accountId: "revenue", side: "CREDIT", amount: 50000n }
+      ]
+    });
+
+    const first = await service.reverse({ businessId: "biz-1", actorUserId: "user-1", journalId: posted.journalId, reason: "customer cancelled the order" });
+    const second = await service.reverse({ businessId: "biz-1", actorUserId: "user-1", journalId: posted.journalId, reason: "customer cancelled the order" });
+
+    expect(second.journalId).toBe(first.journalId);
+    expect(repo.createdJournals).toHaveLength(2);
+  });
+
+  it("refuses to reverse a journal from another business", async () => {
+    const repo = new InMemoryJournalRepository(accounts, period);
+    const service = new JournalPostingService(repo);
+
+    await expect(service.reverse({ businessId: "biz-2", actorUserId: "user-1", journalId: "journal-1", reason: "wrong tenant attempt" }))
+      .rejects.toThrow(/journal to reverse was not found/i);
   });
 });

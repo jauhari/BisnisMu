@@ -17,6 +17,7 @@ export interface PosRepository {
   removeCartItem(ctx: TenantContext, transactionId: string, cartItemId: string): Promise<void>;
   updateTransactionTotals(ctx: TenantContext, transactionId: string, totals: { subtotal: bigint; discountTotal: bigint; taxTotal: bigint; totalAmount: bigint }): Promise<PosTransactionEntity>;
   updateTransactionStatus(ctx: TenantContext, transactionId: string, status: PosTransactionStatus, paidAmount?: bigint, changeAmount?: bigint, salesOrderId?: string, paymentTransactionId?: string, receiptId?: string): Promise<PosTransactionEntity>;
+  markTransactionVoided(ctx: TenantContext, transactionId: string, voidJournalIds: string[], reason: string): Promise<PosTransactionEntity>;
   nextReceiptNumber(ctx: TenantContext, date: Date): Promise<string>;
   createReceipt(ctx: TenantContext, transactionId: string, issuedAt: Date, totalAmount: bigint, paidAmount: bigint, changeAmount: bigint, receiptNumber: string): Promise<PosReceiptEntity>;
   createAuditLog(ctx: TenantContext, event: PosAuditEvent): Promise<void>;

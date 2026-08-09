@@ -1,4 +1,5 @@
 import { Prisma, PrismaClient } from "@prisma/client";
+import { DbClient } from "../../shared/infrastructure/db-client";
 import { AccountGroupCode, AccountSnapshot } from "../../accounting/domain/accounting-types";
 import { RevenueAuditEvent, RevenueRepository } from "../application/revenue-repository";
 import { CreateRevenueCategoryInput, CreateRevenueItemInput, CreateRevenuePackageInput, CreateRevenuePricingInput, RevenueCategory, RevenueDraftInput, RevenueItem, RevenuePackage, RevenuePricing, RevenueTransactionEntity, TenantContext } from "../domain/revenue-types";
@@ -6,7 +7,7 @@ import { CreateRevenueCategoryInput, CreateRevenueItemInput, CreateRevenuePackag
 const domainGroupByPrisma = { ASSET: 1, LIABILITY: 2, EQUITY: 3, REVENUE: 4, COGS: 5, EXPENSE: 6, OTHER_EXPENSE: 7 } as const;
 
 export class PrismaRevenueRepository implements RevenueRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: DbClient) {}
 
   async findAccount(ctx: TenantContext, accountId: string): Promise<AccountSnapshot | null> {
     const a = await this.prisma.account.findFirst({ where: { businessId: ctx.businessId, id: accountId } });

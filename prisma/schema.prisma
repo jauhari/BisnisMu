@@ -225,6 +225,7 @@ enum SalesOrderStatus {
 enum AuditAction {
   JOURNAL_POSTED
   JOURNAL_POST_REJECTED
+  JOURNAL_REVERSED
   ACCOUNT_CREATED
   ACCOUNT_UPDATED
   ACCOUNT_DEACTIVATED
@@ -304,6 +305,8 @@ enum AuditAction {
   SALES_ORDER_CREATED
   SALES_ORDER_CONFIRMED
   SALES_PAYMENT_ALLOCATED
+  SALES_ORDER_VOIDED
+  INVENTORY_MOVEMENT_REVERSED
 }
 
 enum PurchaseOrderStatus {
@@ -1368,6 +1371,14 @@ model InventoryMovement {
   averageCostAfter BigInt                @map("average_cost_after")
   postedJournalId  String?               @map("posted_journal_id")
   description      String
+  // Document that caused this movement (e.g. SALES_ORDER + sales order id). Nullable
+  // because movements recorded before this link existed carry no source, and because
+  // manual adjustments have no originating document.
+  sourceType       String?               @map("source_type")
+  sourceId         String?               @map("source_id")
+  // Set on the compensating movement created when a source document is voided, and
+  // points back at the movement being undone.
+  reversesMovementId String?             @map("reverses_movement_id")
   createdByUserId  String                @map("created_by_user_id")
   createdAt        DateTime              @default(now()) @map("created_at")
 
@@ -1378,6 +1389,7 @@ model InventoryMovement {
   @@index([businessId, type])
   @@index([businessId, fromWarehouseId])
   @@index([businessId, toWarehouseId])
+  @@index([businessId, sourceType, sourceId])
   @@map("inventory_movements")
 }
 
@@ -1484,6 +1496,11 @@ model SalesOrder {
   arAccountId                String?          @map("ar_account_id")
   paymentTransactionId       String?          @map("payment_transaction_id")
   postedJournalId            String?          @map("posted_journal_id")
+  // Every reversal journal posted when voiding this order, in posting order.
+  voidJournalIds             String[]         @map("void_journal_ids")
+  voidReason                 String?          @map("void_reason")
+  voidedByUserId             String?          @map("voided_by_user_id")
+  voidedAt                   DateTime?        @map("voided_at")
   createdByUserId            String           @map("created_by_user_id")
   createdAt                  DateTime         @default(now()) @map("created_at")
   updatedAt                  DateTime         @updatedAt @map("updated_at")
@@ -1908,6 +1925,11 @@ model PosTransactionRecord {
   salesOrderId         String?              @map("sales_order_id")
   paymentTransactionId String?              @map("payment_transaction_id")
   receiptId            String?              @map("receipt_id")
+  // Every reversal journal posted when voiding this transaction, in posting order.
+  voidJournalIds       String[]             @map("void_journal_ids")
+  voidReason           String?              @map("void_reason")
+  voidedByUserId       String?              @map("voided_by_user_id")
+  voidedAt             DateTime?            @map("voided_at")
   createdByUserId      String               @map("created_by_user_id")
   createdAt            DateTime             @default(now()) @map("created_at")
   updatedAt            DateTime             @updatedAt @map("updated_at")

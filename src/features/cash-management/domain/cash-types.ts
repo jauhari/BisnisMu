@@ -1,3 +1,4 @@
+import { DomainError } from "../../shared/domain/domain-error";
 import { AccountSnapshot, JournalLineInput } from "../../accounting/domain/accounting-types";
 
 export type CashTransactionType = "CASH_IN" | "CASH_OUT" | "TRANSFER";
@@ -94,9 +95,9 @@ export interface CashValidationContext {
   contact?: ContactEntity | null;
 }
 
-export class CashManagementError extends Error {
-  constructor(public readonly code: string, message: string, public readonly details?: Record<string, unknown>) {
-    super(message);
+export class CashManagementError extends DomainError {
+  constructor(code: string, message: string, details?: Record<string, unknown>) {
+    super(code, message, details);
     this.name = "CashManagementError";
   }
 }

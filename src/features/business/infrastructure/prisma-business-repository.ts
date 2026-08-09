@@ -1,4 +1,5 @@
 import { Prisma, PrismaClient } from "@prisma/client";
+import { DbClient, withTransaction } from "../../shared/infrastructure/db-client";
 import { AccountGroupCode, AccountSnapshot } from "../../accounting/domain/accounting-types";
 import { BusinessAuditEvent, BusinessRepository } from "../application/business-repository";
 import { BeginningBalanceEntry, BeginningBalanceLine, BusinessEntity, CreateBusinessInput, FiscalPeriodEntity, TenantContext, UpdateBusinessSettingsInput } from "../domain/business-types";
@@ -6,7 +7,7 @@ import { BeginningBalanceEntry, BeginningBalanceLine, BusinessEntity, CreateBusi
 const domainGroupByPrisma = { ASSET: 1, LIABILITY: 2, EQUITY: 3, REVENUE: 4, COGS: 5, EXPENSE: 6, OTHER_EXPENSE: 7 } as const;
 
 export class PrismaBusinessRepository implements BusinessRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: DbClient) {}
 
   async createBusiness(actorUserId: string, input: CreateBusinessInput & { name: string; currency: "IDR"; fiscalYearStart: number }): Promise<BusinessEntity> {
     const business = await this.prisma.business.create({ data: { name: input.name, type: input.type, npwpNumber: input.npwpNumber ?? null, address: input.address ?? null, fiscalYearStart: input.fiscalYearStart, currency: input.currency, settings: (input.settings ?? {}) as Prisma.InputJsonValue, createdByUserId: actorUserId } });
@@ -60,7 +61,7 @@ export class PrismaBusinessRepository implements BusinessRepository {
   }
 
   async saveBeginningBalances(ctx: TenantContext, fiscalPeriodId: string, lines: BeginningBalanceLine[]): Promise<BeginningBalanceEntry[]> {
-    return this.prisma.$transaction(async (tx) => {
+    return withTransaction(this.prisma, async (tx) => {
       const saved = [];
       for (const line of lines) {
         const row = await tx.beginningBalance.upsert({

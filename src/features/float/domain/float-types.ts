@@ -1,3 +1,4 @@
+import { DomainError } from "../../shared/domain/domain-error";
 import { AccountSnapshot, JournalLineInput } from "../../accounting/domain/accounting-types";
 
 export type FloatProvider = "BUKUWARUNG" | "FASTPAY" | "PAYFAZZ" | "SHOPEEPAY" | "LINKAJA" | "CUSTOM";
@@ -91,9 +92,9 @@ export interface FloatValidationContext {
   adjustmentAccount?: AccountSnapshot | null;
 }
 
-export class FloatManagementError extends Error {
-  constructor(public readonly code: string, message: string, public readonly details?: Record<string, unknown>) {
-    super(message);
+export class FloatManagementError extends DomainError {
+  constructor(code: string, message: string, details?: Record<string, unknown>) {
+    super(code, message, details);
     this.name = "FloatManagementError";
   }
 }

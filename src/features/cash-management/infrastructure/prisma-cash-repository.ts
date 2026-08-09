@@ -1,4 +1,5 @@
 import { Prisma, PrismaClient } from "@prisma/client";
+import { DbClient } from "../../shared/infrastructure/db-client";
 import { AccountGroupCode, AccountSnapshot } from "../../accounting/domain/accounting-types";
 import { CashAuditEvent, CashRepository } from "../application/cash-repository";
 import { CashTransactionDraftInput, CashTransactionEntity, ContactEntity, CreateContactInput, TenantContext } from "../domain/cash-types";
@@ -6,7 +7,7 @@ import { CashTransactionDraftInput, CashTransactionEntity, ContactEntity, Create
 const domainGroupByPrisma = { ASSET: 1, LIABILITY: 2, EQUITY: 3, REVENUE: 4, COGS: 5, EXPENSE: 6, OTHER_EXPENSE: 7 } as const;
 
 export class PrismaCashRepository implements CashRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: DbClient) {}
 
   async findAccounts(ctx: TenantContext, accountIds: string[]): Promise<AccountSnapshot[]> {
     const accounts = await this.prisma.account.findMany({ where: { businessId: ctx.businessId, id: { in: accountIds } } });

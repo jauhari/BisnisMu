@@ -106,7 +106,9 @@ export function setRateLimiterForTests(rateLimiter: RateLimiter | undefined): vo
 
 export function rateLimitResponse(result: RateLimitResult): Response {
   return Response.json(
-    { error: "RATE_LIMIT_EXCEEDED" },
+    // Same {code, message} shape as every other error response, so the client can
+    // surface it instead of rendering "undefined".
+    { code: "RATE_LIMIT_EXCEEDED", message: "Too many requests. Please retry in " + result.retryAfter + " seconds." },
     {
       status: 429,
       headers: {

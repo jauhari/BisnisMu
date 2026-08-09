@@ -1,9 +1,10 @@
-import { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma } from "@prisma/client";
+import { DbClient } from "../../shared/infrastructure/db-client";
 import { AccountGroupCode, AccountSnapshot } from "../../accounting/domain/accounting-types";
 import { ArApAuditEvent, ArApRepository } from "../application/ar-ap-repository";
 import { ApplyCreditNoteInput, Bill, CreateBillInput, CreateCustomerInput, CreateInvoiceInput, CreateVendorInput, Customer, Invoice, Payment, RecordPaymentInput, TenantContext, Vendor } from "../domain/ar-ap-types";
 const g={ASSET:1,LIABILITY:2,EQUITY:3,REVENUE:4,COGS:5,EXPENSE:6,OTHER_EXPENSE:7} as const;
-export class PrismaArApRepository implements ArApRepository{constructor(private prisma:PrismaClient){}
+export class PrismaArApRepository implements ArApRepository{constructor(private prisma:DbClient){}
 async findAccount(ctx:TenantContext,id:string):Promise<AccountSnapshot|null>{const a=await this.prisma.account.findFirst({where:{businessId:ctx.businessId,id}});return a?{id:a.id,businessId:a.businessId,code:a.code,name:a.name,groupCode:g[a.groupCode] as AccountGroupCode,normalBalance:a.normalBalance,subtype:a.subtype,isPostingAllowed:a.isPostingAllowed,isActive:a.isActive}:null}
 async createCustomer(ctx:TenantContext,i:CreateCustomerInput):Promise<Customer>{return this.prisma.customer.create({data:{businessId:ctx.businessId,name:i.name,email:i.email??null,phone:i.phone??null,address:i.address??null}})} async createVendor(ctx:TenantContext,i:CreateVendorInput):Promise<Vendor>{return this.prisma.vendor.create({data:{businessId:ctx.businessId,name:i.name,email:i.email??null,phone:i.phone??null,address:i.address??null}})}
 async findCustomer(ctx:TenantContext,id:string){return this.prisma.customer.findFirst({where:{businessId:ctx.businessId,id}})} async findVendor(ctx:TenantContext,id:string){return this.prisma.vendor.findFirst({where:{businessId:ctx.businessId,id}})}

@@ -14,7 +14,7 @@ class PostingRepo implements JournalRepository {
     const p = this.periods.find((period) => period.businessId === ctx.businessId && !period.isClosed && date >= period.startsOn && date <= period.endsOn);
     return p ? { id: p.id, businessId: p.businessId, startsOn: p.startsOn, endsOn: p.endsOn, isClosed: p.isClosed } : null;
   }
-  async findPostedJournalByIdempotencyKey() { return null; }
+  async findPostedJournalByIdempotencyKey() { return null; } async findPostedJournalWithLines() { return null; }
   async createPostedJournal(_ctx: AccountingTenantContext, journal: ValidatedJournal): Promise<PostedJournalResult> {
     this.posted.push(journal);
     return { journalId: "journal-" + this.posted.length, journalNumber: "JV-OPENING-00001", postedAt: new Date(), totalDebit: journal.totalDebit, totalCredit: journal.totalCredit };

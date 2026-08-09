@@ -1,3 +1,4 @@
+import { DomainError } from "../../shared/domain/domain-error";
 import { AccountSnapshot, JournalLineInput } from "../../accounting/domain/accounting-types";
 
 export type CashSessionStatus = "OPEN" | "CLOSED";
@@ -19,4 +20,9 @@ export interface JournalPreviewLine extends JournalLineInput { accountCode: stri
 export interface CashJournalPreview { businessId: string; transactionDate: Date; source: string; description: string; lines: JournalPreviewLine[]; totalDebit: bigint; totalCredit: bigint; }
 export interface CashValidationContext { drawer?: CashDrawerEntity | null; session?: CashSessionEntity | null; cashAccount?: AccountSnapshot | null; destinationCashAccount?: AccountSnapshot | null; categoryAccount?: AccountSnapshot | null; equityAccount?: AccountSnapshot | null; differenceAccount?: AccountSnapshot | null; }
 
-export class CashError extends Error { constructor(public readonly code: string, message: string, public readonly details?: Record<string, unknown>) { super(message); this.name = "CashError"; } }
+export class CashError extends DomainError {
+  constructor(code: string, message: string, details?: Record<string, unknown>) {
+    super(code, message, details);
+    this.name = "CashError";
+  }
+}

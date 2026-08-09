@@ -1,4 +1,5 @@
-import { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma } from "@prisma/client";
+import { DbClient } from "../../shared/infrastructure/db-client";
 import { AccountGroupCode, AccountSnapshot } from "../../accounting/domain/accounting-types";
 import { CreateAllocationRecord, CreatePaymentRecord, CreateWalletRecord, CreateWalletTransactionRecord, PaymentAuditEvent, PaymentRepository } from "../application/payment-repository";
 import { CustomerSnapshot, CustomerWalletEntity, CustomerWalletTransactionEntity, PaymentAllocationEntity, PaymentStatus, PaymentTransactionEntity, ReceivableEntity, TenantContext } from "../domain/payment-types";
@@ -6,7 +7,7 @@ import { CustomerSnapshot, CustomerWalletEntity, CustomerWalletTransactionEntity
 const groupByPrisma = { ASSET: 1, LIABILITY: 2, EQUITY: 3, REVENUE: 4, COGS: 5, EXPENSE: 6, OTHER_EXPENSE: 7 } as const;
 
 export class PrismaPaymentRepository implements PaymentRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: DbClient) {}
 
   async findAccounts(ctx: TenantContext, accountIds: string[]): Promise<AccountSnapshot[]> {
     if (accountIds.length === 0) return [];

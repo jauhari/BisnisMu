@@ -1,4 +1,5 @@
-import { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma } from "@prisma/client";
+import { DbClient } from "../../shared/infrastructure/db-client";
 import { AccountGroupCode } from "../../accounting/domain/accounting-types";
 import { FiscalPeriodEntity } from "../../business/domain/business-types";
 import { LedgerRepository, ReportAuditEvent, ReportingRepository } from "../application/reporting-repository";
@@ -7,7 +8,7 @@ import { LedgerLineSource, ReportAccount, TenantContext } from "../domain/report
 const domainGroupByPrisma = { ASSET: 1, LIABILITY: 2, EQUITY: 3, REVENUE: 4, COGS: 5, EXPENSE: 6, OTHER_EXPENSE: 7 } as const;
 
 export class PrismaReportingRepository implements ReportingRepository, LedgerRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: DbClient) {}
 
   async findFiscalPeriod(ctx: TenantContext, fiscalPeriodId: string): Promise<FiscalPeriodEntity | null> {
     const period = await this.prisma.fiscalPeriod.findFirst({ where: { businessId: ctx.businessId, id: fiscalPeriodId } });

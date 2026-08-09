@@ -1,3 +1,4 @@
+import { DomainError } from "../../shared/domain/domain-error";
 import { AccountSnapshot, JournalLineInput } from "../../accounting/domain/accounting-types";
 import { FloatAccountEntity } from "../../float/domain/float-types";
 
@@ -107,9 +108,9 @@ export interface PaymentValidationContext {
   adjustmentAccount?: AccountSnapshot | null;
 }
 
-export class PaymentError extends Error {
-  constructor(public readonly code: string, message: string, public readonly details?: Record<string, unknown>) {
-    super(message);
+export class PaymentError extends DomainError {
+  constructor(code: string, message: string, details?: Record<string, unknown>) {
+    super(code, message, details);
     this.name = "PaymentError";
   }
 }

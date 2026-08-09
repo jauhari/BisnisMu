@@ -1,4 +1,5 @@
-import { Prisma, PrismaClient } from "@prisma/client";
+import { Prisma } from "@prisma/client";
+import { DbClient } from "../../shared/infrastructure/db-client";
 import { AccountGroupCode, AccountSnapshot } from "../../accounting/domain/accounting-types";
 import { ProductEntity, ProductPriceEntity, ProviderProductEntity } from "../../inventory/domain/inventory-types";
 import { SalesAuditEvent, SalesRepository } from "../application/sales-repository";
@@ -7,7 +8,7 @@ import { CustomerSnapshot, SalesOrderEntity, SalesOrderItemEntity, SalesStatus, 
 const domainGroupByPrisma = { ASSET: 1, LIABILITY: 2, EQUITY: 3, REVENUE: 4, COGS: 5, EXPENSE: 6, OTHER_EXPENSE: 7 } as const;
 
 export class PrismaSalesRepository implements SalesRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: DbClient) {}
 
   async findCustomer(ctx: TenantContext, customerId: string): Promise<CustomerSnapshot | null> {
     const row = await this.prisma.customer.findFirst({ where: { businessId: ctx.businessId, id: customerId } });
@@ -95,7 +96,9 @@ export class PrismaSalesRepository implements SalesRepository {
       ];
     }
     const orderBy = { [input.sortBy ?? "saleDate"]: input.sortOrder ?? "desc" } as Prisma.SalesOrderOrderByWithRelationInput;
-    const [rows, total] = await this.prisma.$transaction([
+    // Two reads rather than a batch, so the repository works the same whether it holds
+    // the pooled client or a transaction handle.
+    const [rows, total] = await Promise.all([
       this.prisma.salesOrder.findMany({ where, orderBy, skip: (page - 1) * pageSize, take: pageSize, include: { items: true } }),
       this.prisma.salesOrder.count({ where })
     ]);
@@ -107,7 +110,16 @@ export class PrismaSalesRepository implements SalesRepository {
     if (paidAmount !== undefined) data.paidAmount = paidAmount;
     if (paymentTransactionId !== undefined) data.paymentTransactionId = paymentTransactionId;
     if (postedJournalId !== undefined) data.postedJournalId = postedJournalId;
-    const row = await this.prisma.salesOrder.update({ where: { id: salesOrderId }, data, include: { items: true } });
+    const row = await this.prisma.salesOrder.update({ where: { id: salesOrderId, businessId: ctx.businessId }, data, include: { items: true } });
+    return this.toSalesOrder(row);
+  }
+
+  async markSalesOrderVoided(ctx: TenantContext, salesOrderId: string, voidJournalIds: string[], reason: string): Promise<SalesOrderEntity> {
+    const row = await this.prisma.salesOrder.update({
+      where: { id: salesOrderId, businessId: ctx.businessId },
+      data: { status: "VOID", voidJournalIds, voidReason: reason, voidedByUserId: ctx.actorUserId, voidedAt: new Date() },
+      include: { items: true }
+    });
     return this.toSalesOrder(row);
   }
 
@@ -133,6 +145,8 @@ export class PrismaSalesRepository implements SalesRepository {
       arAccountId: row.arAccountId,
       paymentTransactionId: row.paymentTransactionId,
       postedJournalId: row.postedJournalId,
+      voidJournalIds: row.voidJournalIds ?? [],
+      voidReason: row.voidReason,
       createdByUserId: row.createdByUserId,
       items: row.items.map((item: any): SalesOrderItemEntity => ({ id: item.id, businessId: item.businessId, salesOrderId: item.salesOrderId, productId: item.productId, productType: item.productType, quantity: item.quantity, unitPrice: item.unitPrice, discountAmount: item.discountAmount, taxAmount: item.taxAmount, lineTotal: item.lineTotal, locationId: item.locationId, providerProductId: item.providerProductId }))
     };
