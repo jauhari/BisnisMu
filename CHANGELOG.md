@@ -9,6 +9,9 @@ All notable changes to BisnisMu are documented in this file.
 - Otorisasi perpindahan tetap diverifikasi melalui membership aktif user pada bisnis yang dipilih.
 - Perpindahan bisnis tidak lagi menunggu refetch seluruh query aktif. Header diperbarui segera setelah sesi dikonfirmasi, cache data tenant sebelumnya dibersihkan, dan halaman dimuat ulang sebagai transition.
 
+### Fixed - Root Session Redirect
+- Akses ke `/` sekarang memeriksa session Better Auth yang valid: user dengan bisnis aktif diarahkan ke dashboard, user tanpa bisnis aktif diarahkan ke pemilihan bisnis, dan hanya session tidak ada/kadaluarsa yang diarahkan ke login.
+
 ### Added - Import Legacy ExAct VS
 - Utility `scripts/import-pku-ponjong.mjs` menambahkan alur import workbook ExAct VS yang diawali dry-run dan hanya menulis data dengan flag `--apply`.
 - Import dibuat atomik dalam satu transaksi database: bisnis, membership owner, bagan akun, periode fiskal, saldo awal, jurnal, baris jurnal, dan audit trail semuanya rollback bila validasi atau rekonsiliasi gagal.

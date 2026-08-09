@@ -5,6 +5,24 @@ Session scope: Import data legacy ExAct VS / Google Sheets untuk PKU Ponjong, no
 
 ---
 
+## Phase 20: Root Session Redirect (2026-08-09)
+
+### Masalah
+- Root route `app/page.tsx` selalu mengarahkan setiap pengunjung ke `/login`, termasuk user yang masih memiliki session Better Auth valid.
+
+### Perbaikan
+- Root route sekarang membaca cookie session server-side dan memvalidasinya terhadap database.
+- Session valid dengan bisnis aktif diarahkan ke `/dashboard`.
+- Session valid tanpa bisnis aktif diarahkan ke `/select-business`; session tidak ada atau kadaluarsa tetap ke `/login`.
+- Error infrastruktur tidak dimasking sebagai login redirect.
+
+### Verifikasi
+- Test regresi baru `tests/presentation/root-redirect.test.ts` mencakup tiga skenario redirect.
+- `npm test`: lulus, 32 file / 216 test.
+- `npx eslint app/page.tsx tests/presentation/root-redirect.test.ts`: lulus.
+
+---
+
 ## Phase 19: Business Switcher Performance (2026-08-09)
 
 ### Masalah
