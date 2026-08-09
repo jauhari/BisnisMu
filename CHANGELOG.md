@@ -4,9 +4,23 @@ All notable changes to BisnisMu are documented in this file.
 
 ## [Unreleased]
 
-### Fixed — Ganti usaha gagal "Invalid request body" (kritis)
-- Mengganti usaha aktif ke `PKU Ponjong` gagal dengan toast `Invalid request body` dan dropdown tetap terbuka. Validasi route memeriksa ID entitas dengan regex yang hanya menerima Prisma `cuid()` v1 atau UUID, sedangkan `scripts/import-pku-ponjong.mjs` membuat ID berformat `pku_<uuid-tanpa-strip>` (begitu pula `pkuacct_`, `pkufiscal_`, `pkujournal_` untuk akun, periode, dan jurnal). ID tersebut ditolak sebagai `Invalid id` sebelum pengecekan membership sempat berjalan.
-- `ID_PATTERN` sekarang hanya memeriksa bentuk yang wajar (`[A-Za-z0-9_-]{8,64}`), bukan daftar putih format. Otorisasi tidak berubah dan tetap berasal dari resolusi ID terhadap query yang dibatasi tenant: ID valid tanpa membership tetap 403, input tidak wajar tetap 400.
+### Fixed - Business Switcher
+- Endpoint pemilihan bisnis sekarang menerima identifier bisnis internal yang valid, termasuk ID import legacy berformat `pku_...`, tanpa menolak request sebagai body tidak valid.
+- Otorisasi perpindahan tetap diverifikasi melalui membership aktif user pada bisnis yang dipilih.
+- Perpindahan bisnis tidak lagi menunggu refetch seluruh query aktif. Header diperbarui segera setelah sesi dikonfirmasi, cache data tenant sebelumnya dibersihkan, dan halaman dimuat ulang sebagai transition.
+
+### Fixed - Root Session Redirect
+- Akses ke `/` sekarang memeriksa session Better Auth yang valid: user dengan bisnis aktif diarahkan ke dashboard, user tanpa bisnis aktif diarahkan ke pemilihan bisnis, dan hanya session tidak ada/kadaluarsa yang diarahkan ke login.
+
+### Improved - Dashboard Performance
+- Dashboard utama tidak lagi memuat seluruh data dari 17 tabel operasional lalu menjalankan laporan laba-rugi lengkap pada setiap kunjungan.
+- Ringkasan dashboard menggunakan query terpilih yang berjalan paralel, menghitung KPI laba-rugi dan kas langsung dari jurnal, serta tidak lagi menulis audit laporan saat dashboard dibuka.
+- Cache ringkasan dashboard berlaku 30 detik, dan server-rendered routes diprioritaskan ke region Singapura (`sin1`) yang se-region dengan database Neon.
+- Helper dashboard tidak lagi diekspor dari route handler, sehingga typecheck dan production build Next.js kembali bersih.
+
+### Fixed — ID entitas legacy masih ditolak di luar pemilihan bisnis
+- Perbaikan pemilihan bisnis melonggarkan `selectBusinessSchema` saja, sedangkan `ID_PATTERN` di `validation.ts` tetap hanya menerima Prisma `cuid()` v1 atau UUID. Akibatnya ID legacy hasil `scripts/import-pku-ponjong.mjs` (`pkuacct_`, `pkufiscal_`, `pkujournal_`) masih ditolak `Invalid request body` pada route lain yang memakai `uuidSchema` — antara lain `accountId` pada `journalSchema` serta `fiscalPeriodId` dan `accountId` pada `beginningBalancesSchema`, sehingga posting jurnal dan saldo awal untuk `PKU Ponjong` tetap gagal.
+- `ID_PATTERN` kini hanya memeriksa bentuk yang wajar (`[A-Za-z0-9_-]{8,64}`), bukan daftar putih format. Otorisasi tidak berubah dan tetap berasal dari resolusi ID terhadap query yang dibatasi tenant.
 
 ### Fixed — Migrasi tidak bisa dijalankan dari database kosong (kritis)
 - `prisma migrate deploy` gagal di database bersih. `202606010001_repair_current_schema` membuat ulang enum `BusinessMemberRole`, tabel `business_members`, kolom `sessions.active_business_id`, 3 index, dan 2 foreign key yang sudah dibuat migrasi baseline sehingga berhenti dengan `type "BusinessMemberRole" already exists`. Seluruh pernyataannya kini idempoten.
@@ -18,7 +32,6 @@ All notable changes to BisnisMu are documented in this file.
 ### Fixed — Script
 - `scripts/seed-dev-owner.mjs` dan `scripts/verify-prisma-migrations.mjs` membaca `DATABASE_URL`/`SHADOW_DATABASE_URL` langsung tanpa pernah memuat `.env`, sehingga gagal kecuali variabelnya diekspor manual.
 - Seed melaporkan kegagalan dan keluar dengan status bukan nol, bukan lagi unhandled rejection.
-
 
 ### Added - Import Legacy ExAct VS
 - Utility `scripts/import-pku-ponjong.mjs` menambahkan alur import workbook ExAct VS yang diawali dry-run dan hanya menulis data dengan flag `--apply`.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { journalSchema, cashTransactionSchema, inventoryStockInSchema, purchaseOrderSchema, selectBusinessSchema } from "../../src/presentation/api/request-schemas";
+import { journalSchema, cashTransactionSchema, inventoryStockInSchema, purchaseOrderSchema, idOnlySchema } from "../../src/presentation/api/request-schemas";
 import { parseAndValidate, ValidationError } from "../../src/presentation/api/validation";
 
 function jsonRequest(body: unknown) {
@@ -67,9 +67,11 @@ describe("API input validation", () => {
     }, purchaseOrderSchema, "supplierId");
   });
 
-  // Rejecting a legitimate ID on shape alone surfaced as "Invalid request body"
-  // in the UI — switching to a business the user owns failed whenever that
-  // business's ID was not a cuid v1 or a UUID.
+  // Rejecting a legitimate ID on shape alone surfaced as "Invalid request body".
+  // `selectBusinessSchema` no longer runs an ID shape check at all, but every
+  // other route still validates entity IDs through `uuidSchema`, so the legacy
+  // import IDs below must be accepted there too — otherwise posting a journal or
+  // beginning balances for an imported business keeps failing.
   it.each([
     ["cuid v1", "cmslmpz3800037di6qkbfroeh"],
     ["cuid2", "k7mslpku0000000000ponjong"],
@@ -82,8 +84,8 @@ describe("API input validation", () => {
     ["ExAct import business", "pku_1f2e3d4c5b6a70819283a4b5c6d7e8f9"],
     ["ExAct import account", "pkuacct_1f2e3d4c5b6a70819283a4b5c6d7e8f9"],
     ["ExAct import journal", "pkujournal_1f2e3d4c5b6a70819283a4b5c6d7e8f9"],
-  ])("accepts an opaque entity id in %s form", async (_label, businessId) => {
-    await expect(parseAndValidate(jsonRequest({ businessId }), selectBusinessSchema)).resolves.toEqual({ businessId });
+  ])("accepts an opaque entity id in %s form", async (_label, accountId) => {
+    await expect(parseAndValidate(jsonRequest({ accountId }), idOnlySchema("accountId"))).resolves.toEqual({ accountId });
   });
 
   it.each([
@@ -91,8 +93,8 @@ describe("API input validation", () => {
     ["too short", "abc123"],
     ["path traversal", "../../etc/passwd"],
     ["sql-ish", "1 OR 1=1"],
-  ])("still rejects a %s id", async (_label, businessId) => {
-    await expectFieldError({ businessId }, selectBusinessSchema, "businessId");
+  ])("still rejects a %s id", async (_label, accountId) => {
+    await expectFieldError({ accountId }, idOnlySchema("accountId"), "accountId");
   });
 
   it("exposes field-level validation errors", async () => {

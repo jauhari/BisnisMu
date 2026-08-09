@@ -1,7 +1,77 @@
 # BisnisMu — Handoff Document
 
 Date: 2026-08-09
-Session scope: Import data legacy ExAct VS / Google Sheets untuk PKU Ponjong, normalisasi CoA SAK EMKM, rekonsiliasi akuntansi, dokumentasi, dan push git.
+Session scope: Import data legacy ExAct VS / Google Sheets untuk PKU Ponjong, normalisasi CoA SAK EMKM, rekonsiliasi akuntansi, perbaikan pemilihan bisnis, dokumentasi, dan push git.
+
+---
+
+## Phase 21: Dashboard Performance Path (2026-08-09)
+
+### Temuan
+- Dashboard utama melakukan 17 query Prisma lintas modul, kemudian memanggil laporan laba-rugi secara berurutan. Untuk PKU Ponjong, query operasional kosong memakan sekitar 0,9 detik dan laporan laba-rugi menambah sekitar 1 detik.
+- Database Neon berada di `ap-southeast-1`, sedangkan aplikasi sebelumnya tidak menentukan region function.
+
+### Perbaikan
+- Tambah `src/presentation/dashboard/dashboard-summary.ts`, ringkasan khusus layar dashboard dengan 8 query terpilih yang berjalan paralel.
+- KPI laba-rugi dan saldo kas dihitung dari jurnal posted tanpa membuat audit log report untuk setiap kunjungan dashboard; hasil PKU Ponjong tervalidasi sama dengan laporan: net profit `-Rp18.453.749`.
+- Dashboard utama memakai ringkasan ini dan cache `unstable_cache` 30 detik.
+- `app/layout.tsx` menetapkan `preferredRegion = "sin1"` agar server-rendered dashboard dekat dengan Neon Singapura.
+- `getCachedDashboardOverview` tidak lagi diekspor dari App Route, memperbaiki batas export Next.js yang sebelumnya membuat `npm run typecheck` gagal.
+
+### Verifikasi
+- Benchmark query ringkasan: sekitar 0,95 detik dari lingkungan lokal ke Neon sebelum cache; jalur lama memerlukan dua tahap sekitar 1,9 detik.
+- `npm test`: lulus, 32 file / 216 test.
+- `npm run typecheck`: lulus.
+- `npm run build`: lulus. Terdapat warning hook dependency lama pada halaman lain, tanpa error build.
+
+---
+
+## Phase 20: Root Session Redirect (2026-08-09)
+
+### Masalah
+- Root route `app/page.tsx` selalu mengarahkan setiap pengunjung ke `/login`, termasuk user yang masih memiliki session Better Auth valid.
+
+### Perbaikan
+- Root route sekarang membaca cookie session server-side dan memvalidasinya terhadap database.
+- Session valid dengan bisnis aktif diarahkan ke `/dashboard`.
+- Session valid tanpa bisnis aktif diarahkan ke `/select-business`; session tidak ada atau kadaluarsa tetap ke `/login`.
+- Error infrastruktur tidak dimasking sebagai login redirect.
+
+### Verifikasi
+- Test regresi baru `tests/presentation/root-redirect.test.ts` mencakup tiga skenario redirect.
+- `npm test`: lulus, 32 file / 216 test.
+- `npx eslint app/page.tsx tests/presentation/root-redirect.test.ts`: lulus.
+
+---
+
+## Phase 19: Business Switcher Performance (2026-08-09)
+
+### Masalah
+- Setelah memilih usaha, UI menunggu `invalidateQueries()` tanpa filter. Semua query aktif direfetch secara sinkron sebelum `router.refresh()`, sehingga perpindahan terasa lambat dan nama usaha lama terlalu lama tampil.
+
+### Perbaikan
+- `components/layout/app-shell.tsx` memperbarui cache daftar bisnis secara optimistis setelah server mengonfirmasi perubahan sesi.
+- Cache query tenant sebelumnya dibersihkan tanpa menunggu refetch massal; `router.refresh()` dijalankan dalam React transition untuk memuat data bisnis baru.
+- Kontrol switcher tetap dinonaktifkan selama request atau transition berjalan agar tidak ada request tumpang tindih.
+
+### Verifikasi
+- `npm test`: lulus, 31 file / 213 test.
+- `npx eslint components/layout/app-shell.tsx`: lulus.
+- `npm run typecheck`: masih berhenti pada error lama export `getCachedDashboardOverview` dari route dashboard, tidak terkait perubahan ini.
+
+---
+
+## Phase 18: Business Switcher Legacy ID Fix (2026-08-09)
+
+### Masalah
+- Pemilihan `PKU Ponjong` gagal dengan toast `Invalid request body` karena ID hasil import berformat `pku_...`, sedangkan `selectBusinessSchema` hanya menerima CUID atau UUID.
+
+### Perbaikan
+- `src/presentation/api/request-schemas.ts`: `businessId` pada endpoint `/api/auth/select-business` kini divalidasi sebagai string nonkosong, karena ID bisnis bersifat opaque.
+- Keamanan tetap terjaga di `selectActiveBusiness`: sistem mencari `BusinessMember` aktif untuk user pada ID bisnis yang diminta sebelum memperbarui sesi.
+
+### Verifikasi
+- `npm test`: lulus, 31 file / 213 test.
 
 ---
 

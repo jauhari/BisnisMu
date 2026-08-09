@@ -12,7 +12,7 @@ const engine = new DashboardEngine();
 
 // Cache the heavy dashboard computation for 30s to make repeated views (and same filter) instant.
 // Keyed by business + time range + thresholds. This dramatically improves perceived speed for the cockpit.
-export const getCachedDashboardOverview = unstable_cache(
+const getCachedDashboardOverview = unstable_cache(
   async (input: any) => {
     // The original heavy logic (many finds + reporting + engine)
     const {
