@@ -4,6 +4,10 @@ All notable changes to BisnisMu are documented in this file.
 
 ## [Unreleased]
 
+### Fixed - Business Switcher
+- Endpoint pemilihan bisnis sekarang menerima identifier bisnis internal yang valid, termasuk ID import legacy berformat `pku_...`, tanpa menolak request sebagai body tidak valid.
+- Otorisasi perpindahan tetap diverifikasi melalui membership aktif user pada bisnis yang dipilih.
+
 ### Added - Import Legacy ExAct VS
 - Utility `scripts/import-pku-ponjong.mjs` menambahkan alur import workbook ExAct VS yang diawali dry-run dan hanya menulis data dengan flag `--apply`.
 - Import dibuat atomik dalam satu transaksi database: bisnis, membership owner, bagan akun, periode fiskal, saldo awal, jurnal, baris jurnal, dan audit trail semuanya rollback bila validasi atau rekonsiliasi gagal.

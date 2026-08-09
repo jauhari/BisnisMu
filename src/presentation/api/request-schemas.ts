@@ -273,7 +273,9 @@ export const floatTransactionSchema = z.object({
 export const settingsSchema = z.object({ name: optionalString, npwpNumber: optionalString, address: optionalString, fiscalYearStart: z.coerce.number().int().min(1).max(12).optional(), settings: z.record(z.unknown()).optional() }).passthrough();
 export const fiscalPeriodSchema = z.object({ fiscalYear: z.number().int().min(1900).max(9999) }).passthrough();
 export const beginningBalancesSchema = z.object({ fiscalPeriodId: uuidSchema, lines: z.array(z.object({ accountId: uuidSchema, side: z.enum(["DEBIT", "CREDIT"]), amount: nonNegativeMoneySchema })).min(1) }).passthrough();
-export const selectBusinessSchema = z.object({ businessId: uuidSchema });
+// Business IDs are opaque database identifiers. Authorization is enforced by
+// selectActiveBusiness through the active BusinessMember record.
+export const selectBusinessSchema = z.object({ businessId: z.string().trim().min(1, "Business id is required") });
 export const dashboardRequestSchema = z.object({ startsOn: dateSchema, endsOn: dateSchema, lowStockThreshold: positiveQuantitySchema.optional(), lowFloatThreshold: nonNegativeMoneySchema.optional() });
 export const reportRequestSchema = z.object({ command: z.object({ startsOn: dateSchema.optional(), endsOn: dateSchema.optional(), asOf: dateSchema.optional() }).passthrough() });
 export const posCartAddSchema = z.object({

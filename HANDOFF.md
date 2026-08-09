@@ -1,7 +1,21 @@
 # BisnisMu — Handoff Document
 
 Date: 2026-08-09
-Session scope: Import data legacy ExAct VS / Google Sheets untuk PKU Ponjong, normalisasi CoA SAK EMKM, rekonsiliasi akuntansi, dokumentasi, dan push git.
+Session scope: Import data legacy ExAct VS / Google Sheets untuk PKU Ponjong, normalisasi CoA SAK EMKM, rekonsiliasi akuntansi, perbaikan pemilihan bisnis, dokumentasi, dan push git.
+
+---
+
+## Phase 18: Business Switcher Legacy ID Fix (2026-08-09)
+
+### Masalah
+- Pemilihan `PKU Ponjong` gagal dengan toast `Invalid request body` karena ID hasil import berformat `pku_...`, sedangkan `selectBusinessSchema` hanya menerima CUID atau UUID.
+
+### Perbaikan
+- `src/presentation/api/request-schemas.ts`: `businessId` pada endpoint `/api/auth/select-business` kini divalidasi sebagai string nonkosong, karena ID bisnis bersifat opaque.
+- Keamanan tetap terjaga di `selectActiveBusiness`: sistem mencari `BusinessMember` aktif untuk user pada ID bisnis yang diminta sebelum memperbarui sesi.
+
+### Verifikasi
+- `npm test`: lulus, 31 file / 213 test.
 
 ---
 
