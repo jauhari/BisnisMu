@@ -1,7 +1,15 @@
 #!/usr/bin/env node
 import bcrypt from "bcryptjs";
+import { existsSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
+
+// PrismaClient is constructed here rather than through the Prisma CLI, so
+// nothing reliably loads `.env` for us — without this the seed fails with
+// "Environment variable not found: DATABASE_URL".
+if (!process.env.DATABASE_URL && existsSync(".env")) {
+  process.loadEnvFile(".env");
+}
 
 // Refuse to plant a god-mode account in production unless explicitly forced.
 if (process.env.NODE_ENV === "production" && !process.argv.includes("--force")) {
@@ -57,4 +65,9 @@ async function main() {
   console.log(`Business: ${business.name} (${business.id})`);
 }
 
-main().finally(async () => prisma.$disconnect());
+main()
+  .catch((error) => {
+    console.error("Seed failed:", error instanceof Error ? error.message : error);
+    process.exitCode = 1;
+  })
+  .finally(async () => prisma.$disconnect());

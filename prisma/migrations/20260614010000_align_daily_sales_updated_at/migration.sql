@@ -1,0 +1,11 @@
+-- Align daily_sales.updated_at with prisma/schema.prisma.
+--
+-- `20260610120000_add_daily_sale_void_status` added the column as
+-- `NOT NULL DEFAULT CURRENT_TIMESTAMP`, but the model marks it `@updatedAt`,
+-- which Prisma represents with no database default. That mismatch showed up as
+-- permanent drift in `prisma migrate diff`.
+--
+-- Dropping the default is safe: `daily_sales` is only ever written through the
+-- Prisma client, which always sends `updated_at` for an `@updatedAt` field.
+-- `DROP DEFAULT` is a no-op when there is no default, so this is idempotent.
+ALTER TABLE "daily_sales" ALTER COLUMN "updated_at" DROP DEFAULT;

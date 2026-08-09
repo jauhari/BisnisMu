@@ -4,6 +4,22 @@ All notable changes to BisnisMu are documented in this file.
 
 ## [Unreleased]
 
+### Fixed — Ganti usaha gagal "Invalid request body" (kritis)
+- Mengganti usaha aktif ke `PKU Ponjong` gagal dengan toast `Invalid request body` dan dropdown tetap terbuka. Validasi route memeriksa ID entitas dengan regex yang hanya menerima Prisma `cuid()` v1 atau UUID, sedangkan `scripts/import-pku-ponjong.mjs` membuat ID berformat `pku_<uuid-tanpa-strip>` (begitu pula `pkuacct_`, `pkufiscal_`, `pkujournal_` untuk akun, periode, dan jurnal). ID tersebut ditolak sebagai `Invalid id` sebelum pengecekan membership sempat berjalan.
+- `ID_PATTERN` sekarang hanya memeriksa bentuk yang wajar (`[A-Za-z0-9_-]{8,64}`), bukan daftar putih format. Otorisasi tidak berubah dan tetap berasal dari resolusi ID terhadap query yang dibatasi tenant: ID valid tanpa membership tetap 403, input tidak wajar tetap 400.
+
+### Fixed — Migrasi tidak bisa dijalankan dari database kosong (kritis)
+- `prisma migrate deploy` gagal di database bersih. `202606010001_repair_current_schema` membuat ulang enum `BusinessMemberRole`, tabel `business_members`, kolom `sessions.active_business_id`, 3 index, dan 2 foreign key yang sudah dibuat migrasi baseline sehingga berhenti dengan `type "BusinessMemberRole" already exists`. Seluruh pernyataannya kini idempoten.
+- Tabel `daily_sales`, `daily_sale_items`, dan `daily_sale_contacts` tidak pernah tercatat di migrasi mana pun (hanya masuk lewat `prisma db push`), sehingga `20260610120000_add_daily_sale_void_status` gagal dengan `relation "daily_sales" does not exist`. Ditambahkan `20260609100000_add_daily_sales`.
+- Enum `ContactCategory` beserta kolom `contacts.category`, `pic_name`, `total_visits`, `total_revenue`, `loyalty_points`, dan index `(business_id, phone)` juga hanya ada lewat `db push`. Ditambahkan `20260609110000_add_contact_category_and_loyalty`.
+- `daily_sales.updated_at` dibuat dengan `DEFAULT CURRENT_TIMESTAMP` padahal model menandainya `@updatedAt` (tanpa default database), menyisakan drift permanen. Ditambahkan `20260614010000_align_daily_sales_updated_at`.
+- Seluruh migrasi baru bersifat idempoten sehingga database yang sudah memiliki objek tersebut tidak terpengaruh. `prisma migrate deploy` kini berhasil dari database kosong dan `prisma migrate diff` melaporkan tanpa perbedaan.
+
+### Fixed — Script
+- `scripts/seed-dev-owner.mjs` dan `scripts/verify-prisma-migrations.mjs` membaca `DATABASE_URL`/`SHADOW_DATABASE_URL` langsung tanpa pernah memuat `.env`, sehingga gagal kecuali variabelnya diekspor manual.
+- Seed melaporkan kegagalan dan keluar dengan status bukan nol, bukan lagi unhandled rejection.
+
+
 ### Added - Import Legacy ExAct VS
 - Utility `scripts/import-pku-ponjong.mjs` menambahkan alur import workbook ExAct VS yang diawali dry-run dan hanya menulis data dengan flag `--apply`.
 - Import dibuat atomik dalam satu transaksi database: bisnis, membership owner, bagan akun, periode fiskal, saldo awal, jurnal, baris jurnal, dan audit trail semuanya rollback bila validasi atau rekonsiliasi gagal.
