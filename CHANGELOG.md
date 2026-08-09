@@ -2,6 +2,27 @@
 
 All notable changes to AkuntansiMu are documented in this file.
 
+## [0.3.1] - 2026-08-09
+
+### Fixed — Authentication (critical)
+- **Every authenticated API request returned 401.** `getRequestSessionToken()` returned the better-auth cookie verbatim, but with a `secret` configured that cookie is `<token>.<hmac-signature>` while `sessions.token` stores only the bare token — so `session.findUnique({ where: { token } })` never matched. The signature is now stripped from the cookie, the `__Secure-` variant, and bearer tokens. Regression tests added in `tests/presentation/auth-session.test.ts`.
+
+### Fixed — Migrations (critical)
+- **`prisma migrate deploy` failed on every clean database.** `202606010001_repair_current_schema` recreated the `BusinessMemberRole` enum, `business_members` table, `sessions.active_business_id` column, 3 indexes and 2 foreign keys that `20260531150000_auth_business_member` already creates, aborting with `type "BusinessMemberRole" already exists`. Every statement in that migration is now idempotent, so it is a no-op on a properly migrated database and still repairs a legacy `db push` one.
+- **Schema drift:** `AuditAction.PRODUCT_UPDATED` existed in `schema.prisma` with no migration creating it, so `InventoryService.updateProduct()` failed against the database with `invalid input value for enum "AuditAction"`. Added `20260601120000_add_product_updated_audit_action`. `prisma migrate diff` now reports no drift.
+
+### Fixed — Install & build
+- Removed the direct `better-call` dependency. It was never imported, and pinning `^2.0.3` conflicted with the `better-call@1.3.5` peer required by `@better-auth/core`, making a fresh install fail with `ERESOLVE`. better-auth resolves its own copy.
+- Added `pnpm.onlyBuiltDependencies` so `prisma generate` and the `argon2`/`sharp` native builds run on install instead of being blocked — without them a fresh checkout failed typechecking with `Module '"@prisma/client"' has no exported member 'PrismaClient'`.
+- Removed `experimental.nodeMiddleware` from `next.config.ts`. Node.js middleware is stable in Next.js 15.5 and the flag is now rejected as an unknown key; `runtime: "nodejs"` in `middleware.ts` is sufficient.
+
+### Fixed — Scripts
+- `scripts/verify-prisma-migrations.mjs` and `scripts/seed-dev-owner.mjs` read `DATABASE_URL`/`SHADOW_DATABASE_URL` directly but never loaded `.env`, so both always failed unless the variables were exported by hand. They now load `.env` when the variable is absent.
+- The seed script reports failures and exits non-zero instead of surfacing an unhandled rejection.
+
+### Added — Tests
+- `tests/presentation/prisma-enum-drift.test.ts` fails when a `schema.prisma` enum value has no migration creating it — the gap that let the `PRODUCT_UPDATED` drift ship.
+
 ## [0.3.0] - 2026-06-01
 
 ### Added — Revenue & Tourism API Routes

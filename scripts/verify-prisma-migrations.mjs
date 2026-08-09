@@ -1,5 +1,13 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
+import { existsSync } from "node:fs";
+
+// The Prisma CLI loads `.env` on its own, but SHADOW_DATABASE_URL is read here
+// and passed through explicitly, so this script has to load `.env` itself —
+// otherwise the check always aborts unless the variable is exported by hand.
+if (!process.env.SHADOW_DATABASE_URL && existsSync(".env")) {
+  process.loadEnvFile(".env");
+}
 
 if (!process.env.SHADOW_DATABASE_URL) {
   console.error("SHADOW_DATABASE_URL is required to verify migration history against prisma/schema.prisma.");

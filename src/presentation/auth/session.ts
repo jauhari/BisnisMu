@@ -27,14 +27,30 @@ export interface AuthenticatedUserContext {
   session: Omit<SessionRecord, "user">;
 }
 
+/**
+ * When `secret` is configured, better-auth stores the session cookie as
+ * `<token>.<hmac-signature>`, while `sessions.token` holds the bare token.
+ * `getSessionCookie()` returns the cookie verbatim — signature included — so the
+ * suffix has to be removed before looking the session up, otherwise every
+ * authenticated request fails to resolve its session.
+ *
+ * The signature is base64 and the token is generated from a dot-free alphabet,
+ * so the last "." is always the separator. An unsigned cookie has no "." and is
+ * returned unchanged.
+ */
+function stripCookieSignature(value: string): string {
+  const separator = value.lastIndexOf(".");
+  return separator === -1 ? value : value.slice(0, separator);
+}
+
 export function getRequestSessionToken(request: Request): string | null {
   const cookieToken = getSessionCookie(request);
-  if (cookieToken) return cookieToken;
+  if (cookieToken) return stripCookieSignature(cookieToken);
   const rawCookie = request.headers.get("cookie") ?? "";
   const directCookie = rawCookie.split(/;\s*/).find((part) => part.startsWith("better-auth.session_token=") || part.startsWith("__Secure-better-auth.session_token="));
-  if (directCookie) return decodeURIComponent(directCookie.slice(directCookie.indexOf("=") + 1));
+  if (directCookie) return stripCookieSignature(decodeURIComponent(directCookie.slice(directCookie.indexOf("=") + 1)));
   const authorization = request.headers.get("authorization");
-  if (authorization?.toLowerCase().startsWith("bearer ")) return authorization.slice(7).trim();
+  if (authorization?.toLowerCase().startsWith("bearer ")) return stripCookieSignature(authorization.slice(7).trim());
   return null;
 }
 

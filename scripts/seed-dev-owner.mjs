@@ -1,6 +1,14 @@
 #!/usr/bin/env node
 import argon2 from "argon2";
+import { existsSync } from "node:fs";
 import { PrismaClient } from "@prisma/client";
+
+// PrismaClient is constructed here rather than through the Prisma CLI, so
+// nothing loads `.env` for us — without this the seed fails with
+// "Environment variable not found: DATABASE_URL".
+if (!process.env.DATABASE_URL && existsSync(".env")) {
+  process.loadEnvFile(".env");
+}
 
 const prisma = new PrismaClient();
 
@@ -48,4 +56,9 @@ async function main() {
   console.log(`Business: ${business.name} (${business.id})`);
 }
 
-main().finally(async () => prisma.$disconnect());
+main()
+  .catch((error) => {
+    console.error("Seed failed:", error instanceof Error ? error.message : error);
+    process.exitCode = 1;
+  })
+  .finally(async () => prisma.$disconnect());
