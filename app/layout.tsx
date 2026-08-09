@@ -4,5 +4,6 @@ import type { ReactNode } from "react";
 import { AppProviders } from "./providers";
 
 export const metadata: Metadata = { title: "BisnisMu", description: "Premium ERP and POS accounting platform" };
+export const preferredRegion = "sin1";
 
 export default function RootLayout({ children }: { children: ReactNode }) { return <html lang="id" suppressHydrationWarning><body suppressHydrationWarning><AppProviders>{children}</AppProviders></body></html>; }

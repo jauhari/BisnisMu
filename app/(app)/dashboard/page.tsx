@@ -5,7 +5,7 @@ import { GlassErrorState, GlassSkeleton } from "@/components/feedback/glass-feed
 import { GlassTable } from "@/components/tables/glass-table";
 import { formatMoney, formatNumber } from "@/presentation/format/number";
 import { getAuthenticatedUserContextByToken, getServerSessionToken } from "@/presentation/auth/session";
-import { getCachedDashboardOverview } from "@/app/api/dashboard/overview/route";
+import { getCachedDashboardSummary } from "@/presentation/dashboard/dashboard-summary";
 import { DashboardCharts } from "./dashboard-charts";
 
 type FilterOption = "1w" | "1m" | "3m" | "6m" | "1y";
@@ -32,15 +32,14 @@ async function DashboardContent({ filter }: { filter: FilterOption }) {
   const context = await getAuthenticatedUserContextByToken(token);
   const { startsOn, endsOn } = getDateRange(filter);
 
-  const overview = await getCachedDashboardOverview({
+  const summary = await getCachedDashboardSummary({
     businessId: context.businessId,
-    actorUserId: context.actorUserId,
     startsOn: new Date(startsOn),
     endsOn: new Date(endsOn),
   });
 
-  const salesTrend = overview.salesTrend ?? [];
-  const cashTrend = overview.cashTrend ?? [];
+  const salesTrend = summary.salesTrend;
+  const cashTrend = summary.cashTrend;
 
   return (
     <DashboardGrid>
@@ -80,10 +79,10 @@ async function DashboardContent({ filter }: { filter: FilterOption }) {
       </section>
 
       <KpiGrid items={[
-        { title: "Sales today", value: formatMoney(overview.sales?.salesToday ?? 0), detail: "Live" },
-        { title: "Net profit", value: formatMoney(overview.profitability?.netProfit ?? 0), detail: `Margin ${overview.profitability?.profitMargin ?? 0}%` },
-        { title: "Cash + bank", value: formatMoney(Number(overview.cash?.cashOnHand ?? 0) + Number(overview.cash?.bankBalance ?? 0)), detail: "Available balance" },
-        { title: "Inventory value", value: formatMoney(overview.inventory?.inventoryValue ?? 0), detail: `${overview.inventory?.lowStockItems?.length ?? 0} low stock alerts` }
+        { title: "Sales today", value: formatMoney(summary.salesToday), detail: "Live" },
+        { title: "Net profit", value: formatMoney(summary.netProfit), detail: `Margin ${summary.profitMargin}%` },
+        { title: "Cash + bank", value: formatMoney(summary.cashOnHand + summary.bankBalance), detail: "Available balance" },
+        { title: "Inventory value", value: formatMoney(summary.inventoryValue), detail: `${summary.lowStockCount} low stock alerts` }
       ]} />
 
       <DashboardCharts salesTrend={salesTrend} cashTrend={cashTrend} />
@@ -92,9 +91,9 @@ async function DashboardContent({ filter }: { filter: FilterOption }) {
         <GlassTable
           columns={[{ key: "item", header: "Exception" }, { key: "value", header: "Value" }, { key: "action", header: "Action" }]}
           rows={[
-            { item: "Overdue receivable", value: formatMoney(overview.receivable?.overdueReceivable ?? 0), action: "Review AR" },
-            { item: "Low stock", value: formatNumber(overview.inventory?.lowStockItems?.length ?? 0), action: "Review inventory" },
-            { item: "Low float", value: overview.float?.lowFloatProviders?.[0]?.provider ?? "None", action: "Top up" }
+            { item: "Overdue receivable", value: formatMoney(summary.overdueReceivable), action: "Review AR" },
+            { item: "Low stock", value: formatNumber(summary.lowStockCount), action: "Review inventory" },
+            { item: "Low float", value: summary.lowFloatProvider ?? "None", action: "Top up" }
           ]}
         />
       </DashboardExceptionPanel>

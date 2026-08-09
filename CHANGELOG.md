@@ -12,6 +12,12 @@ All notable changes to BisnisMu are documented in this file.
 ### Fixed - Root Session Redirect
 - Akses ke `/` sekarang memeriksa session Better Auth yang valid: user dengan bisnis aktif diarahkan ke dashboard, user tanpa bisnis aktif diarahkan ke pemilihan bisnis, dan hanya session tidak ada/kadaluarsa yang diarahkan ke login.
 
+### Improved - Dashboard Performance
+- Dashboard utama tidak lagi memuat seluruh data dari 17 tabel operasional lalu menjalankan laporan laba-rugi lengkap pada setiap kunjungan.
+- Ringkasan dashboard menggunakan query terpilih yang berjalan paralel, menghitung KPI laba-rugi dan kas langsung dari jurnal, serta tidak lagi menulis audit laporan saat dashboard dibuka.
+- Cache ringkasan dashboard berlaku 30 detik, dan server-rendered routes diprioritaskan ke region Singapura (`sin1`) yang se-region dengan database Neon.
+- Helper dashboard tidak lagi diekspor dari route handler, sehingga typecheck dan production build Next.js kembali bersih.
+
 ### Added - Import Legacy ExAct VS
 - Utility `scripts/import-pku-ponjong.mjs` menambahkan alur import workbook ExAct VS yang diawali dry-run dan hanya menulis data dengan flag `--apply`.
 - Import dibuat atomik dalam satu transaksi database: bisnis, membership owner, bagan akun, periode fiskal, saldo awal, jurnal, baris jurnal, dan audit trail semuanya rollback bila validasi atau rekonsiliasi gagal.

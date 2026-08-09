@@ -5,6 +5,27 @@ Session scope: Import data legacy ExAct VS / Google Sheets untuk PKU Ponjong, no
 
 ---
 
+## Phase 21: Dashboard Performance Path (2026-08-09)
+
+### Temuan
+- Dashboard utama melakukan 17 query Prisma lintas modul, kemudian memanggil laporan laba-rugi secara berurutan. Untuk PKU Ponjong, query operasional kosong memakan sekitar 0,9 detik dan laporan laba-rugi menambah sekitar 1 detik.
+- Database Neon berada di `ap-southeast-1`, sedangkan aplikasi sebelumnya tidak menentukan region function.
+
+### Perbaikan
+- Tambah `src/presentation/dashboard/dashboard-summary.ts`, ringkasan khusus layar dashboard dengan 8 query terpilih yang berjalan paralel.
+- KPI laba-rugi dan saldo kas dihitung dari jurnal posted tanpa membuat audit log report untuk setiap kunjungan dashboard; hasil PKU Ponjong tervalidasi sama dengan laporan: net profit `-Rp18.453.749`.
+- Dashboard utama memakai ringkasan ini dan cache `unstable_cache` 30 detik.
+- `app/layout.tsx` menetapkan `preferredRegion = "sin1"` agar server-rendered dashboard dekat dengan Neon Singapura.
+- `getCachedDashboardOverview` tidak lagi diekspor dari App Route, memperbaiki batas export Next.js yang sebelumnya membuat `npm run typecheck` gagal.
+
+### Verifikasi
+- Benchmark query ringkasan: sekitar 0,95 detik dari lingkungan lokal ke Neon sebelum cache; jalur lama memerlukan dua tahap sekitar 1,9 detik.
+- `npm test`: lulus, 32 file / 216 test.
+- `npm run typecheck`: lulus.
+- `npm run build`: lulus. Terdapat warning hook dependency lama pada halaman lain, tanpa error build.
+
+---
+
 ## Phase 20: Root Session Redirect (2026-08-09)
 
 ### Masalah
