@@ -2,8 +2,8 @@ import { PostJournalCommand } from "../../accounting/application/journal-reposit
 import { JournalPostingService } from "../../accounting/application/journal-posting-service";
 import { FloatManagementService } from "../../float/application/float-service";
 import { InventoryEngine } from "../domain/inventory-engine";
-import { InventoryBalanceEntity, InventoryError, InventoryValidationContext, TenantContext } from "../domain/inventory-types";
-import { AdjustStockCommand, ConsumeDigitalProductCommand, CreateProductCommand, GetInventoryBalanceCommand, InventoryRepository, StockInCommand, StockOutCommand, TransferStockCommand, UpdatePriceCommand, UpdateProductCommand } from "./inventory-repository";
+import { InventoryBalanceEntity, InventoryError, InventoryMovementEntity, InventoryMovementSourceType, InventoryValidationContext, TenantContext } from "../domain/inventory-types";
+import { AdjustStockCommand, ConsumeDigitalProductCommand, CreateProductCommand, GetInventoryBalanceCommand, InventoryRepository, MovementSource, ReverseMovementsCommand, StockInCommand, StockOutCommand, TransferStockCommand, UpdatePriceCommand, UpdateProductCommand } from "./inventory-repository";
 
 export class InventoryService {
   constructor(private readonly repo: InventoryRepository, private readonly journal: JournalPostingService, private readonly floatService?: FloatManagementService, private readonly engine = new InventoryEngine()) {}
@@ -53,7 +53,7 @@ export class InventoryService {
   async stockIn(command: StockInCommand) {
     const ctx = this.ctx(command); const context = await this.stockContext(ctx, command.productId, command.locationId); const result = this.engine.stockIn(command, context);
     const journal = await this.post(ctx, command.movementDate, "INVENTORY_STOCK_IN", command.productId, command.description, result.preview.lines, "stock-in:" + ctx.businessId + ":" + command.productId + ":" + command.locationId + ":" + command.movementDate.toISOString() + ":" + command.quantity.toString() + ":" + command.unitCost.toString());
-    const balance = await this.repo.atomicStockIn(ctx, command.productId, command.locationId, command.quantity, command.unitCost); const movement = await this.repo.createMovement(ctx, { ...result.movement, balanceAfter: balance.quantity, averageCostAfter: balance.averageCost, postedJournalId: journal.journalId });
+    const balance = await this.repo.atomicStockIn(ctx, command.productId, command.locationId, command.quantity, command.unitCost); const movement = await this.repo.createMovement(ctx, { ...result.movement, balanceAfter: balance.quantity, averageCostAfter: balance.averageCost, postedJournalId: journal.journalId, ...this.sourceFields(command.source) });
     await this.repo.createCostHistory(ctx, { businessId: ctx.businessId, productId: command.productId, buyPrice: command.unitCost, effectiveDate: command.movementDate, source: "STOCK_IN" });
     await this.audit(ctx, "INVENTORY_STOCK_IN", "inventory_movement", movement.id, { quantity: command.quantity.toString(), averageCost: balance.averageCost.toString() });
     return { balance, movement, journal, preview: result.preview };
@@ -62,7 +62,7 @@ export class InventoryService {
   async stockOut(command: StockOutCommand) {
     const ctx = this.ctx(command); const context = await this.stockContext(ctx, command.productId, command.locationId); const result = this.engine.stockOut(command, context);
     const journal = await this.post(ctx, command.movementDate, "INVENTORY_STOCK_OUT", command.productId, command.description, result.preview.lines, "stock-out:" + ctx.businessId + ":" + command.productId + ":" + command.locationId + ":" + command.movementDate.toISOString() + ":" + command.quantity.toString());
-    const balance = await this.repo.atomicStockOut(ctx, command.productId, command.locationId, command.quantity); const movement = await this.repo.createMovement(ctx, { ...result.movement, balanceAfter: balance.quantity, averageCostAfter: balance.averageCost, postedJournalId: journal.journalId });
+    const balance = await this.repo.atomicStockOut(ctx, command.productId, command.locationId, command.quantity); const movement = await this.repo.createMovement(ctx, { ...result.movement, balanceAfter: balance.quantity, averageCostAfter: balance.averageCost, postedJournalId: journal.journalId, ...this.sourceFields(command.source) });
     await this.audit(ctx, "INVENTORY_STOCK_OUT", "inventory_movement", movement.id, { quantity: command.quantity.toString(), totalCost: result.movement.totalCost.toString() });
     return { balance, movement, journal, preview: result.preview };
   }
@@ -94,10 +94,79 @@ export class InventoryService {
     return { movement, float: result };
   }
 
+  /**
+   * Undoes every stock movement booked against a source document, used when that
+   * document is voided. For each movement it puts the quantity back (or takes it out
+   * again, for a stock-in) at the movement's own unit cost, reverses the journal that
+   * movement posted, and records a compensating movement pointing at the original.
+   *
+   * Movements that were already reversed are skipped, so a retried void is a no-op.
+   * Digital consumption and transfers are not reversed here — they have no simple
+   * quantity inverse — and are reported back to the caller instead of failing silently.
+   */
+  async reverseMovementsForSource(command: ReverseMovementsCommand) {
+    const ctx = this.ctx(command);
+    const movements = await this.repo.listMovementsBySource(ctx, command.source);
+    const alreadyReversed = new Set(movements.map((m) => m.reversesMovementId).filter((id): id is string => Boolean(id)));
+
+    const reversed: InventoryMovementEntity[] = [];
+    const journals: string[] = [];
+    const skipped: Array<{ movementId: string; reason: string }> = [];
+
+    for (const movement of movements) {
+      if (movement.reversesMovementId) continue;
+      if (alreadyReversed.has(movement.id)) continue;
+      if (movement.type !== "STOCK_IN" && movement.type !== "STOCK_OUT") {
+        skipped.push({ movementId: movement.id, reason: "UNSUPPORTED_MOVEMENT_TYPE:" + movement.type });
+        continue;
+      }
+
+      const locationId = (movement.type === "STOCK_OUT" ? movement.fromLocationId : movement.toLocationId) ?? null;
+      if (!locationId) {
+        skipped.push({ movementId: movement.id, reason: "MOVEMENT_LOCATION_UNKNOWN" });
+        continue;
+      }
+
+      const balance = movement.type === "STOCK_OUT"
+        ? await this.repo.atomicStockIn(ctx, movement.productId, locationId, movement.quantity, movement.unitCost)
+        : await this.repo.atomicStockOut(ctx, movement.productId, locationId, movement.quantity);
+
+      if (movement.postedJournalId) {
+        const journal = await this.journal.reverse({ businessId: ctx.businessId, actorUserId: ctx.actorUserId, journalId: movement.postedJournalId, reversalDate: command.reversalDate, reason: command.reason, ...this.metaFields(ctx) });
+        journals.push(journal.journalId);
+      }
+
+      const compensating = await this.repo.createMovement(ctx, {
+        businessId: ctx.businessId,
+        productId: movement.productId,
+        type: movement.type === "STOCK_OUT" ? "STOCK_IN" : "STOCK_OUT",
+        movementDate: command.reversalDate,
+        quantity: movement.quantity,
+        unitCost: movement.unitCost,
+        totalCost: movement.totalCost,
+        fromLocationId: movement.type === "STOCK_OUT" ? null : locationId,
+        toLocationId: movement.type === "STOCK_OUT" ? locationId : null,
+        balanceAfter: balance.quantity,
+        averageCostAfter: balance.averageCost,
+        postedJournalId: null,
+        description: "Reversal: " + movement.description,
+        sourceType: command.source.sourceType,
+        sourceId: command.source.sourceId,
+        reversesMovementId: movement.id
+      });
+      reversed.push(compensating);
+      await this.audit(ctx, "INVENTORY_MOVEMENT_REVERSED", "inventory_movement", compensating.id, { reversedMovementId: movement.id, quantity: movement.quantity.toString(), reason: command.reason });
+    }
+
+    return { reversed, journals, skipped };
+  }
+
   async getInventoryBalance(command: GetInventoryBalanceCommand): Promise<InventoryBalanceEntity> { const ctx = this.ctx(command); return await this.repo.findBalance(ctx, command.productId, command.locationId) ?? { id: "", businessId: ctx.businessId, productId: command.productId, locationId: command.locationId, quantity: 0n, averageCost: 0n, inventoryValue: 0n }; }
 
   private async stockContext(ctx: TenantContext, productId: string, locationId: string): Promise<InventoryValidationContext> { const product = await this.repo.findProduct(ctx, productId); const ids = [product?.inventoryAccountId, product?.cogsAccountId, product?.revenueAccountId].filter((id): id is string => Boolean(id)); const [accounts, balance] = await Promise.all([this.repo.findAccounts(ctx, ids), this.repo.findBalance(ctx, productId, locationId)]); const byId = new Map(accounts.map((a) => [a.id, a])); return { product, balance, inventoryAccount: product?.inventoryAccountId ? byId.get(product.inventoryAccountId) ?? null : null, cogsAccount: product?.cogsAccountId ? byId.get(product.cogsAccountId) ?? null : null, revenueAccount: product?.revenueAccountId ? byId.get(product.revenueAccountId) ?? null : null }; }
   private async post(ctx: TenantContext, date: Date, source: string, sourceId: string, description: string, lines: PostJournalCommand["lines"], idempotencyKey: string) { const command: PostJournalCommand = { businessId: ctx.businessId, actorUserId: ctx.actorUserId, transactionDate: date, source, sourceId, description: description.trim(), idempotencyKey, lines: lines.map((line) => ({ accountId: line.accountId, side: line.side, amount: line.amount })) }; if (ctx.requestId !== undefined) command.requestId = ctx.requestId; if (ctx.ipAddress !== undefined) command.ipAddress = ctx.ipAddress; if (ctx.userAgent !== undefined) command.userAgent = ctx.userAgent; return this.journal.post(command); }
   private async audit(ctx: TenantContext, action: Parameters<InventoryRepository["createAuditLog"]>[1]["action"], entityType: Parameters<InventoryRepository["createAuditLog"]>[1]["entityType"], entityId: string, metadata: Record<string, unknown>) { await this.repo.createAuditLog(ctx, { action, businessId: ctx.businessId, actorUserId: ctx.actorUserId, entityType, entityId, metadata }); }
   private ctx(command: { businessId: string; actorUserId: string; requestId?: string; ipAddress?: string; userAgent?: string }): TenantContext { const ctx: TenantContext = { businessId: command.businessId, actorUserId: command.actorUserId }; if (command.requestId !== undefined) ctx.requestId = command.requestId; if (command.ipAddress !== undefined) ctx.ipAddress = command.ipAddress; if (command.userAgent !== undefined) ctx.userAgent = command.userAgent; return ctx; }
+  private sourceFields(source?: MovementSource): { sourceType?: InventoryMovementSourceType; sourceId?: string } { return source ? { sourceType: source.sourceType, sourceId: source.sourceId } : {}; }
+  private metaFields(ctx: TenantContext): { requestId?: string; ipAddress?: string; userAgent?: string } { const meta: { requestId?: string; ipAddress?: string; userAgent?: string } = {}; if (ctx.requestId !== undefined) meta.requestId = ctx.requestId; if (ctx.ipAddress !== undefined) meta.ipAddress = ctx.ipAddress; if (ctx.userAgent !== undefined) meta.userAgent = ctx.userAgent; return meta; }
 }

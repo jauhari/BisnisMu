@@ -1,4 +1,5 @@
 import { Prisma, PrismaClient } from "@prisma/client";
+import { DbClient, withTransaction } from "../../shared/infrastructure/db-client";
 import {
   AccountGroupCode,
   AccountNode,
@@ -32,7 +33,7 @@ const domainGroupByPrisma = {
 type PrismaAccount = Awaited<ReturnType<PrismaClient["account"]["findFirst"]>>;
 
 export class PrismaChartOfAccountsRepository implements ChartOfAccountsRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: DbClient) {}
 
   async findById(ctx: TenantContext, accountId: string): Promise<AccountNode | null> {
     const account = await this.prisma.account.findFirst({ where: { businessId: ctx.businessId, id: accountId } });
@@ -94,7 +95,7 @@ export class PrismaChartOfAccountsRepository implements ChartOfAccountsRepositor
   }
 
   async createManySystemAccounts(ctx: TenantContext, accounts: Array<AccountTemplateItem & { normalBalance: "DEBIT" | "CREDIT"; parentId?: string | null }>): Promise<number> {
-    return this.prisma.$transaction(async (tx) => {
+    return withTransaction(this.prisma, async (tx) => {
       const createdByCode = new Map<string, string>();
       let created = 0;
 

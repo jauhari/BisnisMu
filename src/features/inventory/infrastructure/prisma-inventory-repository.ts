@@ -1,12 +1,13 @@
 import { Prisma, PrismaClient } from "@prisma/client";
+import { DbClient } from "../../shared/infrastructure/db-client";
 import { AccountGroupCode, AccountSnapshot } from "../../accounting/domain/accounting-types";
-import { CreateCostHistoryRecord, CreateInventoryMovementRecord, InventoryAuditEvent, InventoryRepository } from "../application/inventory-repository";
-import { CreateProductInput, InventoryBalanceEntity, InventoryMovementEntity, ProductCategoryEntity, ProductCostHistoryEntity, ProductEntity, ProductPriceEntity, ProviderProductEntity, TenantContext, UpdatePriceInput, UpdateProductInput } from "../domain/inventory-types";
+import { CreateCostHistoryRecord, CreateInventoryMovementRecord, InventoryAuditEvent, InventoryRepository, MovementSource } from "../application/inventory-repository";
+import { CreateProductInput, InventoryBalanceEntity, InventoryMovementEntity, InventoryMovementSourceType, ProductCategoryEntity, ProductCostHistoryEntity, ProductEntity, ProductPriceEntity, ProviderProductEntity, TenantContext, UpdatePriceInput, UpdateProductInput } from "../domain/inventory-types";
 
 const domainGroupByPrisma = { ASSET: 1, LIABILITY: 2, EQUITY: 3, REVENUE: 4, COGS: 5, EXPENSE: 6, OTHER_EXPENSE: 7 } as const;
 
 export class PrismaInventoryRepository implements InventoryRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: DbClient) {}
 
   async findAccounts(ctx: TenantContext, accountIds: string[]): Promise<AccountSnapshot[]> {
     const rows = await this.prisma.account.findMany({ where: { businessId: ctx.businessId, id: { in: accountIds } } });
@@ -93,6 +94,11 @@ export class PrismaInventoryRepository implements InventoryRepository {
     return rows.map((row) => this.toMovement(row));
   }
 
+  async listMovementsBySource(ctx: TenantContext, source: MovementSource): Promise<InventoryMovementEntity[]> {
+    const rows = await this.prisma.inventoryMovement.findMany({ where: { businessId: ctx.businessId, sourceType: source.sourceType, sourceId: source.sourceId }, orderBy: { createdAt: "asc" } });
+    return rows.map((row) => this.toMovement(row));
+  }
+
   async upsertBalance(ctx: TenantContext, balance: InventoryBalanceEntity): Promise<InventoryBalanceEntity> {
     const row = await this.prisma.inventoryBalance.upsert({ where: { businessId_productId_warehouseId: { businessId: ctx.businessId, productId: balance.productId, warehouseId: balance.locationId } }, update: { quantity: balance.quantity, averageCost: balance.averageCost, inventoryValue: balance.inventoryValue }, create: { businessId: ctx.businessId, productId: balance.productId, warehouseId: balance.locationId, quantity: balance.quantity, averageCost: balance.averageCost, inventoryValue: balance.inventoryValue } });
     return this.toBalance(row);
@@ -150,7 +156,7 @@ export class PrismaInventoryRepository implements InventoryRepository {
   }
 
   async createMovement(ctx: TenantContext, movement: CreateInventoryMovementRecord): Promise<InventoryMovementEntity> {
-    const row = await this.prisma.inventoryMovement.create({ data: { businessId: ctx.businessId, productId: movement.productId, type: movement.type === "STOCK_IN" ? "STOCK_IN" : movement.type === "STOCK_OUT" ? "STOCK_OUT" : movement.type, movementDate: movement.movementDate, quantity: movement.quantity, unitCost: movement.unitCost, totalCost: movement.totalCost, fromWarehouseId: movement.fromLocationId ?? null, toWarehouseId: movement.toLocationId ?? null, balanceAfter: movement.balanceAfter, averageCostAfter: movement.averageCostAfter, postedJournalId: movement.postedJournalId ?? null, description: movement.description, createdByUserId: ctx.actorUserId } });
+    const row = await this.prisma.inventoryMovement.create({ data: { businessId: ctx.businessId, productId: movement.productId, type: movement.type === "STOCK_IN" ? "STOCK_IN" : movement.type === "STOCK_OUT" ? "STOCK_OUT" : movement.type, movementDate: movement.movementDate, quantity: movement.quantity, unitCost: movement.unitCost, totalCost: movement.totalCost, fromWarehouseId: movement.fromLocationId ?? null, toWarehouseId: movement.toLocationId ?? null, balanceAfter: movement.balanceAfter, averageCostAfter: movement.averageCostAfter, postedJournalId: movement.postedJournalId ?? null, description: movement.description, sourceType: movement.sourceType ?? null, sourceId: movement.sourceId ?? null, reversesMovementId: movement.reversesMovementId ?? null, createdByUserId: ctx.actorUserId } });
     return this.toMovement(row);
   }
 
@@ -162,7 +168,7 @@ export class PrismaInventoryRepository implements InventoryRepository {
   private toProduct(row: NonNullable<Awaited<ReturnType<PrismaClient["product"]["findFirst"]>>>): ProductEntity { return { id: row.id, businessId: row.businessId, type: row.type, sku: row.sku, barcode: row.barcode, name: row.name, description: row.description, categoryId: row.categoryId, inventoryAccountId: row.inventoryAccountId, cogsAccountId: row.cogsAccountId, revenueAccountId: row.revenueAccountId, trackStock: row.trackStock, isActive: row.isActive }; }
   private toPrice(row: NonNullable<Awaited<ReturnType<PrismaClient["productPrice"]["findFirst"]>>>): ProductPriceEntity { return { id: row.id, businessId: row.businessId, productId: row.productId, priceType: row.priceType, amount: row.amount, effectiveDate: row.effectiveDate, priority: row.priority, isActive: row.isActive }; }
   private toBalance(row: NonNullable<Awaited<ReturnType<PrismaClient["inventoryBalance"]["findFirst"]>>>): InventoryBalanceEntity { return { id: row.id, businessId: row.businessId, productId: row.productId, locationId: row.warehouseId, quantity: row.quantity, averageCost: row.averageCost, inventoryValue: row.inventoryValue }; }
-  private toMovement(row: NonNullable<Awaited<ReturnType<PrismaClient["inventoryMovement"]["findFirst"]>>>): InventoryMovementEntity { return { id: row.id, businessId: row.businessId, productId: row.productId, type: row.type === "PURCHASE" ? "STOCK_IN" : row.type === "SALE" ? "STOCK_OUT" : row.type, movementDate: row.movementDate, quantity: row.quantity, unitCost: row.unitCost, totalCost: row.totalCost, fromLocationId: row.fromWarehouseId, toLocationId: row.toWarehouseId, balanceAfter: row.balanceAfter, averageCostAfter: row.averageCostAfter, postedJournalId: row.postedJournalId, description: row.description }; }
+  private toMovement(row: NonNullable<Awaited<ReturnType<PrismaClient["inventoryMovement"]["findFirst"]>>>): InventoryMovementEntity { return { id: row.id, businessId: row.businessId, productId: row.productId, type: row.type === "PURCHASE" ? "STOCK_IN" : row.type === "SALE" ? "STOCK_OUT" : row.type, movementDate: row.movementDate, quantity: row.quantity, unitCost: row.unitCost, totalCost: row.totalCost, fromLocationId: row.fromWarehouseId, toLocationId: row.toWarehouseId, balanceAfter: row.balanceAfter, averageCostAfter: row.averageCostAfter, postedJournalId: row.postedJournalId, description: row.description, sourceType: (row.sourceType ?? null) as InventoryMovementSourceType | null, sourceId: row.sourceId, reversesMovementId: row.reversesMovementId }; }
   private toProviderProduct(row: NonNullable<Awaited<ReturnType<PrismaClient["providerProduct"]["findFirst"]>>>): ProviderProductEntity { return { id: row.id, businessId: row.businessId, productId: row.productId, provider: row.provider, providerSku: row.providerCode, floatAccountId: row.floatAccountId, dynamicBuyPrice: row.providerBuyPrice, dynamicSellPrice: row.providerSellPrice, isActive: row.isActive }; }
   private toCostHistory(row: NonNullable<Awaited<ReturnType<PrismaClient["productCostHistory"]["findFirst"]>>>): ProductCostHistoryEntity { return { id: row.id, businessId: row.businessId, productId: row.productId, previousCost: row.previousCost, buyPrice: row.newCost, sellPrice: row.sellPrice, marginAmount: row.marginAmount, marginRateBps: row.marginRateBps, effectiveDate: row.effectiveDate, source: row.source }; }
 }

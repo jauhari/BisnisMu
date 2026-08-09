@@ -1,4 +1,5 @@
 import { Prisma, PrismaClient } from "@prisma/client";
+import { DbClient } from "../../shared/infrastructure/db-client";
 import { AccountGroupCode, AccountSnapshot } from "../../accounting/domain/accounting-types";
 import { CreateFloatTransactionRecord, FloatAuditEvent, FloatRepository } from "../application/float-repository";
 import { CreateFloatAccountInput, FloatAccountEntity, FloatBalanceSnapshotEntity, FloatBalanceSnapshotInput, FloatTransactionEntity, TenantContext } from "../domain/float-types";
@@ -6,7 +7,7 @@ import { CreateFloatAccountInput, FloatAccountEntity, FloatBalanceSnapshotEntity
 const domainGroupByPrisma = { ASSET: 1, LIABILITY: 2, EQUITY: 3, REVENUE: 4, COGS: 5, EXPENSE: 6, OTHER_EXPENSE: 7 } as const;
 
 export class PrismaFloatRepository implements FloatRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: DbClient) {}
 
   async findAccounts(ctx: TenantContext, accountIds: string[]): Promise<AccountSnapshot[]> {
     const accounts = await this.prisma.account.findMany({ where: { businessId: ctx.businessId, id: { in: accountIds } } });

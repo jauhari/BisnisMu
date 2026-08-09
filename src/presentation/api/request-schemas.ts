@@ -234,7 +234,7 @@ export const posSessionCloseSchema = z.object({ sessionId: uuidSchema, closedAt:
 export const posCartSchema = z.object({ sessionId: uuidSchema, productId: uuidSchema, quantity: positiveQuantitySchema }).passthrough();
 export const posCheckoutSchema = z.object({ transactionId: uuidSchema, saleDate: dateSchema, description: stringRequired, revenueSettlementAccountId: uuidSchema, arAccountId: optionalUuidSchema });
 export const posPaymentSchema = z.object({ transactionId: uuidSchema, amount: positiveMoneySchema, method: z.string().min(1) }).passthrough();
-export const posVoidSchema = z.object({ transactionId: uuidSchema, reason: stringRequired });
+export const posVoidSchema = z.object({ transactionId: uuidSchema, reason: z.string().min(10, "Void reason must be at least 10 characters") });
 export const posTerminalSchema = z.object({ name: stringRequired, cashDrawerId: optionalUuidSchema });
 
 export const cashDrawerSchema = z.object({ name: stringRequired, cashAccountId: uuidSchema });

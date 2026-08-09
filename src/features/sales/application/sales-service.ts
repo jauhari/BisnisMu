@@ -5,7 +5,7 @@ import { PaymentService } from "../../payment/application/payment-service";
 import { PaymentAllocationInput } from "../../payment/domain/payment-types";
 import { SalesEngine } from "../domain/sales-engine";
 import { SalesError, TenantContext } from "../domain/sales-types";
-import { AllocateSalesPaymentCommand, ConfirmSalesOrderCommand, CreateSalesOrderCommand, SalesRepository } from "./sales-repository";
+import { AllocateSalesPaymentCommand, ConfirmSalesOrderCommand, CreateSalesOrderCommand, SalesRepository, VoidSalesOrderCommand } from "./sales-repository";
 
 export class SalesService {
   constructor(private readonly repo: SalesRepository, private readonly journal: JournalPostingService, private readonly inventory: InventoryService, private readonly payment: PaymentService, private readonly engine = new SalesEngine()) {}
@@ -30,7 +30,7 @@ export class SalesService {
     const preview = this.engine.previewRevenue(sale, revenue, debitAccount);
     const posted = await this.post(ctx, sale.saleDate, "SALES_REVENUE", sale.id, sale.description, preview.lines, "sales-revenue:" + ctx.businessId + ":" + sale.id);
     for (const item of sale.items) {
-      if (item.productType === "PHYSICAL") await this.inventory.stockOut({ businessId: ctx.businessId, actorUserId: ctx.actorUserId, productId: item.productId, locationId: item.locationId ?? "main", movementDate: sale.saleDate, quantity: item.quantity, description: "Sale " + sale.salesNumber });
+      if (item.productType === "PHYSICAL") await this.inventory.stockOut({ businessId: ctx.businessId, actorUserId: ctx.actorUserId, productId: item.productId, locationId: item.locationId ?? "main", movementDate: sale.saleDate, quantity: item.quantity, description: "Sale " + sale.salesNumber, source: { sourceType: "SALES_ORDER", sourceId: sale.id } });
       if (item.productType === "DIGITAL") {
         const command = { businessId: ctx.businessId, actorUserId: ctx.actorUserId, productId: item.productId, transactionDate: sale.saleDate, quantity: item.quantity, description: "Sale " + sale.salesNumber };
         if (item.providerProductId !== null && item.providerProductId !== undefined) Object.assign(command, { providerProductId: item.providerProductId });
@@ -53,7 +53,46 @@ export class SalesService {
     return { sale: updated, payment: result };
   }
 
+  /**
+   * Voids a sales order and undoes everything it booked: the payment allocation
+   * journals, the revenue journal, and the stock it consumed. Every reversal is keyed
+   * on the journal it reverses, so replaying a void after a partial failure finishes
+   * the job instead of double-reversing what already went through.
+   */
+  async voidSalesOrder(command: VoidSalesOrderCommand) {
+    const ctx = this.ctx(command);
+    const sale = await this.requireSale(ctx, command.salesOrderId);
+    const reason = command.reason.trim();
+    this.engine.validateVoid(sale, reason);
+
+    const voidDate = command.voidDate ?? sale.saleDate;
+    const journalIds: string[] = [];
+
+    // Payments first, so the books never show a settled payment against a reversed sale.
+    if (sale.paymentTransactionId) {
+      const allocations = await this.payment.listAllocations({ businessId: ctx.businessId, actorUserId: ctx.actorUserId, paymentTransactionId: sale.paymentTransactionId });
+      for (const allocation of allocations) {
+        if (!allocation.postedJournalId) continue;
+        const reversal = await this.journal.reverse({ businessId: ctx.businessId, actorUserId: ctx.actorUserId, journalId: allocation.postedJournalId, reversalDate: voidDate, reason, ...this.metaFields(ctx) });
+        journalIds.push(reversal.journalId);
+      }
+    }
+
+    if (sale.postedJournalId) {
+      const reversal = await this.journal.reverse({ businessId: ctx.businessId, actorUserId: ctx.actorUserId, journalId: sale.postedJournalId, reversalDate: voidDate, reason, ...this.metaFields(ctx) });
+      journalIds.push(reversal.journalId);
+    }
+
+    const stock = await this.inventory.reverseMovementsForSource({ businessId: ctx.businessId, actorUserId: ctx.actorUserId, source: { sourceType: "SALES_ORDER", sourceId: sale.id }, reversalDate: voidDate, reason, ...this.metaFields(ctx) });
+    journalIds.push(...stock.journals);
+
+    const voided = await this.repo.markSalesOrderVoided(ctx, sale.id, journalIds, reason);
+    await this.audit(ctx, "SALES_ORDER_VOIDED", sale.id, { reason, voidJournalIds: journalIds, reversedMovements: stock.reversed.length, skippedMovements: stock.skipped });
+    return { sale: voided, voidJournalIds: journalIds, stock };
+  }
+
   private async requireSale(ctx: TenantContext, id: string) { const sale = await this.repo.findSalesOrder(ctx, id); if (!sale) throw new SalesError("SALES_ORDER_NOT_FOUND", "Sales order was not found in this business."); return sale; }
+  private metaFields(ctx: TenantContext): { requestId?: string; ipAddress?: string; userAgent?: string } { const meta: { requestId?: string; ipAddress?: string; userAgent?: string } = {}; if (ctx.requestId !== undefined) meta.requestId = ctx.requestId; if (ctx.ipAddress !== undefined) meta.ipAddress = ctx.ipAddress; if (ctx.userAgent !== undefined) meta.userAgent = ctx.userAgent; return meta; }
   private async post(ctx: TenantContext, date: Date, source: string, sourceId: string, description: string, lines: PostJournalCommand["lines"], idempotencyKey: string) { const command: PostJournalCommand = { businessId: ctx.businessId, actorUserId: ctx.actorUserId, transactionDate: date, source, sourceId, description, idempotencyKey, lines: lines.map((line) => ({ accountId: line.accountId, side: line.side, amount: line.amount })) }; if (ctx.requestId !== undefined) command.requestId = ctx.requestId; if (ctx.ipAddress !== undefined) command.ipAddress = ctx.ipAddress; if (ctx.userAgent !== undefined) command.userAgent = ctx.userAgent; return this.journal.post(command); }
   private async audit(ctx: TenantContext, action: Parameters<SalesRepository["createAuditLog"]>[1]["action"], entityId: string, metadata: Record<string, unknown>) { await this.repo.createAuditLog(ctx, { action, businessId: ctx.businessId, actorUserId: ctx.actorUserId, entityType: "sales_order", entityId, metadata }); }
   private ctx(command: { businessId: string; actorUserId: string; requestId?: string; ipAddress?: string; userAgent?: string }): TenantContext { const ctx: TenantContext = { businessId: command.businessId, actorUserId: command.actorUserId }; if (command.requestId !== undefined) ctx.requestId = command.requestId; if (command.ipAddress !== undefined) ctx.ipAddress = command.ipAddress; if (command.userAgent !== undefined) ctx.userAgent = command.userAgent; return ctx; }

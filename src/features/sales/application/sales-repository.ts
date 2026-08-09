@@ -14,9 +14,11 @@ export interface SalesRepository {
   findSalesOrder(ctx: TenantContext, salesOrderId: string): Promise<SalesOrderEntity | null>;
   listSalesOrders(ctx: TenantContext, input: { search?: string; sortBy?: "saleDate" | "salesNumber" | "totalAmount"; sortOrder?: "asc" | "desc"; page?: number; pageSize?: number; }): Promise<{ rows: SalesOrderEntity[]; total: number }>;
   updateSalesStatus(ctx: TenantContext, salesOrderId: string, status: SalesStatus, paidAmount?: bigint, paymentTransactionId?: string, postedJournalId?: string): Promise<SalesOrderEntity>;
+  markSalesOrderVoided(ctx: TenantContext, salesOrderId: string, voidJournalIds: string[], reason: string): Promise<SalesOrderEntity>;
   createAuditLog(ctx: TenantContext, event: SalesAuditEvent): Promise<void>;
 }
 export interface Meta { actorUserId: string; requestId?: string; ipAddress?: string; userAgent?: string; }
 export interface CreateSalesOrderCommand extends CreateSalesOrderInput, Meta {}
 export interface ConfirmSalesOrderCommand { businessId: string; salesOrderId: string; actorUserId: string; requestId?: string; ipAddress?: string; userAgent?: string; }
 export interface AllocateSalesPaymentCommand { businessId: string; salesOrderId: string; allocations: CreateSalesOrderInput["allocations"]; actorUserId: string; requestId?: string; ipAddress?: string; userAgent?: string; }
+export interface VoidSalesOrderCommand { businessId: string; salesOrderId: string; reason: string; voidDate?: Date; actorUserId: string; requestId?: string; ipAddress?: string; userAgent?: string; }

@@ -1,4 +1,5 @@
 import { Prisma, PrismaClient } from "@prisma/client";
+import { DbClient } from "../../shared/infrastructure/db-client";
 import { ProductEntity } from "../../inventory/domain/inventory-types";
 import { PosAuditEvent, PosRepository } from "../application/pos-repository";
 import {
@@ -13,7 +14,7 @@ import {
 } from "../domain/pos-types";
 
 export class PrismaPosRepository implements PosRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: DbClient) {}
 
   async findTerminal(ctx: TenantContext, terminalId: string): Promise<PosTerminalEntity | null> {
     const row = await this.prisma.posTerminal.findFirst({ where: { businessId: ctx.businessId, id: terminalId } });
@@ -167,8 +168,17 @@ export class PrismaPosRepository implements PosRepository {
     if (paymentTransactionId !== undefined) data.paymentTransactionId = paymentTransactionId;
     if (receiptId !== undefined) data.receiptId = receiptId;
     const row = await this.prisma.posTransactionRecord.update({
-      where: { id: transactionId },
+      where: { id: transactionId, businessId: ctx.businessId },
       data,
+      include: { items: true }
+    });
+    return this.toTransaction(row);
+  }
+
+  async markTransactionVoided(ctx: TenantContext, transactionId: string, voidJournalIds: string[], reason: string): Promise<PosTransactionEntity> {
+    const row = await this.prisma.posTransactionRecord.update({
+      where: { id: transactionId, businessId: ctx.businessId },
+      data: { status: "VOID", voidJournalIds, voidReason: reason, voidedByUserId: ctx.actorUserId, voidedAt: new Date() },
       include: { items: true }
     });
     return this.toTransaction(row);
@@ -261,6 +271,8 @@ export class PrismaPosRepository implements PosRepository {
       salesOrderId: row.salesOrderId,
       paymentTransactionId: row.paymentTransactionId,
       receiptId: row.receiptId,
+      voidJournalIds: row.voidJournalIds ?? [],
+      voidReason: row.voidReason,
       createdByUserId: row.createdByUserId,
       items: (row.items ?? []).map((item: any) => this.toCartItem(item))
     };

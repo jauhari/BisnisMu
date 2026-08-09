@@ -1,8 +1,8 @@
 import { PostJournalCommand } from "../../accounting/application/journal-repository";
 import { JournalPostingService } from "../../accounting/application/journal-posting-service";
 import { PaymentEngine } from "../domain/payment-engine";
-import { AllocatePaymentInput, PaymentAllocationInput, PaymentError, PaymentTransactionEntity, PaymentValidationContext, SettleReceivableInput, TenantContext, WalletMovementInput } from "../domain/payment-types";
-import { AllocatePaymentCommand, CreateCustomerWalletCommand, CreatePaymentCommand, GetWalletBalanceCommand, PaymentRepository, SettleReceivableCommand, WalletAdjustmentCommand, WalletHistoryCommand, WalletRefundCommand, WalletSpendCommand, WalletTopupCommand } from "./payment-repository";
+import { AllocatePaymentInput, PaymentAllocationEntity, PaymentAllocationInput, PaymentError, PaymentTransactionEntity, PaymentValidationContext, SettleReceivableInput, TenantContext, WalletMovementInput } from "../domain/payment-types";
+import { AllocatePaymentCommand, CreateCustomerWalletCommand, CreatePaymentCommand, GetWalletBalanceCommand, ListAllocationsCommand, PaymentRepository, SettleReceivableCommand, WalletAdjustmentCommand, WalletHistoryCommand, WalletRefundCommand, WalletSpendCommand, WalletTopupCommand } from "./payment-repository";
 
 export class PaymentService {
   constructor(private readonly repo: PaymentRepository, private readonly journal: JournalPostingService, private readonly engine = new PaymentEngine()) {}
@@ -125,7 +125,8 @@ export class PaymentService {
     return this.repo.listPayments(this.ctx(command));
   }
 
-  async listAllocations(command: { businessId: string; paymentTransactionId: string; actorUserId: string; requestId?: string; ipAddress?: string; userAgent?: string }) {
+  /** Allocations booked against a payment, including the journal each one posted. */
+  async listAllocations(command: ListAllocationsCommand): Promise<PaymentAllocationEntity[]> {
     return this.repo.listAllocations(this.ctx(command), command.paymentTransactionId);
   }
 

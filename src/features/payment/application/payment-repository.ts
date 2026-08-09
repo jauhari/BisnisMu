@@ -46,4 +46,5 @@ export interface CreatePaymentCommand extends Omit<CreatePaymentRecord, "payment
 export interface AllocatePaymentCommand { businessId: string; paymentTransactionId: string; allocations: PaymentAllocationInput[]; actorUserId: string; requestId?: string; ipAddress?: string; userAgent?: string; }
 export interface SettleReceivableCommand { businessId: string; receivableId: string; settlementDate: Date; amount: bigint; cashAccountId: string; description: string; actorUserId: string; requestId?: string; ipAddress?: string; userAgent?: string; }
 export interface GetWalletBalanceCommand { businessId: string; walletId: string; actorUserId: string; requestId?: string; ipAddress?: string; userAgent?: string; }
+export interface ListAllocationsCommand { businessId: string; paymentTransactionId: string; actorUserId: string; requestId?: string; ipAddress?: string; userAgent?: string; }
 export interface WalletHistoryCommand extends GetWalletBalanceCommand {}
