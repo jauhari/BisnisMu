@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 const GlassCommandPalette = dynamic(() => import("../glass/glass-primitives").then(m => ({ default: m.GlassCommandPalette })), { ssr: false });
@@ -33,6 +33,7 @@ function BusinessSwitcher({ activeName }: { activeName: string }) {
   const [items, setItems] = useState<SwitchableBusiness[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [switching, setSwitching] = useState<string | null>(null);
+  const [isRefreshing, startRefresh] = useTransition();
 
   useEffect(() => {
     function handler(e: MouseEvent) {
@@ -75,10 +76,27 @@ function BusinessSwitcher({ activeName }: { activeName: string }) {
         const j = await res.json().catch(() => ({}));
         throw new Error(j?.error?.message || j?.message || "Gagal mengganti usaha.");
       }
-      toast.success("Usaha aktif diganti.");
+      const markActive = (businesses: SwitchableBusiness[]) => businesses.map((business) => ({
+        ...business,
+        active: business.id === id,
+      }));
+
+      // Update the header immediately after the server confirms the session change.
+      setItems((current) => current ? markActive(current) : current);
+      qc.setQueryData<{ data: SwitchableBusiness[] } | SwitchableBusiness[]>(["auth", "businesses"], (current) => {
+        if (!current) return current;
+        return Array.isArray(current)
+          ? markActive(current)
+          : { ...current, data: markActive(current.data ?? []) };
+      });
+
       setOpen(false);
-      await qc.invalidateQueries();
-      router.refresh();
+      toast.success("Usaha aktif diganti.");
+
+      // Tenant-scoped query data belongs to the previously active business.
+      // Removing it avoids a full synchronous refetch before rendering the new one.
+      qc.removeQueries({ predicate: (query) => query.queryKey[0] !== "auth" });
+      startRefresh(() => router.refresh());
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal mengganti usaha.");
     } finally {
@@ -113,7 +131,7 @@ function BusinessSwitcher({ activeName }: { activeName: string }) {
               <button
                 key={b.id}
                 type="button"
-                disabled={switching !== null}
+                disabled={switching !== null || isRefreshing}
                 onClick={() => void select(b.id, b.active)}
                 className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left transition disabled:opacity-50 ${
                   b.active ? "bg-accent/8" : "hover:bg-white/60 dark:hover:bg-white/8"

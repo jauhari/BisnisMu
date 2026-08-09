@@ -5,6 +5,23 @@ Session scope: Import data legacy ExAct VS / Google Sheets untuk PKU Ponjong, no
 
 ---
 
+## Phase 19: Business Switcher Performance (2026-08-09)
+
+### Masalah
+- Setelah memilih usaha, UI menunggu `invalidateQueries()` tanpa filter. Semua query aktif direfetch secara sinkron sebelum `router.refresh()`, sehingga perpindahan terasa lambat dan nama usaha lama terlalu lama tampil.
+
+### Perbaikan
+- `components/layout/app-shell.tsx` memperbarui cache daftar bisnis secara optimistis setelah server mengonfirmasi perubahan sesi.
+- Cache query tenant sebelumnya dibersihkan tanpa menunggu refetch massal; `router.refresh()` dijalankan dalam React transition untuk memuat data bisnis baru.
+- Kontrol switcher tetap dinonaktifkan selama request atau transition berjalan agar tidak ada request tumpang tindih.
+
+### Verifikasi
+- `npm test`: lulus, 31 file / 213 test.
+- `npx eslint components/layout/app-shell.tsx`: lulus.
+- `npm run typecheck`: masih berhenti pada error lama export `getCachedDashboardOverview` dari route dashboard, tidak terkait perubahan ini.
+
+---
+
 ## Phase 18: Business Switcher Legacy ID Fix (2026-08-09)
 
 ### Masalah
