@@ -2,6 +2,19 @@
 
 All notable changes to BisnisMu are documented in this file.
 
+## [Unreleased]
+
+### Added - Import Legacy ExAct VS
+- Utility `scripts/import-pku-ponjong.mjs` menambahkan alur import workbook ExAct VS yang diawali dry-run dan hanya menulis data dengan flag `--apply`.
+- Import dibuat atomik dalam satu transaksi database: bisnis, membership owner, bagan akun, periode fiskal, saldo awal, jurnal, baris jurnal, dan audit trail semuanya rollback bila validasi atau rekonsiliasi gagal.
+- Pemetaan kompatibilitas SAK EMKM ditambahkan: ExAct `7xxxxx` (pendapatan lain-lain) menjadi `4001xx`, dan `8xxxxx` (beban lain-lain) menjadi `7xxxxx`.
+- Metadata divisi, proyek, dan aset tetap legacy dipertahankan pada pengaturan bisnis sampai modul native tersedia.
+
+### Data Migration - PKU Ponjong
+- Bisnis `PKU Ponjong` dibuat dengan `barookahjaya@gmail.com` sebagai `OWNER`.
+- Terimpor 151 akun, 2 baris saldo awal seimbang, periode fiskal 2024-2026, 158 jurnal historis, dan 1 jurnal saldo awal.
+- Rekonsiliasi akhir: 159 jurnal, 318 baris jurnal, total debit dan kredit masing-masing Rp358.239.724, tanpa idempotency key ganda.
+
 ## [0.12.0] - 2026-06-25
 
 ### Added — Password Visibility Toggle (UX)

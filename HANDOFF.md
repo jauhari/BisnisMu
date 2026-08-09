@@ -1,7 +1,39 @@
 # BisnisMu — Handoff Document
 
-Date: 2026-06-25  
-Session scope: Perbaikan performa besar-besaran (RSC conversion, server caching, auth dedup, skeletons, bundle optimization) + UI fix untuk password reveal + argon2 login fix + dokumentasi + push git.
+Date: 2026-08-09
+Session scope: Import data legacy ExAct VS / Google Sheets untuk PKU Ponjong, normalisasi CoA SAK EMKM, rekonsiliasi akuntansi, dokumentasi, dan push git.
+
+---
+
+## Phase 17: Legacy ExAct VS Import - PKU Ponjong (2026-08-09)
+
+### Tujuan
+- Memindahkan data akuntansi dari workbook ExAct VS / Google Sheets ke BisnisMu tanpa jurnal parsial atau ketidakseimbangan saldo.
+- Membuat bisnis `PKU Ponjong` dan mengaitkannya dengan `barookahjaya@gmail.com` sebagai `OWNER`.
+
+### Implementasi
+- Utility baru `scripts/import-pku-ponjong.mjs`:
+  - Wajib melalui dry-run sebelum `--apply`.
+  - Memvalidasi kode akun, saldo awal, tanggal, nilai jurnal, akun posting, dan keseimbangan debit/kredit.
+  - Mengabaikan baris template ExAct VS yang kosong bernilai nol, tetapi menolak jurnal yang hanya sebagian terisi.
+  - Menulis bisnis, membership, 151 akun, periode fiskal, saldo awal, 159 jurnal, 318 baris jurnal, dan audit trail dalam satu transaksi atomik.
+  - Menggunakan idempotency key berbasis hash workbook dan nomor baris sumber; import berhenti bila bisnis dengan nama yang sama sudah ada.
+  - Menyimpan divisi, proyek, dan aset tetap legacy sebagai metadata terstruktur di `Business.settings` karena belum ada modul native untuk ketiganya.
+- Normalisasi CoA:
+  - ExAct `7xxxxx` adalah pendapatan lain-lain, sehingga dipetakan ke `4001xx` agar masuk kelompok pendapatan SAK EMKM.
+  - ExAct `8xxxxx` adalah beban lain-lain, sehingga dipetakan ke `7xxxxx`.
+  - Hierarki akun yang tidak lengkap pada sumber dipasang ke induk valid terdekat tanpa membuat akun fiktif.
+
+### Hasil Import
+- Business ID: `pku_dc97ee4b3d8e4054b7cd595fe515db12`.
+- `barookahjaya@gmail.com` aktif sebagai `OWNER`.
+- 151 akun, 3 periode fiskal (2024-2026), 2 saldo awal, 159 jurnal, 318 baris jurnal, dan 315 audit log.
+- Rekonsiliasi selesai: total debit = total kredit = Rp358.239.724; tidak ada idempotency key ganda.
+- Metadata yang dipertahankan: 4 divisi, 4 proyek, 2 aset tetap.
+
+### Verifikasi
+- `npm test`: lulus, 31 file / 213 test.
+- `npm run typecheck`: masih gagal pada isu yang telah ada di `app/api/dashboard/overview/route.ts`; route tersebut mengekspor `getCachedDashboardOverview`, sementara Next.js hanya mengizinkan export route handler dan konfigurasi route. Isu ini tidak disentuh dalam pekerjaan import.
 
 ---
 
