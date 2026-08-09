@@ -13,6 +13,12 @@ const nextConfig: NextConfig = {
     return config;
   },
   typedRoutes: false,
+  // Admin changelog reads the repository Markdown at runtime. Explicitly trace
+  // it so serverless deployments receive the file as well.
+  outputFileTracingIncludes: {
+    "/admin/changelog": ["./CHANGELOG.md"],
+    "/admin/changelog/[version]": ["./CHANGELOG.md"],
+  },
   // Reduce client bundle size for common heavy libs
   experimental: {
     optimizePackageImports: ["lucide-react", "recharts", "@tanstack/react-table", "framer-motion"],

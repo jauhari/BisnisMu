@@ -4,6 +4,11 @@ All notable changes to BisnisMu are documented in this file.
 
 ## [Unreleased]
 
+### Fixed - In-App Changelog
+- Halaman admin changelog sekarang secara eksplisit menyertakan `CHANGELOG.md` dalam output trace Next.js, sehingga pembacaan file saat runtime tidak lagi gagal di deployment production.
+- Bagian `Unreleased` ditampilkan sebagai "Perubahan terbaru" dengan penanda "Belum dirilis", bukan label versi yang membingungkan.
+- Label changelog pada sidebar kini mengambil versi dari `package.json` (`v0.11.1`) dan tidak lagi tertahan pada nilai hard-coded `v0.5.0`.
+
 ### Fixed - Business Switcher
 - Endpoint pemilihan bisnis sekarang menerima identifier bisnis internal yang valid, termasuk ID import legacy berformat `pku_...`, tanpa menolak request sebagai body tidak valid.
 - Otorisasi perpindahan tetap diverifikasi melalui membership aktif user pada bisnis yang dipilih.

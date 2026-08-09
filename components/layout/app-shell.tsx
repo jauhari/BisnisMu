@@ -14,6 +14,7 @@ import { GlassInput, GlassPasswordInput } from "@/components/forms/glass-form";
 import { toast } from "sonner";
 import { apiRequest } from "@/presentation/api/client";
 import { ServerWarmup } from "@/components/shared/server-warmup";
+import packageJson from "../../package.json";
 
 const COLLAPSE_KEY = "bisnismu:sidebar-collapsed";
 
@@ -246,7 +247,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             className={`block rounded-lg py-1.5 text-[11px] text-muted/50 hover:text-muted hover:bg-white/50 dark:hover:bg-white/5 transition duration-150 truncate`}
             title="Lihat riwayat perubahan"
           >
-            {collapsed ? "v0.5.0" : "Changelog v0.5.0"}
+            {collapsed ? `v${packageJson.version}` : `Changelog v${packageJson.version}`}
           </Link>
         </div>
       )}

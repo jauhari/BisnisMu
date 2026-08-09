@@ -5,6 +5,26 @@ Session scope: Import data legacy ExAct VS / Google Sheets untuk PKU Ponjong, no
 
 ---
 
+## Phase 22: In-App Changelog Production Fix (2026-08-09)
+
+### Masalah
+- `/admin/changelog` menampilkan error boundary di production karena halaman membaca `CHANGELOG.md` menggunakan filesystem pada runtime, sementara file Markdown tersebut tidak dijamin ikut dalam server bundle Vercel.
+- Sidebar masih menampilkan `Changelog v0.5.0` secara hard-coded meskipun versi paket sudah `0.11.1` dan changelog repository telah diperbarui.
+
+### Perbaikan
+- `next.config.ts` menambahkan `outputFileTracingIncludes` untuk `/admin/changelog` dan `/admin/changelog/[version]`, sehingga `CHANGELOG.md` tersedia saat kedua halaman dirender di production.
+- Sidebar mengambil versi dari `package.json` agar label selalu selaras dengan rilis aplikasi.
+- UI changelog memberi label yang jelas untuk section `[Unreleased]`: `Perubahan terbaru` dan badge `Belum dirilis`.
+- Test parser menambahkan regresi untuk section `[Unreleased]`.
+
+### Verifikasi
+- Test parser changelog: lulus, 3 test.
+- `npm run typecheck`: lulus.
+- ESLint untuk file yang diubah: lulus tanpa error.
+- `npm run build`: lulus. Manifest output trace halaman admin changelog terverifikasi memuat `CHANGELOG.md`.
+
+---
+
 ## Phase 21: Dashboard Performance Path (2026-08-09)
 
 ### Temuan

@@ -58,9 +58,9 @@ export default async function Page() {
           <GlassPanel key={v.version} className="flex flex-col gap-4 p-5 transition hover:shadow-md">
             <div className="flex items-baseline justify-between border-b border-border/60 pb-3">
               <div className="flex items-center gap-2">
-                <span className="text-xl font-bold text-accent">v{v.version}</span>
+                <span className="text-xl font-bold text-accent">{v.version.toLowerCase() === "unreleased" ? "Perubahan terbaru" : `v${v.version}`}</span>
                 <span className="rounded-full bg-accent/10 px-2.5 py-0.5 text-xs font-semibold text-accent dark:bg-accent/20">
-                  Rilis
+                  {v.version.toLowerCase() === "unreleased" ? "Belum dirilis" : "Rilis"}
                 </span>
               </div>
               {v.date && <span className="text-xs text-muted">{v.date}</span>}
@@ -111,4 +111,3 @@ export default async function Page() {
     </div>
   );
 }
-

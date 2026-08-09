@@ -43,4 +43,14 @@ describe("parseChangelog", () => {
     const s0 = v0.sections[0]!;
     expect(s0.bullets).toEqual(["X"]);
   });
+
+  it("memasukkan perubahan Unreleased sebagai versi terbaru", () => {
+    const md = ["# Changelog", "", "## [Unreleased]", "", "### Fixed - Session", "- Redirect dashboard diperbaiki"].join("\n");
+
+    const parsed = parseChangelog(md);
+
+    expect(parsed.versions).toEqual([
+      { version: "Unreleased", date: null, sections: [{ title: "Fixed - Session", bullets: ["Redirect dashboard diperbaiki"] }], raw: expect.any(String) },
+    ]);
+  });
 });
