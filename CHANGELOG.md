@@ -4,6 +4,13 @@ All notable changes to BisnisMu are documented in this file.
 
 ## [Unreleased]
 
+### Fixed - RBAC Role Mismatch
+- Role `EDITOR` dihapus dari form undang anggota (Settings → Members) dan form tambah user (Admin panel), beserta whitelist validasi di kedua endpoint API terkait. Role ini tidak pernah ada di enum `BusinessMemberRole` Prisma, sehingga sebelumnya lolos validasi tapi gagal saat disimpan ke database.
+
+### Fixed - Dokumentasi CLAUDE.md
+- Status modul (Sales, Payment, POS, Cash Sessions, Purchase) di `CLAUDE.md` diperbarui dari "belum selesai/deprecated" menjadi "production" sesuai kode aktual, dan ditambahkan modul yang sebelumnya tidak tercatat (Organization, Installments, Dashboard).
+- Versi, daftar skema database, tabel role RBAC, dan tautan referensi dokumen disamakan dengan kondisi kode saat ini.
+
 ### Improved - Cash Transaction Entry
 - Form Transaksi Kas sekarang memakai date picker kalender untuk tanggal transaksi, sehingga pengguna tidak perlu lagi mengetik format `YYYY-MM-DD` secara manual.
 

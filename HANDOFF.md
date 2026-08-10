@@ -5,6 +5,45 @@ Session scope: Import data legacy ExAct VS / Google Sheets untuk PKU Ponjong, no
 
 ---
 
+## Phase 25: RBAC EDITOR Role Bug Fix (2026-08-10)
+
+### Masalah
+- Saat menyamakan tabel role RBAC di CLAUDE.md dengan enum Prisma asli, ditemukan bahwa role `EDITOR` tidak pernah ada di `BusinessMemberRole` (`OWNER, ADMIN, ACCOUNTANT, CASHIER, VIEWER`), tapi masih ditawarkan di dua form dan diterima oleh whitelist validasi di dua endpoint API.
+- Dropdown "Role di Usaha Tersebut" (Admin → Tambah User) dan form undang anggota (Settings → Members) menampilkan EDITOR sebagai pilihan. Endpoint `POST /api/admin/users` dan `POST /api/settings/members` punya whitelist `validRoles` sendiri yang ikut menyertakan EDITOR dan menulis `role as any` ke Prisma — lolos validasi TypeScript maupun validasi aplikasi, tapi gagal saat Postgres menolak nilai enum yang tidak sah, sehingga user melihat error 500 yang membingungkan saat submit.
+
+### Perbaikan
+- `"EDITOR"` dihapus dari daftar role di 4 file: `app/(app)/settings/members/page.tsx`, `app/(app)/admin/page.tsx`, `app/api/settings/members/route.ts`, `app/api/admin/users/route.ts`. Daftar role di keempat file sekarang identik dengan enum `BusinessMemberRole`.
+
+### Verifikasi
+- `npm run typecheck`: bersih sebelum dan sesudah perubahan.
+- Dev server (`npm run dev`, port 3333): boot bersih, tanpa error console/server pada halaman login.
+- Tidak diverifikasi secara visual di Settings → Members / Admin panel — keduanya perlu login ke database Neon yang menyimpan data live PKU Ponjong, dan tidak ada kredensial tersedia. `scripts/seed-dev-owner.mjs` sengaja tidak dijalankan supaya tidak menulis akun SUPER_ADMIN baru ke database bersama tanpa diminta.
+
+### Deploy
+- Commit `5d3ff7d`, push ke `origin/main`.
+
+---
+
+## Phase 24: CLAUDE.md Documentation Sync (2026-08-10)
+
+### Masalah
+- CLAUDE.md tertinggal jauh dari kode aktual: versi tercatat `0.8.0` (package.json sudah `0.11.1`), modul Sales/Payment/POS/Cash Sessions masih ditandai "WIP — Prisma schema needed" padahal sudah production, modul Purchase ditandai deprecated padahal aktif (domain+application+infrastructure lengkap, 4 halaman, beberapa API route), dan klaim "Offline-capable (PWA)" tercantum sebagai fitur selesai padahal belum ada `manifest.json`/service worker/dependency PWA sama sekali.
+- Tabel role RBAC menyertakan `EDITOR` yang ternyata tidak ada di enum Prisma (lihat Phase 25).
+- Referensi dokumen di Appendix D memakai nama file (`PRD-BisnisMu-*`) dan folder (`docs/Architecture.md`, `docs/HANDOFF.md`) yang salah — nama file aktual `PRD-AkuntansiMu-*`, dan Architecture.md/HANDOFF.md ada di root, bukan di `docs/`.
+- Roadmap (§15) punya section "Phase 3" dan "Phase 7" yang muncul dua kali dengan isi saling bertentangan (mis. satu bilang frontend belum ada, bagian lain di dokumen yang sama bilang sudah selesai).
+
+### Perbaikan
+- Header versi/tanggal, §3 tech stack (Next.js 15, Prisma 6, React 19, tambah baris Auth), §6 tabel modul (Sales/Payment/POS/Cash Sessions/Purchase → Production, tambah Organization/Installments/Dashboard), §8.2 daftar skema (semua item "gap" lama sudah ada di 68 model `schema.prisma`), §10.3 tabel role (hapus EDITOR), §15 roadmap (Phase 4 & 5 dari Planned → selesai, duplikat Phase 3/7 digabung), dan Appendix D (link diperbaiki) — semua disamakan dengan struktur folder, `package.json`, dan `schema.prisma` yang sebenarnya.
+- Angka-angka di §9.1 (Security Readiness 88%, dll) sengaja tidak diubah karena tidak ada cara memverifikasinya dari kode.
+
+### Verifikasi
+- Review manual terhadap `src/features/*`, `prisma/schema.prisma` (grep `^model `), `app/api/**/route.ts`, `app/(app)/**/page.tsx`, dan `package.json`.
+
+### Deploy
+- Commit `c9fb807`, push ke `origin/main`.
+
+---
+
 ## Phase 23: Cash Transaction Date Picker (2026-08-10)
 
 ### Masalah
