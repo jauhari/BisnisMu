@@ -3,10 +3,11 @@
 import { z } from "zod";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { Edit3, FileText, Plus, Send, Trash2, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 import { ManagedForm, RhfDataSelect, RhfDatePicker, RhfMoneyField, RhfTextField, type SelectOption } from "@/components/forms/rhf-form";
-import { GlassDataSelect } from "@/components/forms/glass-form";
+import { GlassDataSelect, GlassInput } from "@/components/forms/glass-form";
 import { WorkspaceHeader, SplitWorkspace, DetailPanel } from "@/components/layout/workspace";
 import { FormDrawer } from "@/components/layout/form-drawer";
 import { GlassSkeleton } from "@/components/feedback/glass-feedback";
@@ -36,6 +37,7 @@ function canHardMutate(role?: Role, hardMutation?: boolean) { return Boolean(har
 function digits(value: string) { return value.replace(/\D/g, ""); }
 function rowType(type: string) { return type === "CASH_OUT" ? "Pengeluaran" : type === "CASH_IN" ? "Pemasukan" : "Transfer"; }
 const CONTACT_TYPE_LABEL: Record<string, string> = { CUSTOMER: "Pelanggan", SUPPLIER: "Pemasok", BOTH: "Pelanggan & Pemasok", OTHER: "Lainnya" };
+const CONTACT_TYPE_QUICK_ADD = [{ value: "CUSTOMER", label: "Pelanggan" }, { value: "SUPPLIER", label: "Pemasok" }, { value: "OTHER", label: "Lainnya" }];
 function toForm(tx: any): CashForm { return { type: tx.type, transactionDate: tx.transactionDate?.slice?.(0, 10) ?? tx.transactionDate, cashAccountId: tx.cashAccountId, destinationAccountId: tx.destinationAccountId ?? "", categoryAccountId: tx.categoryAccountId ?? "", contactId: tx.contactId ?? "", amount: String(tx.amount), description: tx.description }; }
 
 async function requestJson(url: string, method: string, body?: unknown) {
@@ -48,6 +50,7 @@ async function requestJson(url: string, method: string, body?: unknown) {
 }
 
 export default function Page() {
+  const qc = useQueryClient();
   const searchParams = useSearchParams();
   const list = useListQuery<any[]>("/api/cash/transactions", ["list", "cash-transactions"]);
   const accounts = useListQuery<any[]>("/api/accounting/chart-of-accounts", ["list", "accounting-coa"]);
@@ -58,6 +61,10 @@ export default function Page() {
   const [editing, setEditing] = useState<any | null>(null);
   const [defaults, setDefaults] = useState<CashForm>(() => emptyForm());
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [addingContact, setAddingContact] = useState(false);
+  const [newContactName, setNewContactName] = useState("");
+  const [newContactType, setNewContactType] = useState("CUSTOMER");
+  const [savingContact, setSavingContact] = useState(false);
 
   const role = (me.data?.data as any)?.role as Role | undefined;
   const hardMutation = Boolean((me.data?.data as any)?.hardMutation);
@@ -117,7 +124,36 @@ export default function Page() {
     <FormDrawer open={drawerOpen} onClose={() => { setDrawerOpen(false); setEditing(null); }} title={editing ? "Edit transaksi" : "Tambah draft transaksi"} subtitle={editing && editing.status !== "DRAFT" ? "Mode Hanyukupi: perubahan akan mengganti jurnal sumber tanpa void." : "Simpan sebagai draft dulu, lalu posting saat sudah benar."}>
       <ManagedForm<CashForm> key={editing?.id ?? "new-cash"} schema={schema} defaultValues={defaults} resetOnSuccess={false} onSubmit={submit}>{({ form, submitting }) => {
         const type = form.watch("type");
-        return <div className="grid gap-4"><RhfDataSelect<CashForm> name="type" label="Tipe" options={[{ value: "CASH_OUT", label: "Pengeluaran" }, { value: "CASH_IN", label: "Pemasukan" }, { value: "TRANSFER", label: "Transfer" }]} /><RhfDatePicker<CashForm> name="transactionDate" label="Tanggal" /><RhfDataSelect<CashForm> name="cashAccountId" label={type === "TRANSFER" ? "Dari kas/bank" : "Kas/bank"} options={cashOptions} placeholder="Pilih kas/bank" />{type === "TRANSFER" ? <RhfDataSelect<CashForm> name="destinationAccountId" label="Ke kas/bank" options={cashOptions} placeholder="Pilih tujuan" /> : <RhfDataSelect<CashForm> name="categoryAccountId" label={type === "CASH_IN" ? "Kategori pendapatan" : "Kategori beban"} options={categoryOptions} placeholder="Pilih kategori" />}{type !== "TRANSFER" ? <RhfDataSelect<CashForm> name="contactId" label="Kontak (opsional)" options={contactOptions} placeholder="Pilih kontak (opsional)" /> : null}<RhfMoneyField<CashForm> name="amount" label="Nominal" placeholder="100.000" /><RhfTextField<CashForm> name="description" label="Keterangan" placeholder="Keterangan transaksi" /><button type="submit" disabled={submitting} className="h-11 rounded-lg bg-foreground px-4 text-sm font-medium text-background disabled:opacity-50">{editing ? "Simpan perubahan" : "Simpan draft"}</button></div>;
+        async function saveNewContact() {
+          if (!newContactName.trim()) return;
+          setSavingContact(true);
+          try {
+            const result = await requestJson("/api/contacts", "POST", { name: newContactName.trim(), type: newContactType });
+            await qc.invalidateQueries({ queryKey: ["list", "contacts"] });
+            form.setValue("contactId", result.data.id, { shouldDirty: true, shouldValidate: true });
+            setAddingContact(false);
+            setNewContactName("");
+            toast.success("Kontak ditambahkan.");
+          } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Gagal menambah kontak.");
+          } finally {
+            setSavingContact(false);
+          }
+        }
+        const contactField = <div className="grid gap-2">
+          <RhfDataSelect<CashForm> name="contactId" label="Kontak (opsional)" options={contactOptions} placeholder="Pilih kontak (opsional)" />
+          {addingContact ? <div className="grid gap-2 rounded-md border border-border p-3">
+            <GlassInput value={newContactName} onChange={(e) => setNewContactName(e.target.value)} placeholder="Nama kontak" className="h-9" autoFocus />
+            <div className="grid grid-cols-3 gap-1.5">
+              {CONTACT_TYPE_QUICK_ADD.map((opt) => <button key={opt.value} type="button" onClick={() => setNewContactType(opt.value)} className={`h-8 rounded-md border text-xs font-medium transition ${newContactType === opt.value ? "border-foreground bg-foreground text-background" : "border-border hover:bg-white/60 dark:hover:bg-white/8"}`}>{opt.label}</button>)}
+            </div>
+            <div className="flex gap-2">
+              <button type="button" disabled={savingContact || !newContactName.trim()} onClick={() => void saveNewContact()} className="h-8 rounded-md bg-foreground px-3 text-xs font-medium text-background disabled:opacity-50">{savingContact ? "Menyimpan…" : "Simpan kontak"}</button>
+              <button type="button" onClick={() => { setAddingContact(false); setNewContactName(""); }} className="h-8 rounded-md border border-border px-3 text-xs">Batal</button>
+            </div>
+          </div> : <button type="button" onClick={() => setAddingContact(true)} className="w-fit text-xs font-medium text-accent underline">+ Tambah kontak baru</button>}
+        </div>;
+        return <div className="grid gap-4"><RhfDataSelect<CashForm> name="type" label="Tipe" options={[{ value: "CASH_OUT", label: "Pengeluaran" }, { value: "CASH_IN", label: "Pemasukan" }, { value: "TRANSFER", label: "Transfer" }]} /><RhfDatePicker<CashForm> name="transactionDate" label="Tanggal" /><RhfDataSelect<CashForm> name="cashAccountId" label={type === "TRANSFER" ? "Dari kas/bank" : "Kas/bank"} options={cashOptions} placeholder="Pilih kas/bank" />{type === "TRANSFER" ? <RhfDataSelect<CashForm> name="destinationAccountId" label="Ke kas/bank" options={cashOptions} placeholder="Pilih tujuan" /> : <RhfDataSelect<CashForm> name="categoryAccountId" label={type === "CASH_IN" ? "Kategori pendapatan" : "Kategori beban"} options={categoryOptions} placeholder="Pilih kategori" />}{type !== "TRANSFER" ? contactField : null}<RhfMoneyField<CashForm> name="amount" label="Nominal" placeholder="100.000" /><RhfTextField<CashForm> name="description" label="Keterangan" placeholder="Keterangan transaksi" /><button type="submit" disabled={submitting} className="h-11 rounded-lg bg-foreground px-4 text-sm font-medium text-background disabled:opacity-50">{editing ? "Simpan perubahan" : "Simpan draft"}</button></div>;
       }}</ManagedForm>
     </FormDrawer>
   </div>;
