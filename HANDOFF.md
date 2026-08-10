@@ -5,6 +5,45 @@ Session scope: Import data legacy ExAct VS / Google Sheets untuk PKU Ponjong, no
 
 ---
 
+## Phase 27: Quick-Add Contact from Cash Transaction Form (2026-08-10)
+
+### Masalah
+- Field Kontak (Phase 26) baru bisa memilih kontak yang sudah ada — kalau daftar kontak kosong, dropdown cuma menampilkan "Tidak ada pilihan" tanpa jalan keluar selain pindah halaman ke Settings/Kontak, isi form lengkap, lalu kembali ke draft transaksi kas dan mulai ulang.
+- User melaporkan langsung dari screenshot: field belum bisa dipakai karena tidak ada opsi tambah kontak saat dropdown kosong.
+
+### Perbaikan
+- `app/(app)/cash/transactions/page.tsx`: field Kontak sekarang punya toggle "+ Tambah kontak baru" yang membuka mini-form inline (Nama + Tipe: Pelanggan/Pemasok/Lainnya).
+- Submit mini-form memanggil `POST /api/contacts`, invalidate query `["list","contacts"]`, lalu `form.setValue("contactId", ...)` untuk langsung memilih kontak baru ke transaksi yang sedang diisi — tanpa keluar dari drawer.
+
+### Verifikasi
+- `npm run typecheck` dan `npm run lint`: bersih.
+- Belum diverifikasi visual di form asli (kendala kredensial database live yang sama seperti Phase 26).
+
+### Deploy
+- Commit `900bab8`, push ke `origin/main`.
+
+---
+
+## Phase 26: Cash Transaction Contact Field + Live Money Formatting (2026-08-10)
+
+### Masalah
+- User ingin transaksi Kas bisa dikaitkan ke Kontak (Vendor, Pelanggan, Karyawan, Dokter, Perawat, dll) untuk keperluan laporan nanti.
+- User juga melaporkan input Nominal cuma memberi titik pemisah ribuan setelah pindah field (blur), tidak langsung saat mengetik.
+
+### Perbaikan
+- **Kontak:** `contactId` ternyata sudah lengkap di skema Prisma, Zod (`cashTransactionSchema`), domain engine, dan `CashManagementService` — cuma belum pernah dimunculkan di form. Ditambahkan `RhfDataSelect` baru sumber dari `/api/contacts` (semua tipe, tidak difilter), disembunyikan untuk tipe Transfer.
+- **Nominal:** `MoneyField` di `components/forms/financial-inputs.tsx` ditulis ulang supaya format ribuan tampil langsung saat mengetik, bukan cuma saat blur. Posisi kursor dipertahankan manual (hitung jumlah digit sebelum kursor, cari posisi setara di string terformat, tulis langsung ke DOM node sebelum React commit) supaya penyisipan titik tidak melempar kursor ke akhir teks. Komponen ini dipakai di 9 halaman (Kas, Sales, POS, Installments, AR/AP), jadi semuanya ikut diperbaiki sekaligus.
+
+### Verifikasi
+- `npm run typecheck` dan `npm run lint`: bersih.
+- Live-formatting diuji di halaman uji coba terpisah (vanilla JS, logika sama persis) via Browser pane — kasus ketik-di-akhir sukses terverifikasi (raw="1500000" → display="1.500.000", kursor di posisi benar). Kasus edit-di-tengah tidak sempat diverifikasi interaktif karena Browser pane sempat tidak ter-render; sudah ditelusuri manual dan konsisten.
+- Field Kontak belum diverifikasi visual di form asli (kendala kredensial database live).
+
+### Deploy
+- Commit `0c8b7a0`, push ke `origin/main`.
+
+---
+
 ## Phase 25: RBAC EDITOR Role Bug Fix (2026-08-10)
 
 ### Masalah

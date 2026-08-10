@@ -4,6 +4,13 @@ All notable changes to BisnisMu are documented in this file.
 
 ## [Unreleased]
 
+### Added - Kontak di Transaksi Kas
+- Transaksi Kas (Pemasukan/Pengeluaran) sekarang bisa dikaitkan ke sebuah Kontak (Pelanggan, Pemasok, atau Lainnya) untuk keperluan pelaporan mendatang. Tidak berlaku untuk Transfer.
+- Kalau kontak yang dicari belum ada, bisa langsung ditambahkan lewat toggle "+ Tambah kontak baru" di form yang sama, tanpa pindah halaman.
+
+### Improved - Input Nominal
+- Input nominal (Kas, Penjualan, POS, Cicilan, Faktur, Tagihan) sekarang menampilkan pemisah ribuan langsung saat mengetik, tidak perlu pindah field dulu.
+
 ### Fixed - RBAC Role Mismatch
 - Role `EDITOR` dihapus dari form undang anggota (Settings → Members) dan form tambah user (Admin panel), beserta whitelist validasi di kedua endpoint API terkait. Role ini tidak pernah ada di enum `BusinessMemberRole` Prisma, sehingga sebelumnya lolos validasi tapi gagal saat disimpan ke database.
 
