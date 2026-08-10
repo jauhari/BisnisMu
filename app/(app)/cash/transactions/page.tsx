@@ -19,13 +19,14 @@ const schema = z.object({
   cashAccountId: z.string().min(10),
   destinationAccountId: z.string().optional(),
   categoryAccountId: z.string().optional(),
+  contactId: z.string().optional(),
   amount: z.string().min(1),
   description: z.string().min(3),
 });
 type CashForm = z.infer<typeof schema>;
 type Role = "OWNER" | "ADMIN" | "ACCOUNTANT" | "CASHIER" | "VIEWER";
 
-const emptyForm = (): CashForm => ({ type: "CASH_OUT", transactionDate: new Date().toISOString().slice(0, 10), cashAccountId: "", destinationAccountId: "", categoryAccountId: "", amount: "", description: "" });
+const emptyForm = (): CashForm => ({ type: "CASH_OUT", transactionDate: new Date().toISOString().slice(0, 10), cashAccountId: "", destinationAccountId: "", categoryAccountId: "", contactId: "", amount: "", description: "" });
 
 function flattenAccounts(nodes: any[]): any[] { return nodes.flatMap((n) => [n, ...flattenAccounts(n.children ?? [])]); }
 function canMutate(role?: Role) { return role === "OWNER" || role === "ADMIN" || role === "CASHIER"; }
@@ -34,7 +35,8 @@ function canVoid(role?: Role) { return role === "OWNER" || role === "ADMIN"; }
 function canHardMutate(role?: Role, hardMutation?: boolean) { return Boolean(hardMutation && (role === "OWNER" || role === "ADMIN" || role === "ACCOUNTANT")); }
 function digits(value: string) { return value.replace(/\D/g, ""); }
 function rowType(type: string) { return type === "CASH_OUT" ? "Pengeluaran" : type === "CASH_IN" ? "Pemasukan" : "Transfer"; }
-function toForm(tx: any): CashForm { return { type: tx.type, transactionDate: tx.transactionDate?.slice?.(0, 10) ?? tx.transactionDate, cashAccountId: tx.cashAccountId, destinationAccountId: tx.destinationAccountId ?? "", categoryAccountId: tx.categoryAccountId ?? "", amount: String(tx.amount), description: tx.description }; }
+const CONTACT_TYPE_LABEL: Record<string, string> = { CUSTOMER: "Pelanggan", SUPPLIER: "Pemasok", BOTH: "Pelanggan & Pemasok", OTHER: "Lainnya" };
+function toForm(tx: any): CashForm { return { type: tx.type, transactionDate: tx.transactionDate?.slice?.(0, 10) ?? tx.transactionDate, cashAccountId: tx.cashAccountId, destinationAccountId: tx.destinationAccountId ?? "", categoryAccountId: tx.categoryAccountId ?? "", contactId: tx.contactId ?? "", amount: String(tx.amount), description: tx.description }; }
 
 async function requestJson(url: string, method: string, body?: unknown) {
   const init: RequestInit = { method, headers: { "Content-Type": "application/json" } };
@@ -49,6 +51,7 @@ export default function Page() {
   const searchParams = useSearchParams();
   const list = useListQuery<any[]>("/api/cash/transactions", ["list", "cash-transactions"]);
   const accounts = useListQuery<any[]>("/api/accounting/chart-of-accounts", ["list", "accounting-coa"]);
+  const contacts = useListQuery<any[]>("/api/contacts", ["list", "contacts"]);
   const me = useListQuery<{ role: Role }>("/api/auth/me", ["auth", "me"]);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -61,12 +64,13 @@ export default function Page() {
   const flat = useMemo(() => flattenAccounts(accounts.data?.data ?? []), [accounts.data]);
   const cashOptions: SelectOption[] = flat.filter((a) => (a.subtype === "cash" || a.subtype === "bank" || String(a.code).startsWith("11")) && a.isPostingAllowed).map((a) => ({ value: a.id, label: `${a.name}`, code: a.code, name: a.name, groupLabel: "Kas/Bank" }));
   const categoryOptions: SelectOption[] = flat.filter((a) => (a.groupCode === 4 || a.groupCode === 5 || a.groupCode === 6 || a.groupCode === 7) && a.isPostingAllowed).map((a) => ({ value: a.id, label: `${a.name}`, code: a.code, name: a.name, groupLabel: a.groupCode === 4 ? "Pendapatan" : a.groupCode === 5 ? "HPP" : "Beban", normalBalance: a.normalBalance }));
+  const contactOptions: SelectOption[] = (contacts.data?.data ?? []).map((c: any) => ({ value: c.id, label: `${c.name} · ${CONTACT_TYPE_LABEL[c.type] ?? c.type}` }));
 
   function openCreate() { setEditing(null); setDefaults(emptyForm()); setDrawerOpen(true); }
   function openEdit(tx: any) { setEditing(tx); setDefaults(toForm(tx)); setDrawerOpen(true); }
 
   async function submit(values: CashForm) {
-    const payload = { ...values, destinationAccountId: values.destinationAccountId || undefined, categoryAccountId: values.categoryAccountId || undefined, amount: digits(values.amount) };
+    const payload = { ...values, destinationAccountId: values.destinationAccountId || undefined, categoryAccountId: values.categoryAccountId || undefined, contactId: values.contactId || undefined, amount: digits(values.amount) };
     if (editing) await requestJson(`/api/cash/transactions/${editing.id}`, "PATCH", payload);
     else await requestJson("/api/cash/transactions", "POST", payload);
     await list.refetch?.();
@@ -113,7 +117,7 @@ export default function Page() {
     <FormDrawer open={drawerOpen} onClose={() => { setDrawerOpen(false); setEditing(null); }} title={editing ? "Edit transaksi" : "Tambah draft transaksi"} subtitle={editing && editing.status !== "DRAFT" ? "Mode Hanyukupi: perubahan akan mengganti jurnal sumber tanpa void." : "Simpan sebagai draft dulu, lalu posting saat sudah benar."}>
       <ManagedForm<CashForm> key={editing?.id ?? "new-cash"} schema={schema} defaultValues={defaults} resetOnSuccess={false} onSubmit={submit}>{({ form, submitting }) => {
         const type = form.watch("type");
-        return <div className="grid gap-4"><RhfDataSelect<CashForm> name="type" label="Tipe" options={[{ value: "CASH_OUT", label: "Pengeluaran" }, { value: "CASH_IN", label: "Pemasukan" }, { value: "TRANSFER", label: "Transfer" }]} /><RhfDatePicker<CashForm> name="transactionDate" label="Tanggal" /><RhfDataSelect<CashForm> name="cashAccountId" label={type === "TRANSFER" ? "Dari kas/bank" : "Kas/bank"} options={cashOptions} placeholder="Pilih kas/bank" />{type === "TRANSFER" ? <RhfDataSelect<CashForm> name="destinationAccountId" label="Ke kas/bank" options={cashOptions} placeholder="Pilih tujuan" /> : <RhfDataSelect<CashForm> name="categoryAccountId" label={type === "CASH_IN" ? "Kategori pendapatan" : "Kategori beban"} options={categoryOptions} placeholder="Pilih kategori" />}<RhfMoneyField<CashForm> name="amount" label="Nominal" placeholder="100.000" /><RhfTextField<CashForm> name="description" label="Keterangan" placeholder="Keterangan transaksi" /><button type="submit" disabled={submitting} className="h-11 rounded-lg bg-foreground px-4 text-sm font-medium text-background disabled:opacity-50">{editing ? "Simpan perubahan" : "Simpan draft"}</button></div>;
+        return <div className="grid gap-4"><RhfDataSelect<CashForm> name="type" label="Tipe" options={[{ value: "CASH_OUT", label: "Pengeluaran" }, { value: "CASH_IN", label: "Pemasukan" }, { value: "TRANSFER", label: "Transfer" }]} /><RhfDatePicker<CashForm> name="transactionDate" label="Tanggal" /><RhfDataSelect<CashForm> name="cashAccountId" label={type === "TRANSFER" ? "Dari kas/bank" : "Kas/bank"} options={cashOptions} placeholder="Pilih kas/bank" />{type === "TRANSFER" ? <RhfDataSelect<CashForm> name="destinationAccountId" label="Ke kas/bank" options={cashOptions} placeholder="Pilih tujuan" /> : <RhfDataSelect<CashForm> name="categoryAccountId" label={type === "CASH_IN" ? "Kategori pendapatan" : "Kategori beban"} options={categoryOptions} placeholder="Pilih kategori" />}{type !== "TRANSFER" ? <RhfDataSelect<CashForm> name="contactId" label="Kontak (opsional)" options={contactOptions} placeholder="Pilih kontak (opsional)" /> : null}<RhfMoneyField<CashForm> name="amount" label="Nominal" placeholder="100.000" /><RhfTextField<CashForm> name="description" label="Keterangan" placeholder="Keterangan transaksi" /><button type="submit" disabled={submitting} className="h-11 rounded-lg bg-foreground px-4 text-sm font-medium text-background disabled:opacity-50">{editing ? "Simpan perubahan" : "Simpan draft"}</button></div>;
       }}</ManagedForm>
     </FormDrawer>
   </div>;

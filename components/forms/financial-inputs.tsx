@@ -1,18 +1,45 @@
 "use client";
 
 import type React from "react";
-import { useCallback, useRef, useState } from "react";
-
-/** Format angka jadi ribuan IDR: 1500000 → "1.500.000" */
-function formatIdr(raw: string | number): string {
-  const n = typeof raw === "number" ? raw : Number(raw.replace(/[^\d]/g, "")) || 0;
-  if (!n) return "";
-  return n.toLocaleString("id-ID");
-}
+import { useCallback } from "react";
 
 /** Strip semua non-digit dari input */
 function stripNonDigit(s: string): string {
   return s.replace(/[^\d]/g, "");
+}
+
+/** Format digit mentah jadi ribuan IDR: "1500000" → "1.500.000" */
+function formatIdr(digits: string): string {
+  if (!digits) return "";
+  return Number(digits).toLocaleString("id-ID");
+}
+
+function displayFor(rawDigits: string, prefix: boolean): string {
+  const number = formatIdr(rawDigits);
+  if (!number) return "";
+  return prefix ? `Rp ${number}` : number;
+}
+
+/** Hitung berapa karakter digit ada di sebelah kiri posisi `pos` pada string `s`. */
+function digitsBefore(s: string, pos: number): number {
+  let count = 0;
+  for (let i = 0; i < pos && i < s.length; i++) {
+    if (s.charAt(i) >= "0" && s.charAt(i) <= "9") count++;
+  }
+  return count;
+}
+
+/** Cari index tepat setelah digit ke-N pada string terformat (melompati separator/prefix). */
+function indexAfterDigits(formatted: string, digitCount: number): number {
+  if (digitCount <= 0) return 0;
+  let seen = 0;
+  for (let i = 0; i < formatted.length; i++) {
+    if (formatted.charAt(i) >= "0" && formatted.charAt(i) <= "9") {
+      seen++;
+      if (seen === digitCount) return i + 1;
+    }
+  }
+  return formatted.length;
 }
 
 interface MoneyFieldProps {
@@ -29,43 +56,42 @@ interface MoneyFieldProps {
 }
 
 /**
- * Input uang dengan format ribuan IDR.
- * - Saat blur: tampil "1.500.000" (mudah dibaca)
- * - Saat focus: tampil "1500000" (mudah diedit)
- * - onChange dipanggil dengan raw digits string, mis. "1500000"
+ * Input uang dengan format ribuan IDR yang tampil langsung saat mengetik.
+ * onChange dipanggil dengan raw digits string, mis. "1500000". Posisi kursor
+ * dipertahankan manual di `handleChange` (tulis langsung ke DOM node sebelum
+ * React commit) supaya penyisipan titik pemisah tidak melempar kursor ke akhir teks.
  */
 export function MoneyField({ value, onChange, onBlur, onFocus, prefix = false, className = "", placeholder = "0", disabled, autoFocus }: MoneyFieldProps) {
-  const [focused, setFocused] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
   const rawStr = String(value ?? "").replace(/[^\d]/g, "");
-  const displayValue = focused ? rawStr : (rawStr ? (prefix ? "Rp " + formatIdr(rawStr) : formatIdr(rawStr)) : "");
+  const displayValue = displayFor(rawStr, prefix);
 
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = stripNonDigit(e.target.value);
+    const el = e.target;
+    const cursorPos = el.selectionStart ?? el.value.length;
+    const digitCount = digitsBefore(el.value, cursorPos);
+    const raw = stripNonDigit(el.value);
+    const newDisplay = displayFor(raw, prefix);
+    const newPos = indexAfterDigits(newDisplay, digitCount);
+
+    el.value = newDisplay;
+    el.setSelectionRange(newPos, newPos);
+
     onChange(raw);
-  }, [onChange]);
+  }, [onChange, prefix]);
 
   const handleFocus = useCallback((e: React.FocusEvent<HTMLInputElement>) => {
-    setFocused(true);
     setTimeout(() => e.target.select(), 0);
     onFocus?.(e);
   }, [onFocus]);
 
-  const handleBlur = useCallback((e: React.FocusEvent<HTMLInputElement>) => {
-    setFocused(false);
-    onBlur?.(e);
-  }, [onBlur]);
-
   return (
     <input
-      ref={inputRef}
       type="text"
       inputMode="numeric"
       value={displayValue}
       onChange={handleChange}
       onFocus={handleFocus}
-      onBlur={handleBlur}
+      onBlur={onBlur}
       placeholder={placeholder}
       disabled={disabled}
       autoFocus={autoFocus}
