@@ -1,8 +1,8 @@
 # CLAUDE.md — BisnisMu Development Guide
 
 **Project:** BisnisMu — Aplikasi Akuntansi untuk UMKM & BUMDes  
-**Last Updated:** 2026-06-09  
-**Version:** 0.8.0 + Development Guidelines  
+**Last Updated:** 2026-08-10  
+**Version:** 0.11.1 (per `package.json`; CHANGELOG.md sudah mencatat rilis 0.12.0 + pekerjaan `[Unreleased]` — versi belum direkonsiliasi)  
 
 ---
 
@@ -89,7 +89,7 @@ Aplikasi ini mengikuti **SAK EMKM** (Standar Akuntansi Keuangan Entitas Mikro, K
 ✅ **Jurnal otomatis yang benar secara akuntansi** — bukan hanya input transaksi sederhana  
 ✅ **Panduan kontekstual** untuk pengguna awam akuntansi  
 ✅ **Dukungan BUMDes** dengan format laporan sesuai Permendesa No. 4 Tahun 2015  
-✅ **Offline-capable (PWA)** untuk daerah dengan koneksi terbatas  
+🔲 **Offline-capable (PWA)** — direncanakan (PRD menyebut `next-pwa`), **belum diimplementasikan**: tidak ada `manifest.json`, service worker, atau dependency PWA apa pun di `package.json`  
 ✅ **Multi-usaha dalam satu akun** — kelola hingga 5+ bisnis sekaligus  
 
 ### 2.3 Target Users
@@ -109,16 +109,17 @@ Aplikasi ini mengikuti **SAK EMKM** (Standar Akuntansi Keuangan Entitas Mikro, K
 | Layer | Technology |
 |-------|------------|
 | **Runtime** | Node.js + TypeScript (ESM) |
-| **Framework** | Next.js 14+ (API Routes) |
+| **Framework** | Next.js 15+ (App Router + API Routes) |
 | **Database** | PostgreSQL (Neon) |
-| **ORM** | Prisma 5+ |
+| **ORM** | Prisma 6+ |
+| **Auth** | better-auth + Prisma adapter (email/password, argon2id → bcrypt migration) |
 | **Package Manager** | npm |
 
-### 3.2 Frontend (Planned)
+### 3.2 Frontend (Implemented — ~70 halaman di `app/(app)` + `app/(auth)`)
 
 | Layer | Technology |
 |-------|------------|
-| **Framework** | React 18+ |
+| **Framework** | React 19+ |
 | **Styling** | Tailwind CSS + Glassmorphism |
 | **Forms** | React Hook Form + Zod |
 | **Data Fetching** | React Query (TanStack Query) |
@@ -138,7 +139,7 @@ Aplikasi ini mengikuti **SAK EMKM** (Standar Akuntansi Keuangan Entitas Mikro, K
 |------|---------|
 | **GitHub** | Version control |
 | **Neon** | PostgreSQL as a Service |
-| **Vercel** | Deployment (planned) |
+| **Vercel** | Deployment (CI/CD via GitHub Actions `deploy.yml`) |
 
 ---
 
@@ -196,8 +197,11 @@ export const serverServices = {
   revenue: new RevenueService(...)
   tourism: new TourismService(revenue, ...)
   pos: new PosService(sales, payment, cashSession, ...)
-  // ... more services
+  // ... more services (cashSession, payment, float, purchase, installments, ...)
 }
+
+// Organisasi multi-unit dirakit terpisah — lihat Bagian 7.6
+export const orgServices = { organization: ..., consolidation: ... }
 ```
 
 ### 4.4 Tenant Context & Security
@@ -293,28 +297,32 @@ npx prisma studio    # Open Prisma Studio (database GUI)
 
 ### 6.1 Complete Modules (Domain + Application + Prisma)
 
-| Module | Purpose | Status |
-|--------|---------|--------|
-| **Accounting** | Journal posting, fiscal periods, audit logs | ✅ Production |
-| **Business** | Multi-tenant isolation, fiscal period management | ✅ Production |
-| **Chart of Accounts** | SAK EMKM account hierarchy, validation | ✅ Production |
-| **Cash Management** | Cash in/out/transfer, reconciliation | ✅ Production |
-| **Revenue** | Revenue categories, pricing, transaction posting | ✅ Production |
-| **Tourism** | Tourism-specific revenue, tickets, visitor tracking | ✅ Production |
-| **AR/AP** | Invoices, bills, payment allocation | ✅ Production |
-| **Inventory** | Products, stock tracking, cost valuation | ✅ Production |
-| **Float Management** | Cash float allocation & tracking | ✅ Production |
-| **Reporting** | P&L, Balance Sheet, Trial Balance, GL | ✅ Production |
-
-### 6.2 Partial Modules (Domain + Application, needs Prisma)
+> **Update 2026-08-10:** Modul yang dulu ditandai "WIP / Prisma schema needed" (Cash Sessions, Sales, Payment, POS) sudah punya Prisma repository dan terpasang penuh di `server-services.ts`. Modul **Purchase** juga bukan deprecated — domain/application/infrastructure lengkap, 4 halaman, dan beberapa API route aktif dipakai.
 
 | Module | Purpose | Status | Notes |
 |--------|---------|--------|-------|
-| **Cash Sessions** | Cash drawer management, shift opening/closing | 🟡 WIP | Prisma schema needed |
-| **Sales** | Sales orders, confirmations, payments | 🟡 WIP | Prisma schema needed |
-| **Purchase** | ⚠️ Deprecated | See: Domain/App only | Merge into Inventory? |
-| **Payment** | Payment wallet, allocations, receivables | 🟡 WIP | Prisma schema needed |
-| **POS** | Point of sale, terminals, checkout | 🟡 WIP | Prisma schema needed |
+| **Accounting** | Journal posting, fiscal periods, audit logs | ✅ Production | |
+| **Business** | Multi-tenant isolation, fiscal period management | ✅ Production | |
+| **Chart of Accounts** | SAK EMKM account hierarchy, validation | ✅ Production | |
+| **Cash Management** | Cash in/out/transfer, reconciliation | ✅ Production | Modul `cash-management`, beda dari "Cash Sessions" di bawah |
+| **Revenue** | Revenue categories, pricing, transaction posting | ✅ Production | |
+| **Tourism** | Tourism-specific revenue, tickets, visitor tracking | ✅ Production | |
+| **AR/AP** | Invoices, bills, payment allocation | ✅ Production | |
+| **Inventory** | Products, stock tracking, cost valuation | ✅ Production | |
+| **Float Management** | Cash float allocation & tracking | ✅ Production | |
+| **Reporting** | P&L, Balance Sheet, Trial Balance, GL | ✅ Production | |
+| **Cash Sessions** | Cash drawer, shift opening/closing, reconciliation | ✅ Production | Modul `cash` (beda dari `cash-management`) |
+| **Sales** | Sales orders, confirmations, payments | ✅ Production | |
+| **Payment** | Payment wallet, allocations, receivables | ✅ Production | |
+| **POS** | Point of sale, terminals, cart, checkout | ✅ Production | |
+| **Purchase** | Purchase orders, receipts, returns, vendor bills | ✅ Production | Sebelumnya ditandai deprecated — tidak akurat |
+| **Organization** | Multi-unit/BUMDes, konsolidasi laporan | ✅ Production | Lihat [Bagian 7](#7-multi-unit-organization) |
+| **Installments** | Cicilan/angsuran piutang | ✅ Production | Service akses Prisma langsung, belum lewat repository port |
+| **Dashboard** | Ringkasan KPI, query teroptimasi per halaman | ✅ Production | Service akses Prisma langsung, belum lewat repository port |
+
+### 6.2 Partial Modules
+
+Tidak ada modul berstatus "partial" per pengecekan terakhir — semua modul yang sebelumnya WIP sudah production (lihat catatan di atas).
 
 ### 6.3 Out of Scope (Phase 2+)
 
@@ -431,7 +439,7 @@ Kolom `organizationId` di `Business` adalah **nullable** — semua data existing
 5. API Routes + Zod schemas (2–3 jam)
 6. Tests (2–3 jam)
 
-**Referensi lengkap:** `docs/PRD-BisnisMu-Addendum-MultiUnit-Organization.md`
+**Referensi lengkap:** `docs/PRD-Addendum-MultiUnit-Organization.md`
 
 ---
 
@@ -456,21 +464,27 @@ Kolom `organizationId` di `Business` adalah **nullable** — semua data existing
 - `inventory_products`, `inventory_movements`, `inventory_balances`
 - `audit_logs` — Immutable audit trail
 
-### 8.2 Critical Schema Gaps (Not Yet Implemented)
+### 8.2 Schema Growth Since v1 (Update 2026-08-10)
 
-⚠️ Missing for Phase 2 & beyond:
-- `users`, `sessions`, `credentials` (auth)
-- `business_members`, `business_roles` (RBAC)
-- `platform_roles`, `god_mode_audit` (admin)
-- `cash_drawers`, `cash_sessions`, `cash_movements`
-- `sales_orders`, `sales_order_items`
-- `purchase_orders`, `purchase_receipts`
-- `pos_terminals`, `pos_sessions`, `pos_transactions`
-- `payment_wallets`, `payment_allocations`
+Semua item yang dulu tercatat sebagai "gap" di bawah ini **sudah ada** di `prisma/schema.prisma` (68 model total per pengecekan terakhir — model Prisma pakai PascalCase, mis. `JournalEntry`, bukan `journal_entries`):
+- ✅ Auth: `User`, `Session`, `AuthAccount`, `VerificationToken`
+- ✅ RBAC: `BusinessMember` (+ enum `BusinessMemberRole`)
+- ✅ Admin: `PlatformRole` (enum), `GodModeAuditLog`
+- ✅ Cash sessions: `CashDrawer`, `CashSessionRecord`, `CashMovementRecord`, `CashReconciliationRecord`
+- ✅ Sales: `SalesOrder`, `SalesOrderItem`, `DailySale`, `DailySaleItem`, `DailySaleContact`
+- ✅ Purchase: `PurchaseOrder`, `PurchaseOrderItem`, `PurchaseReceipt`, `PurchaseReturn`
+- ✅ POS: `PosTerminal`, `PosSessionRecord`, `PosTransactionRecord`, `PosCartItem`, `PosReceiptRecord`
+- ✅ Payment: `CustomerWallet`, `CustomerWalletTransaction`, `PaymentMethod`, `PaymentTransaction`, `PaymentAllocation`, `Receivable`
+- ✅ Installments: `InstallmentPlan`, `InstallmentSchedule`
+- ✅ Organization: `Organization`, `OrgMember`
+
+`schema.prisma` adalah source of truth — bagian 8.1 di atas hanya gambaran kasar per kategori, bukan daftar lengkap.
 
 ---
 
 ## 9. CURRENT SYSTEM STATUS
+
+> Snapshot per-versi di bagian ini berhenti di v0.5.0 (2026-06-03). Untuk perubahan v0.6.0 sampai sekarang (termasuk rilis 0.12.0 dan pekerjaan `[Unreleased]`), lihat [CHANGELOG.md](./CHANGELOG.md) — belum dirangkum ulang di bagian ini.
 
 ### 9.1 Status by Metric
 
@@ -538,7 +552,7 @@ See **CHANGELOG.md** for detailed history.
                │
 ┌──────────────▼─────────────────────────────┐
 │      BUSINESS LEVEL (per usaha)            │
-│   OWNER  ADMIN  EDITOR  VIEWER  CASHIER   │
+│   OWNER  ADMIN  ACCOUNTANT  CASHIER  VIEWER │
 └────────────────────────────────────────────┘
 ```
 
@@ -561,11 +575,12 @@ See **CHANGELOG.md** for detailed history.
 | `OWNER` | ✅ | ✅ | ✅ | ✅ |
 | `ADMIN` | ✅ | ✅ | ✅ | ✅ |
 | `ACCOUNTANT` | ❌ | ❌ | ✅ | ❌ |
-| `EDITOR` | ✅ | ❌ | ❌ | ❌ |
 | `CASHIER` | ✅ (Kas only) | ❌ | ❌ | ❌ |
 | `VIEWER` | ❌ | ❌ | ✅ | ❌ |
 
-**See:** PRD-BisnisMu-Addendum-Roles-GodMode.md for full permission matrix.
+> `EDITOR` dihapus dari tabel ini (2026-08-10) — enum `BusinessMemberRole` di `prisma/schema.prisma` cuma punya 5 nilai: `OWNER`, `ADMIN`, `ACCOUNTANT`, `CASHIER`, `VIEWER`. Role ini tidak ada di kode.
+
+**See:** PRD-AkuntansiMu-Addendum-Roles-GodMode.md for full permission matrix.
 
 ---
 
@@ -1040,7 +1055,7 @@ const { businessId, actorUserId } = await validatedBody(schema, body)
 - ❌ 2FA untuk SUPER_ADMIN (deferred)
 
 ### Phase 3: Frontend & UX ✅ (Complete — 2026-06-03)
-- ✅ 59 halaman frontend dengan glass design system
+- ✅ ~70 halaman frontend dengan glass design system
 - ✅ UI compliance — zero native form elements di semua halaman
 - ✅ `GlassDataSelect`, `GlassDatePicker`/`GlassDateTimePicker` (controlled)
 - ✅ Export PDF + Excel (4 laporan × 2 format)
@@ -1054,28 +1069,28 @@ const { businessId, actorUserId } = await validatedBody(schema, body)
 - ❌ Seed scripts / demo data
 - ❌ 2FA SUPER_ADMIN
 - ❌ Docker development setup
+- ❌ Load testing & optimization
+- ❌ Security audit
 
-### Phase 3: API Exposure & Frontend (Planned)
-- ❌ Frontend React components
+### Phase 3b: API Documentation (Planned) — *update 2026-08-10: 3 dari 4 item ternyata sudah selesai*
+- ✅ Frontend React components (lihat Phase 3 di atas — sebelumnya salah ditandai ❌)
+- ✅ Request validation at HTTP layer (Zod di `request-schemas.ts` + `validation.ts`)
+- ✅ Error handling & response formatting (`serializeResponse()`, `route-handler.ts`)
 - ❌ OpenAPI documentation
-- ❌ Request validation at HTTP layer
-- ❌ Error handling & response formatting
 - ⏳ **Target:** Q3 2026
 
-### Phase 4: Persistence for Advanced Modules (Planned)
-- ❌ Cash drawers & sessions
-- ❌ Sales orders & confirmations
-- ❌ Purchase orders & receipts
-- ❌ Payment wallets & allocations
-- ❌ POS integration
-- ⏳ **Target:** Q4 2026
+### Phase 4: Persistence for Advanced Modules ✅ (Complete — update 2026-08-10)
+- ✅ Cash drawers & sessions
+- ✅ Sales orders & confirmations
+- ✅ Purchase orders & receipts
+- ✅ Payment wallets & allocations
+- ✅ POS integration
 
-### Phase 5: User-Facing Workflows (Planned)
-- ❌ Onboarding flow
-- ❌ Transaction entry screens
-- ❌ Report screens & export
-- ❌ Dashboard & summaries
-- ⏳ **Target:** Q4 2026
+### Phase 5: User-Facing Workflows ✅ (Complete — update 2026-08-10)
+- ✅ Onboarding flow
+- ✅ Transaction entry screens
+- ✅ Report screens & export
+- ✅ Dashboard & summaries
 
 ### Phase 6: Advanced Features (Post-MVP)
 - ❌ Fixed assets & depreciation
@@ -1084,13 +1099,6 @@ const { businessId, actorUserId } = await validatedBody(schema, body)
 - ❌ Notifications & reminders
 - ❌ BUMDes report formats
 - ⏳ **Target:** 2027
-
-### Phase 7: Production Hardening (Ongoing)
-- ❌ CI/CD pipeline
-- ❌ Docker setup
-- ❌ Observability & error tracking
-- ❌ Load testing & optimization
-- ❌ Security audit
 
 ---
 
@@ -1152,16 +1160,16 @@ npm run format                       # Format with Prettier
 
 ### D. References
 
-- **Product Requirements:** [PRD-BisnisMu-v1_0.md](./docs/PRD-BisnisMu-v1_0.md)
-- **Roles & Permissions:** [PRD-BisnisMu-Addendum-Roles-GodMode.md](./docs/PRD-BisnisMu-Addendum-Roles-GodMode.md)
-- **Multi-Unit Organization:** [PRD-BisnisMu-Addendum-MultiUnit-Organization.md](./docs/PRD-BisnisMu-Addendum-MultiUnit-Organization.md)
-- **Architecture Details:** [Architecture.md](./docs/Architecture.md)
-- **Implementation History:** [HANDOFF.md](./docs/HANDOFF.md)
+- **Product Requirements:** [PRD-AkuntansiMu-v1.0.md](./docs/PRD-AkuntansiMu-v1.0.md)
+- **Roles & Permissions:** [PRD-AkuntansiMu-Addendum-Roles-GodMode.md](./docs/PRD-AkuntansiMu-Addendum-Roles-GodMode.md)
+- **Multi-Unit Organization:** [PRD-Addendum-MultiUnit-Organization.md](./docs/PRD-Addendum-MultiUnit-Organization.md)
+- **Architecture Details:** [Architecture.md](./Architecture.md)
+- **Implementation History:** [HANDOFF.md](./HANDOFF.md)
 - **Change Log:** [CHANGELOG.md](./CHANGELOG.md)
 
 ---
 
-**Last Updated:** June 3, 2026  
+**Last Updated:** 2026-08-10  
 **Maintained By:** Development Team  
 **Status:** Active Development (Pre-Production)
 
