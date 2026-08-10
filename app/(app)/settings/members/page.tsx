@@ -10,7 +10,7 @@ import { GlassTable } from "@/components/tables/glass-table";
 import { useListQuery } from "@/presentation/query/dashboard-hooks";
 import { GlassDataSelect, GlassInput, GlassPasswordInput } from "@/components/forms/glass-form";
 
-const ROLES = ["ADMIN", "ACCOUNTANT", "EDITOR", "CASHIER", "VIEWER"];
+const ROLES = ["ADMIN", "ACCOUNTANT", "CASHIER", "VIEWER"];
 
 async function api(path: string, method: string, body?: unknown) {
   const init: RequestInit = { method, credentials: "include", headers: { "content-type": "application/json" } };

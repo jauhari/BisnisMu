@@ -133,7 +133,7 @@ export default function Page() {
             {newBizId && (
               <label className="grid gap-1 text-xs">Role di Usaha Tersebut
                 <GlassDataSelect value={newBizRole} onChange={setNewBizRole}
-                  options={["ADMIN","ACCOUNTANT","EDITOR","CASHIER","VIEWER"].map((r) => ({ value: r, label: r }))}
+                  options={["ADMIN","ACCOUNTANT","CASHIER","VIEWER"].map((r) => ({ value: r, label: r }))}
                   className="h-9" />
               </label>
             )}

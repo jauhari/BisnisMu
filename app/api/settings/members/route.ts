@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     requirePermission(ctx, "tenant:manage");
     const { name, email, password, role } = await request.json() as { name: string; email: string; password?: string; role: string };
     if (!name?.trim() || !email?.trim()) throw new Error("Nama dan email wajib diisi.");
-    const validRoles = ["ADMIN", "ACCOUNTANT", "EDITOR", "CASHIER", "VIEWER"];
+    const validRoles = ["ADMIN", "ACCOUNTANT", "CASHIER", "VIEWER"];
     if (!validRoles.includes(role)) throw new Error("Role tidak valid.");
 
     const normalizedEmail = email.toLowerCase().trim();

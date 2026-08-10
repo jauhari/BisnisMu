@@ -43,7 +43,7 @@ export async function POST(request: Request) {
 
     // Jika businessId diberikan, langsung tambah sebagai member
     if (businessId && businessRole) {
-      const validRoles = ["ADMIN", "ACCOUNTANT", "EDITOR", "CASHIER", "VIEWER"];
+      const validRoles = ["ADMIN", "ACCOUNTANT", "CASHIER", "VIEWER"];
       if (validRoles.includes(businessRole)) {
         await prisma.businessMember.create({
           data: { businessId, userId: user.id, role: businessRole as any, isActive: true },
