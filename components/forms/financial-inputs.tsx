@@ -95,7 +95,7 @@ export function MoneyField({ value, onChange, onBlur, onFocus, prefix = false, c
       placeholder={placeholder}
       disabled={disabled}
       autoFocus={autoFocus}
-      className={`tabular-nums ${className}`}
+      className={`block tabular-nums ${className}`}
     />
   );
 }

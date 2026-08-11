@@ -1,6 +1,8 @@
 import { handleApi } from "@/presentation/api/route-handler";
 import { requireTenantContext } from "@/presentation/auth/session";
 import { serverServices } from "@/presentation/api/server-services";
+import { CHART_OF_ACCOUNTS_CACHE_TAG } from "@/presentation/cache/tags";
+import { revalidateTag } from "next/cache";
 import { z } from "zod";
 
 const updateAccountSchema = z.object({
@@ -19,13 +21,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ac
     if (data.description !== undefined) command.description = data.description;
     if (data.subtype !== undefined) command.subtype = data.subtype;
     if (data.isActive !== undefined) command.isActive = data.isActive;
-    return serverServices.chartOfAccounts.update(command);
+    const account = await serverServices.chartOfAccounts.update(command);
+    revalidateTag(CHART_OF_ACCOUNTS_CACHE_TAG);
+    return account;
   });
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ accountId: string }> }) {
   return handleApi(async () => {
     const [{ accountId }, tenant] = await Promise.all([params, requireTenantContext(request)]);
-    return serverServices.chartOfAccounts.delete({ ...tenant, accountId });
+    const result = await serverServices.chartOfAccounts.delete({ ...tenant, accountId });
+    revalidateTag(CHART_OF_ACCOUNTS_CACHE_TAG);
+    return result;
   });
 }

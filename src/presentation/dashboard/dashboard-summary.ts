@@ -9,6 +9,20 @@ export interface DashboardSummaryInput {
 }
 
 export interface DashboardSummary {
+  salesToday: string;
+  netProfit: string;
+  profitMargin: number;
+  cashOnHand: string;
+  bankBalance: string;
+  inventoryValue: string;
+  lowStockCount: number;
+  overdueReceivable: string;
+  lowFloatProvider: string | null;
+  salesTrend: Array<{ label: string; value: number }>;
+  cashTrend: Array<{ label: string; value: number }>;
+}
+
+interface CalculatedDashboardSummary {
   salesToday: bigint;
   netProfit: bigint;
   profitMargin: number;
@@ -69,7 +83,7 @@ function trendPoints(startsOn: Date, endsOn: Date, items: TrendItem[]): Array<{ 
   return [...byBucket.entries()].map(([key, amount]) => ({ label: labels.get(key) ?? key, value: Number(amount) }));
 }
 
-function calculateProfitability(lines: Array<{ side: "DEBIT" | "CREDIT"; amount: bigint; account: { groupCode: string } }>): Pick<DashboardSummary, "netProfit" | "profitMargin"> {
+function calculateProfitability(lines: Array<{ side: "DEBIT" | "CREDIT"; amount: bigint; account: { groupCode: string } }>): Pick<CalculatedDashboardSummary, "netProfit" | "profitMargin"> {
   let revenue = 0n;
   let cogs = 0n;
   let expenses = 0n;
@@ -82,6 +96,18 @@ function calculateProfitability(lines: Array<{ side: "DEBIT" | "CREDIT"; amount:
 
   const netProfit = revenue - cogs - expenses;
   return { netProfit, profitMargin: revenue === 0n ? 0 : Number((netProfit * 10_000n) / revenue) / 100 };
+}
+
+function serializeDashboardSummary(summary: CalculatedDashboardSummary): DashboardSummary {
+  return {
+    ...summary,
+    salesToday: summary.salesToday.toString(),
+    netProfit: summary.netProfit.toString(),
+    cashOnHand: summary.cashOnHand.toString(),
+    bankBalance: summary.bankBalance.toString(),
+    inventoryValue: summary.inventoryValue.toString(),
+    overdueReceivable: summary.overdueReceivable.toString(),
+  };
 }
 
 async function loadDashboardSummary(input: DashboardSummaryInput): Promise<DashboardSummary> {
@@ -130,7 +156,7 @@ async function loadDashboardSummary(input: DashboardSummaryInput): Promise<Dashb
   for (const account of floatAccounts) providerBalances.set(account.provider, (providerBalances.get(account.provider) ?? 0n) + account.currentBalance);
   const lowFloatProvider = [...providerBalances.entries()].filter(([, balance]) => balance <= 100n).sort((a, b) => (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : a[0].localeCompare(b[0])))[0]?.[0] ?? null;
 
-  return {
+  return serializeDashboardSummary({
     salesToday,
     netProfit,
     profitMargin,
@@ -142,7 +168,7 @@ async function loadDashboardSummary(input: DashboardSummaryInput): Promise<Dashb
     lowFloatProvider,
     salesTrend: trendPoints(startsOn, endsOn, salesOrders.map((order) => ({ date: order.saleDate, amount: order.totalAmount }))),
     cashTrend: trendPoints(startsOn, endsOn, cashTransactions.map((transaction) => ({ date: transaction.transactionDate, amount: transaction.type === "CASH_IN" ? transaction.amount : -transaction.amount }))),
-  };
+  });
 }
 
 export const getCachedDashboardSummary = unstable_cache(loadDashboardSummary, ["dashboard-summary"], { revalidate: 30, tags: ["dashboard"] });

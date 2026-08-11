@@ -341,3 +341,25 @@ export const installmentPaySchema = z.object({
   amount: positiveMoneySchema,
   paymentDate: dateSchema,
 });
+
+const employeeRoleSchema = z.enum(["DOCTOR", "NURSE", "STAFF", "OTHER"]);
+const payrollItemSchema = z.object({
+  employeeId: uuidSchema,
+  salaryAmount: nonNegativeMoneySchema,
+  incentiveAmount: nonNegativeMoneySchema.optional(),
+  deductionAmount: nonNegativeMoneySchema.optional(),
+  notes: optionalString,
+});
+
+export const payrollEmployeeSchema = z.object({ name: stringRequired, role: employeeRoleSchema });
+export const payrollEmployeeUpdateSchema = payrollEmployeeSchema.extend({ isActive: z.boolean() });
+export const payrollRunSchema = z.object({
+  period: dateSchema,
+  expenseAccountId: uuidSchema,
+  payableAccountId: uuidSchema,
+  deductionPayableAccountId: optionalUuidSchema,
+  items: z.array(payrollItemSchema).min(1),
+});
+export const payrollApproveSchema = z.object({ approvedAt: dateSchema.optional() });
+export const payrollPaySchema = z.object({ paymentAccountId: uuidSchema, paidAt: dateSchema.optional() });
+export const payrollItemPaySchema = payrollPaySchema.extend({ amount: positiveMoneySchema });

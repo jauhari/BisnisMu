@@ -98,6 +98,25 @@ enum CashTransactionStatus {
   VOID
 }
 
+enum EmployeeRole {
+  DOCTOR
+  NURSE
+  STAFF
+  OTHER
+}
+
+enum PayrollStatus {
+  DRAFT
+  APPROVED
+  PAID
+}
+
+enum PayrollItemPaymentStatus {
+  UNPAID
+  PARTIAL
+  PAID
+}
+
 enum RevenueType {
   TICKET
   PACKAGE
@@ -434,6 +453,8 @@ model Business {
   posReceipts                PosReceiptRecord[]
   members                    BusinessMember[]
   dailySales                 DailySale[]
+  employees                  Employee[]
+  payrollRuns                PayrollRun[]
 
   // Multi-Unit Organization (additive, opsional) — satu Business hanya milik satu Organization.
   organizationId String?       @map("organization_id")
@@ -610,6 +631,97 @@ model Account {
   @@index([businessId, groupCode])
   @@index([businessId, subtype])
   @@map("accounts")
+}
+
+model Employee {
+  id        String       @id @default(cuid())
+  businessId String      @map("business_id")
+  name      String
+  role      EmployeeRole
+  isActive  Boolean      @default(true) @map("is_active")
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  business     Business      @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  payrollItems PayrollItem[]
+
+  @@index([businessId, isActive])
+  @@map("employees")
+}
+
+model PayrollRun {
+  id                        String        @id @default(cuid())
+  businessId                String        @map("business_id")
+  period                    DateTime      @map("period") @db.Date
+  status                    PayrollStatus @default(DRAFT)
+  expenseAccountId          String        @map("expense_account_id")
+  payableAccountId          String        @map("payable_account_id")
+  deductionPayableAccountId String?       @map("deduction_payable_account_id")
+  totalGrossAmount          BigInt        @map("total_gross_amount")
+  totalDeductionAmount      BigInt        @map("total_deduction_amount")
+  totalNetAmount            BigInt        @map("total_net_amount")
+  accruedJournalId          String?       @map("accrued_journal_id")
+  paymentJournalId          String?       @map("payment_journal_id")
+  createdByUserId           String        @map("created_by_user_id")
+  approvedAt                DateTime?     @map("approved_at")
+  paidAt                    DateTime?     @map("paid_at")
+  createdAt                 DateTime      @default(now()) @map("created_at")
+  updatedAt                 DateTime      @updatedAt @map("updated_at")
+
+  business Business      @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  items    PayrollItem[]
+  payments PayrollPayment[]
+
+  @@unique([businessId, period])
+  @@index([businessId, status])
+  @@map("payroll_runs")
+}
+
+model PayrollItem {
+  id              String       @id @default(cuid())
+  businessId      String       @map("business_id")
+  payrollRunId    String       @map("payroll_run_id")
+  employeeId      String       @map("employee_id")
+  employeeName    String       @map("employee_name")
+  employeeRole    EmployeeRole @map("employee_role")
+  salaryAmount    BigInt       @map("salary_amount")
+  incentiveAmount BigInt       @default(0) @map("incentive_amount")
+  deductionAmount BigInt       @default(0) @map("deduction_amount")
+  grossAmount     BigInt       @map("gross_amount")
+  netAmount       BigInt       @map("net_amount")
+  paidAmount      BigInt       @default(0) @map("paid_amount")
+  paymentStatus   PayrollItemPaymentStatus @default(UNPAID) @map("payment_status")
+  notes           String?
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  payrollRun PayrollRun @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  employee   Employee   @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  payments   PayrollPayment[]
+
+  @@unique([payrollRunId, employeeId])
+  @@index([businessId, employeeId])
+  @@map("payroll_items")
+}
+
+model PayrollPayment {
+  id               String   @id @default(cuid())
+  businessId       String   @map("business_id")
+  payrollRunId     String   @map("payroll_run_id")
+  payrollItemId    String   @map("payroll_item_id")
+  paymentAccountId String   @map("payment_account_id")
+  amount           BigInt
+  paidAt           DateTime @map("paid_at") @db.Date
+  journalId        String   @unique @map("journal_id")
+  createdByUserId  String   @map("created_by_user_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  payrollRun  PayrollRun  @relation(fields: [payrollRunId], references: [id], onDelete: Restrict)
+  payrollItem PayrollItem @relation(fields: [payrollItemId], references: [id], onDelete: Restrict)
+
+  @@index([businessId, payrollRunId])
+  @@index([payrollItemId, paidAt])
+  @@map("payroll_payments")
 }
 
 model FiscalPeriod {

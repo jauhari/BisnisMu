@@ -9,6 +9,7 @@ import { MoneyField } from "./financial-inputs";
 import type { ZodTypeAny } from "zod";
 import { createFormDraft, markSaved, undoFormDraft, updateFormDraft, type FormDraftState } from "@/presentation/state/form-state";
 import { defaultAutosavePolicy, shouldAutosave } from "@/presentation/state/autosave";
+import { cn } from "@/presentation/theme/cn";
 import { GlassDataSelect, GlassDatePicker, GlassField, GlassForm, GlassInput, GlassSelect } from "./glass-form";
 import type { SelectOption } from "./glass-form";
 import { toast } from "sonner";
@@ -78,7 +79,7 @@ export function RhfDatePicker<T extends FieldValues>({ name, label, placeholder 
 }
 
 /** RhfTextField khusus uang — format 1.500.000 saat blur, raw saat focus */
-export function RhfMoneyField<T extends FieldValues>({ name, label, placeholder }: { name: Path<T>; label: string; placeholder?: string }) {
+export function RhfMoneyField<T extends FieldValues>({ name, label, placeholder, prefix = false, className }: { name: Path<T>; label: string; placeholder?: string; prefix?: boolean; className?: string }) {
   const { control, formState: { errors } } = useFormContext<T>();
   const error = errors[name]?.message;
   const fieldProps = typeof error === "string" ? { label, error } : { label };
@@ -92,8 +93,9 @@ export function RhfMoneyField<T extends FieldValues>({ name, label, placeholder 
             value={field.value ?? ""}
             onChange={(raw) => field.onChange(raw)}
             onBlur={field.onBlur}
+            prefix={prefix}
             placeholder={placeholder ?? "0"}
-            className="h-11 w-full rounded-md border border-border bg-white/60 px-3 text-sm dark:bg-white/8"
+            className={cn("h-11 w-full rounded-md border border-border bg-white/60 px-3 text-sm dark:bg-white/8", className)}
           />
         )}
       />
@@ -108,7 +110,7 @@ export function RhfSelectField<T extends FieldValues>({ name, label, valueLabel 
 
 export type { SelectOption };
 
-export function RhfDataSelect<T extends FieldValues>({ name, label, options, placeholder = "Pilih...", loading = false }: { name: Path<T>; label: string; options: SelectOption[]; placeholder?: string; loading?: boolean }) {
+export function RhfDataSelect<T extends FieldValues>({ name, label, options, placeholder = "Pilih...", loading = false, dropdownFooter }: { name: Path<T>; label: string; options: SelectOption[]; placeholder?: string; loading?: boolean; dropdownFooter?: ReactNode }) {
   const { setValue, watch, formState: { errors } } = useFormContext<T>();
   const value = (watch(name) as string) ?? "";
   const error = errors[name]?.message;
@@ -120,6 +122,7 @@ export function RhfDataSelect<T extends FieldValues>({ name, label, options, pla
         onChange={(v) => setValue(name, v as never, { shouldDirty: true, shouldValidate: true })}
         options={loading ? [] : options}
         placeholder={loading ? "Memuat..." : placeholder}
+        footer={dropdownFooter}
       />
     </GlassField>
   );

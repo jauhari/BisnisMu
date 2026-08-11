@@ -96,6 +96,7 @@ export const SAK_EMKM_STANDARD_ACCOUNTS: AccountTemplateItem[] = [
   { code: "210201", name: "Utang Bank Jangka Pendek", groupCode: 2, subtype: "short_term_loan", parentCode: "210000", isPostingAllowed: true, isSystem: true },
   { code: "210301", name: "Utang Pajak", groupCode: 2, subtype: "tax_payable", parentCode: "210000", isPostingAllowed: true, isSystem: true },
   { code: "210401", name: "Beban Akrual", groupCode: 2, subtype: "accrued_expense", parentCode: "210000", isPostingAllowed: true, isSystem: true },
+  { code: "210501", name: "Utang Gaji", groupCode: 2, subtype: "salary_payable", parentCode: "210000", isPostingAllowed: true, isSystem: true },
   { code: "220000", name: "Liabilitas Jangka Panjang", groupCode: 2, subtype: "non_current_liability", parentCode: "200000", isPostingAllowed: false, isSystem: true },
   { code: "220101", name: "Utang Bank Jangka Panjang", groupCode: 2, subtype: "long_term_loan", parentCode: "220000", isPostingAllowed: true, isSystem: true },
   { code: "300000", name: "Ekuitas", groupCode: 3, subtype: "equity", isPostingAllowed: false, isSystem: true },

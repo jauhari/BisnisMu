@@ -1,4 +1,7 @@
+import { revalidateTag } from "next/cache";
 import { z } from "zod";
+
+import { CONTACTS_CACHE_TAG } from "@/presentation/cache/tags";
 import { prisma } from "@/presentation/api/prisma";
 import { handleApi } from "@/presentation/api/route-handler";
 import { requireTenantContext } from "@/presentation/auth/session";
@@ -32,6 +35,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       },
     });
 
+    revalidateTag(CONTACTS_CACHE_TAG);
     return updated;
   });
 }
@@ -46,6 +50,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
 
     await prisma.contact.update({ where: { id }, data: { isActive: false } });
 
+    revalidateTag(CONTACTS_CACHE_TAG);
     return { deleted: true };
   });
 }

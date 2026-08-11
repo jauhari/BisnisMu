@@ -1,5 +1,6 @@
-import { unstable_cache } from "next/cache";
+import { revalidateTag, unstable_cache } from "next/cache";
 
+import { CONTACTS_CACHE_TAG } from "@/presentation/cache/tags";
 import { prisma } from "@/presentation/api/prisma";
 import { handleApi } from "@/presentation/api/route-handler";
 import { requireTenantContext } from "@/presentation/auth/session";
@@ -43,7 +44,7 @@ export async function GET(request: Request) {
         take: 100,
       }),
       ["contacts", businessId, q],
-      { revalidate: 60 }
+      { revalidate: 60, tags: [CONTACTS_CACHE_TAG] }
     );
 
     return getCachedContacts(businessId, q);
@@ -54,8 +55,10 @@ export async function POST(request: Request) {
   return handleApi(async () => {
     const { businessId } = await requireTenantContext(request);
     const { name, category, picName, phone, email, address, type } = createSchema.parse(await request.json());
-    return prisma.contact.create({
+    const contact = await prisma.contact.create({
       data: { businessId, name, category, picName: picName ?? null, phone: phone ?? null, email: email ?? null, address: address ?? null, type },
     });
+    revalidateTag(CONTACTS_CACHE_TAG);
+    return contact;
   });
 }

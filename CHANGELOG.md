@@ -4,6 +4,23 @@ All notable changes to BisnisMu are documented in this file.
 
 ## [Unreleased]
 
+### Added - Penggajian dan Pembayaran Bertahap
+- Menu dan halaman Penggajian baru untuk mengelola Dokter, Perawat, Staf, dan kategori karyawan lain.
+- CRUD master karyawan mencakup tambah, edit, aktif/nonaktif, dan hapus dengan perlindungan riwayat payroll.
+- Payroll per bulan mendukung draft, approval akrual ke Beban Gaji dan Utang Gaji, serta pembayaran per karyawan melalui Kas/Bank.
+- Pembayaran gaji dapat dicatat sebagian. Karyawan lain pada periode yang sama tetap memiliki sisa utang sampai dibayarkan.
+- Data gaji legacy PKU Ponjong diimpor ke riwayat Payroll tanpa membuat jurnal baru atau mengubah jurnal sumber.
+
+### Fixed - Data Payroll, Kontak, CoA, dan Dashboard
+- Menyimpan edit karyawan nonaktif tidak lagi mengaktifkannya secara otomatis.
+- Kontak baru dan perubahan kontak kini menginvalidasi cache daftar kontak agar langsung tersedia pada transaksi kas.
+- Pemilihan CoA dan seed chart mendukung business ID legacy dari sesi pengguna.
+- Dashboard tidak lagi gagal karena nilai `BigInt` diteruskan ke React Server Component.
+
+### Improved - Workspace Keuangan
+- Workspace Payroll dipadatkan menjadi ringkasan terintegrasi, pemilih periode tunggal, panel tim yang ringkas, dan kontrol status yang jelas.
+- Form Transaksi Kas diperbaiki untuk pemilihan CoA, kontak, format nominal, dan penataan field.
+
 ### Added - Kontak di Transaksi Kas
 - Transaksi Kas (Pemasukan/Pengeluaran) sekarang bisa dikaitkan ke sebuah Kontak (Pelanggan, Pemasok, atau Lainnya) untuk keperluan pelaporan mendatang. Tidak berlaku untuk Transfer.
 - Kalau kontak yang dicari belum ada, bisa langsung ditambahkan lewat toggle "+ Tambah kontak baru" di form yang sama, tanpa pindah halaman.

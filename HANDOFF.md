@@ -5,6 +5,40 @@ Session scope: Import data legacy ExAct VS / Google Sheets untuk PKU Ponjong, no
 
 ---
 
+## Phase 28: Payroll, CoA, Kontak, dan Dashboard (2026-08-12)
+
+### Payroll baru
+- Modul lengkap `src/features/payroll/` ditambahkan dengan domain engine, service, repository Prisma, API, halaman `/payroll`, dan item navigasi Penggajian.
+- Master karyawan mendukung CRUD: tambah, edit nama/peran, aktif/nonaktif lewat switch eksplisit, dan hapus bila belum memiliki riwayat payroll. Status nonaktif tetap dipertahankan saat data karyawan diedit.
+- Payroll per periode memiliki alur `DRAFT -> APPROVED -> PAID`. Draft tidak membuat jurnal dan tidak mengubah saldo CoA.
+- Approval membuat jurnal akrual: debit Beban Gaji, kredit Utang Gaji, serta kredit Utang Potongan bila terdapat potongan.
+- Pembayaran dibuat per karyawan dan dapat parsial. Setiap pembayaran mencatat jurnal debit Utang Gaji dan kredit Kas/Bank; payroll lain dalam periode yang sama tetap dapat belum dibayar.
+- Dashboard Payroll menampilkan kewajiban disetujui, nominal terbayar, sisa utang, draft, riwayat periode, saldo utang per karyawan, serta rincian pembayaran.
+
+### Persistensi dan import data lama
+- Prisma menambah `Employee`, `PayrollRun`, `PayrollItem`, `PayrollPayment`, enum peran/status, serta tiga migration: payroll dasar, pembayaran item, dan unique journal payment.
+- Seluruh migration Payroll telah diterapkan pada Neon.
+- `scripts/import-pku-legacy-payroll.cjs` mengimpor 46 jurnal gaji posted PKU Ponjong secara idempoten menjadi 22 payroll run, 45 item payroll, dan 46 riwayat pembayaran. Import mereferensikan jurnal lama, tidak membuat jurnal akuntansi baru.
+
+### Perbaikan pendukung
+- Dashboard server tidak lagi meneruskan `BigInt` ke React Server Component. Nilai dashboard diserialisasi ke string lalu dikonversi tepat saat format tampilan.
+- API dan form CoA menerima ID bisnis legacy yang opaque, memperbaiki pemilihan CoA pada PKU Ponjong. Seed chart juga menggunakan konteks tenant dari sesi.
+- Query kontak memiliki cache tag dan invalidasi mutasi yang benar sehingga kontak baru muncul di form transaksi kas tanpa perlu restart server.
+- Form transaksi kas diperbaiki untuk pemilihan CoA, tata letak, format nominal, dan pengalaman tambah kontak langsung dari dropdown.
+
+### Verifikasi
+- `npm run typecheck`: lulus.
+- `npm test`: lulus, 36 file dan 227 test.
+- Test baru tersedia untuk payroll, kontak route, dan dashboard summary.
+- UI Payroll memerlukan sesi pengguna aktif untuk verifikasi visual penuh. Browser pengujian terisolasi tidak memakai kredensial atau sesi pengguna.
+
+### Suggested skills for follow-up
+- `ui-ux-pro-max` untuk audit responsif Payroll dan form transaksi kas.
+- `agent-browser` untuk uji end-to-end setelah sesi pengguna tersedia.
+- `systematic-debugging` bila ada kegagalan posting atau alokasi pembayaran.
+
+---
+
 ## Phase 27: Quick-Add Contact from Cash Transaction Form (2026-08-10)
 
 ### Masalah

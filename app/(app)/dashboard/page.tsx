@@ -79,10 +79,10 @@ async function DashboardContent({ filter }: { filter: FilterOption }) {
       </section>
 
       <KpiGrid items={[
-        { title: "Sales today", value: formatMoney(summary.salesToday), detail: "Live" },
-        { title: "Net profit", value: formatMoney(summary.netProfit), detail: `Margin ${summary.profitMargin}%` },
-        { title: "Cash + bank", value: formatMoney(summary.cashOnHand + summary.bankBalance), detail: "Available balance" },
-        { title: "Inventory value", value: formatMoney(summary.inventoryValue), detail: `${summary.lowStockCount} low stock alerts` }
+        { title: "Sales today", value: formatMoney(BigInt(summary.salesToday)), detail: "Live" },
+        { title: "Net profit", value: formatMoney(BigInt(summary.netProfit)), detail: `Margin ${summary.profitMargin}%` },
+        { title: "Cash + bank", value: formatMoney(BigInt(summary.cashOnHand) + BigInt(summary.bankBalance)), detail: "Available balance" },
+        { title: "Inventory value", value: formatMoney(BigInt(summary.inventoryValue)), detail: `${summary.lowStockCount} low stock alerts` }
       ]} />
 
       <DashboardCharts salesTrend={salesTrend} cashTrend={cashTrend} />
@@ -91,7 +91,7 @@ async function DashboardContent({ filter }: { filter: FilterOption }) {
         <GlassTable
           columns={[{ key: "item", header: "Exception" }, { key: "value", header: "Value" }, { key: "action", header: "Action" }]}
           rows={[
-            { item: "Overdue receivable", value: formatMoney(summary.overdueReceivable), action: "Review AR" },
+            { item: "Overdue receivable", value: formatMoney(BigInt(summary.overdueReceivable)), action: "Review AR" },
             { item: "Low stock", value: formatNumber(summary.lowStockCount), action: "Review inventory" },
             { item: "Low float", value: summary.lowFloatProvider ?? "None", action: "Top up" }
           ]}

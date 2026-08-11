@@ -366,13 +366,14 @@ function optionSearchText(option: SelectOption): string {
   return [option.label, option.code, option.name, account?.code, account?.name, option.groupLabel, option.normalBalance, option.subtype].filter(Boolean).join(" ").toLowerCase();
 }
 
-export function GlassDataSelect({ value, onChange, options, placeholder = "Pilih...", disabled, className }: {
+export function GlassDataSelect({ value, onChange, options, placeholder = "Pilih...", disabled, className, footer }: {
   value: string;
   onChange: (value: string) => void;
   options: SelectOption[];
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  footer?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -383,8 +384,10 @@ export function GlassDataSelect({ value, onChange, options, placeholder = "Pilih
   const selected = options.find((o) => o.value === value);
   const accountMode = options.some(isAccountOption);
   const queryText = query.trim();
-  const filteredOptions = accountMode && queryText
-    ? options.filter((option) => optionSearchText(option).includes(queryText.toLowerCase())).slice(0, 5)
+  const filteredOptions = accountMode
+    ? (queryText
+      ? options.filter((option) => optionSearchText(option).includes(queryText.toLowerCase())).slice(0, 8)
+      : options.slice(0, 8))
     : [];
 
   if (accountMode) {
@@ -408,9 +411,10 @@ export function GlassDataSelect({ value, onChange, options, placeholder = "Pilih
           {selectedAccount && !open ? <span className="shrink-0 rounded-md border border-border/70 bg-white/55 px-1.5 py-0.5 text-[10px] font-medium text-muted dark:bg-white/8">{selectedAccount.code}</span> : null}
           <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted transition-transform", open && "rotate-180")} />
         </div>
-        {open && !disabled && queryText && rect && (
+        {open && !disabled && rect && (
           <DropdownPortal rect={rect} portalRef={portalRef}>
             <div className="max-h-64 overflow-auto rounded-lg border border-border bg-white/95 p-1.5 shadow-xl shadow-slate-900/10 backdrop-blur dark:bg-slate-950/95">
+              {!queryText && <p className="px-3 pb-1 pt-1.5 text-[11px] font-medium text-muted">Akun yang tersedia</p>}
               {filteredOptions.length === 0 && <p className="px-3 py-2 text-sm text-muted">Tidak ada akun cocok</p>}
               {filteredOptions.map((opt) => {
                 const account = accountOptionParts(opt);
@@ -483,6 +487,7 @@ export function GlassDataSelect({ value, onChange, options, placeholder = "Pilih
                 </button>
               );
             })}
+            {footer ? <div className="mt-1 border-t border-border/70 px-1.5 pt-1.5">{footer}</div> : null}
           </div>
         </DropdownPortal>
       )}

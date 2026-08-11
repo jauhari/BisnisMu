@@ -1,17 +1,18 @@
-import { unstable_cache } from "next/cache";
+import { revalidateTag, unstable_cache } from "next/cache";
 
 import { handleApi } from "@/presentation/api/route-handler";
 import { chartOfAccountSchema } from "@/presentation/api/request-schemas";
 import { validatedBody } from "@/presentation/api/validation";
 import { serverServices } from "@/presentation/api/server-services";
 import { requireTenantContext } from "@/presentation/auth/session";
+import { CHART_OF_ACCOUNTS_CACHE_TAG } from "@/presentation/cache/tags";
 
 const GROUP_CODE_MAP = { ASSET: 1, LIABILITY: 2, EQUITY: 3, REVENUE: 4, COGS: 5, EXPENSE: 6, OTHER_EXPENSE: 7 } as const;
 
 const getCachedCoa = unstable_cache(
   async (businessId: string) => serverServices.chartOfAccounts.list({ businessId } as any),
   ["accounting-coa"],
-  { revalidate: 300 }
+  { revalidate: 300, tags: [CHART_OF_ACCOUNTS_CACHE_TAG] }
 );
 
 export async function GET(request: Request) {
@@ -23,6 +24,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   return handleApi(async () => {
     const body = await validatedBody(request, chartOfAccountSchema);
-    return serverServices.chartOfAccounts.create({ ...body, groupCode: GROUP_CODE_MAP[body.groupCode] } as any);
+    const account = await serverServices.chartOfAccounts.create({ ...body, groupCode: GROUP_CODE_MAP[body.groupCode] } as any);
+    revalidateTag(CHART_OF_ACCOUNTS_CACHE_TAG);
+    return account;
   });
 }

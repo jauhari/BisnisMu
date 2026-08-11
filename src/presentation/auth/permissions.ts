@@ -84,6 +84,7 @@ export const ROUTE_PERMISSION_RULES: readonly RoutePermissionRule[] = [
   { pattern: "/api/ar-ap/payables", permission: "ap:write" },
   { pattern: "/api/ar-ap/payments", permission: "payment:write" },
   { pattern: "/api/installments", permission: "ar:write" },
+  { pattern: "/api/payroll", permission: "journal:write" },
   { pattern: "/api/settings/members", permission: "tenant:manage" },
   { pattern: "/api/contacts", permission: "ar:write" },
   { pattern: "/api/inventory", permission: "inventory:write" },

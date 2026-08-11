@@ -33,6 +33,8 @@ import { PrismaTourismRepository } from "@/features/tourism/infrastructure/prism
 import { OrganizationService } from "@/features/organization/application/organization-service";
 import { ConsolidationService } from "@/features/organization/application/consolidation-service";
 import { PrismaOrganizationRepository } from "@/features/organization/infrastructure/prisma-organization-repository";
+import { PayrollService } from "@/features/payroll/application/payroll-service";
+import { PrismaPayrollRepository } from "@/features/payroll/infrastructure/prisma-payroll-repository";
 import { prismaTransactionRunner } from "./transaction-runner";
 
 const journalRepository = new PrismaJournalRepository(prisma);
@@ -60,6 +62,7 @@ const revenueRepository = new PrismaRevenueRepository(prisma);
 const revenue = new RevenueService(revenueRepository, journal, undefined, prismaTransactionRunner);
 const tourismRepository = new PrismaTourismRepository(prisma);
 const tourism = new TourismService(tourismRepository, revenue);
+const payroll = new PayrollService(new PrismaPayrollRepository(prisma), journal);
 
 export const serverServices = {
   journal,
@@ -78,6 +81,7 @@ export const serverServices = {
   revenue,
   tourism,
   installments: new InstallmentService(prisma, journal),
+  payroll,
   paymentRepository
 };
 
