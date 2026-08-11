@@ -25,10 +25,11 @@ Session scope: Import data legacy ExAct VS / Google Sheets untuk PKU Ponjong, no
 - API dan form CoA menerima ID bisnis legacy yang opaque, memperbaiki pemilihan CoA pada PKU Ponjong. Seed chart juga menggunakan konteks tenant dari sesi.
 - Query kontak memiliki cache tag dan invalidasi mutasi yang benar sehingga kontak baru muncul di form transaksi kas tanpa perlu restart server.
 - Form transaksi kas diperbaiki untuk pemilihan CoA, tata letak, format nominal, dan pengalaman tambah kontak langsung dari dropdown.
+- Hotfix setelah rilis: schema request Payroll sekarang menerima ID akun, karyawan, dan kas/bank legacy yang opaque. Sebelumnya validator UUID membuat simpan draft PKU Ponjong gagal dengan `Invalid request body`.
 
 ### Verifikasi
 - `npm run typecheck`: lulus.
-- `npm test`: lulus, 36 file dan 227 test.
+- `npm test`: lulus, 36 file dan 228 test.
 - Test baru tersedia untuk payroll, kontak route, dan dashboard summary.
 - UI Payroll memerlukan sesi pengguna aktif untuk verifikasi visual penuh. Browser pengujian terisolasi tidak memakai kredensial atau sesi pengguna.
 

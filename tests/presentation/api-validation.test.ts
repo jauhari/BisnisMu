@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { journalSchema, cashTransactionSchema, inventoryStockInSchema, purchaseOrderSchema } from "../../src/presentation/api/request-schemas";
+import { journalSchema, cashTransactionSchema, inventoryStockInSchema, payrollRunSchema, purchaseOrderSchema } from "../../src/presentation/api/request-schemas";
 import { parseAndValidate, ValidationError } from "../../src/presentation/api/validation";
 
 function jsonRequest(body: unknown) {
@@ -76,5 +76,18 @@ describe("API input validation", () => {
       expect((error as ValidationError).fields).toHaveProperty("type");
       expect((error as ValidationError).fields).toHaveProperty("amount");
     }
+  });
+
+  it("accepts opaque legacy identifiers for payroll accounts and employees", async () => {
+    await expect(parseAndValidate(jsonRequest({
+      period: "2026-06-03",
+      expenseAccountId: "pku_account_610001",
+      payableAccountId: "pku_account_210001",
+      items: [{ employeeId: "pku_employee_dokter", salaryAmount: "3120000" }],
+    }), payrollRunSchema)).resolves.toMatchObject({
+      expenseAccountId: "pku_account_610001",
+      payableAccountId: "pku_account_210001",
+      items: [{ employeeId: "pku_employee_dokter" }],
+    });
   });
 });

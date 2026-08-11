@@ -13,6 +13,7 @@ All notable changes to BisnisMu are documented in this file.
 
 ### Fixed - Data Payroll, Kontak, CoA, dan Dashboard
 - Menyimpan edit karyawan nonaktif tidak lagi mengaktifkannya secara otomatis.
+- Simpan payroll sekarang menerima ID akun, karyawan, dan kas/bank legacy dari data PKU Ponjong, tidak lagi ditolak sebagai `Invalid request body`.
 - Kontak baru dan perubahan kontak kini menginvalidasi cache daftar kontak agar langsung tersedia pada transaksi kas.
 - Pemilihan CoA dan seed chart mendukung business ID legacy dari sesi pengguna.
 - Dashboard tidak lagi gagal karena nilai `BigInt` diteruskan ke React Server Component.

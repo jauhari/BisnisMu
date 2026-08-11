@@ -343,8 +343,12 @@ export const installmentPaySchema = z.object({
 });
 
 const employeeRoleSchema = z.enum(["DOCTOR", "NURSE", "STAFF", "OTHER"]);
+// Payroll must support imported businesses whose account and employee IDs are legacy opaque strings.
+// Tenant-scoped repository lookups still enforce ownership before any journal is posted.
+const payrollIdSchema = z.string().trim().min(1, "Id wajib diisi");
+const optionalPayrollIdSchema = payrollIdSchema.optional();
 const payrollItemSchema = z.object({
-  employeeId: uuidSchema,
+  employeeId: payrollIdSchema,
   salaryAmount: nonNegativeMoneySchema,
   incentiveAmount: nonNegativeMoneySchema.optional(),
   deductionAmount: nonNegativeMoneySchema.optional(),
@@ -355,11 +359,11 @@ export const payrollEmployeeSchema = z.object({ name: stringRequired, role: empl
 export const payrollEmployeeUpdateSchema = payrollEmployeeSchema.extend({ isActive: z.boolean() });
 export const payrollRunSchema = z.object({
   period: dateSchema,
-  expenseAccountId: uuidSchema,
-  payableAccountId: uuidSchema,
-  deductionPayableAccountId: optionalUuidSchema,
+  expenseAccountId: payrollIdSchema,
+  payableAccountId: payrollIdSchema,
+  deductionPayableAccountId: optionalPayrollIdSchema,
   items: z.array(payrollItemSchema).min(1),
 });
 export const payrollApproveSchema = z.object({ approvedAt: dateSchema.optional() });
-export const payrollPaySchema = z.object({ paymentAccountId: uuidSchema, paidAt: dateSchema.optional() });
+export const payrollPaySchema = z.object({ paymentAccountId: payrollIdSchema, paidAt: dateSchema.optional() });
 export const payrollItemPaySchema = payrollPaySchema.extend({ amount: positiveMoneySchema });
