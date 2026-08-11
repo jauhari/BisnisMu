@@ -6,7 +6,7 @@ import { z } from "zod";
 const schema = z.object({
   startsOn:  z.coerce.date().optional(),
   endsOn:    z.coerce.date().optional(),
-  type:      z.enum(["kas", "piutang", "utang"]).default("kas"),
+  type:      z.enum(["kas", "piutang", "utang", "kontak"]).default("kas"),
   accountId: z.string().optional(), // filter per akun spesifik (untuk kas)
   contactId: z.string().optional(), // filter per kontak (untuk piutang/utang)
 });
@@ -189,6 +189,52 @@ export async function POST(request: Request) {
       });
 
       return { type: "utang", contacts: result.filter((c) => c.totalTagihan > 0n || !contactId) };
+    }
+
+    // ── KONTAK: transaksi kas per kontak (karyawan, dokter, perawat, dll di luar AR/AP) ──
+    if (type === "kontak") {
+      const contacts = await prisma.contact.findMany({
+        where: { businessId, ...(contactId ? { id: contactId } : {}) },
+        orderBy: { name: "asc" },
+      });
+
+      const transactions = await prisma.cashTransaction.findMany({
+        where: {
+          businessId,
+          status: "POSTED",
+          contactId: { not: null },
+          ...(startsOn || endsOn ? {
+            transactionDate: {
+              ...(startsOn ? { gte: startsOn } : {}),
+              ...(endsOn   ? { lte: endsOn   } : {}),
+            },
+          } : {}),
+        },
+        orderBy: { transactionDate: "asc" },
+      });
+
+      const result = contacts.map((c) => {
+        const txForContact = transactions.filter((t) => t.contactId === c.id);
+        const totalDibayar  = txForContact.filter((t) => t.type === "CASH_OUT").reduce((s, t) => s + BigInt(t.amount), 0n);
+        const totalDiterima = txForContact.filter((t) => t.type === "CASH_IN").reduce((s, t) => s + BigInt(t.amount), 0n);
+
+        return {
+          contactId: c.id,
+          nama:      c.name,
+          kategori:  c.type,
+          totalDibayar,
+          totalDiterima,
+          transaksi: txForContact.map((t) => ({
+            nomor:      t.transactionNumber,
+            tanggal:    t.transactionDate,
+            keterangan: t.description,
+            tipe:       t.type === "CASH_OUT" ? "Dibayar" : "Diterima",
+            jumlah:     BigInt(t.amount),
+          })),
+        };
+      });
+
+      return { type: "kontak", contacts: result.filter((c) => c.totalDibayar > 0n || c.totalDiterima > 0n || !!contactId) };
     }
 
     throw new Error("Tipe tidak valid.");

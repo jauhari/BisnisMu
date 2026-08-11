@@ -12,13 +12,16 @@ import { apiRequest } from "@/presentation/api/client";
 import { useActiveBusiness, useReportRange } from "@/presentation/query/report-hooks";
 import { formatRupiah } from "@/presentation/format/number";
 
-type SubType = "kas" | "piutang" | "utang";
+type SubType = "kas" | "piutang" | "utang" | "kontak";
 
 const TYPE_OPTIONS = [
   { value: "kas",     label: "Buku Pembantu Kas" },
   { value: "piutang", label: "Buku Pembantu Piutang" },
   { value: "utang",   label: "Buku Pembantu Utang" },
+  { value: "kontak",  label: "Buku Pembantu Kontak" },
 ];
+
+const KONTAK_TIPE_LABEL: Record<string, string> = { CUSTOMER: "Pelanggan", SUPPLIER: "Pemasok", BOTH: "Pelanggan & Pemasok", OTHER: "Lainnya" };
 
 function n(v: any) { return Number(v ?? 0); }
 function rupiah(v: any) { return formatRupiah(n(v)); }
@@ -249,6 +252,64 @@ export default function Page() {
 
           {(report.contacts ?? []).length === 0 && (
             <GlassPanel><p className="text-center text-sm text-muted py-6">Tidak ada data utang dalam periode ini.</p></GlassPanel>
+          )}
+        </div>
+      )}
+
+      {/* ── KONTAK: transaksi kas per kontak (karyawan, dokter, perawat, dll) ──── */}
+      {!isLoading && report?.type === "kontak" && (
+        <div className="grid gap-4">
+          <GlassPanel className="grid grid-cols-2 gap-4 text-center">
+            <div>
+              <p className="text-xs text-muted">Total Dibayar</p>
+              <p className="font-semibold text-danger tabular-nums">
+                {rupiah((report.contacts ?? []).reduce((s: number, c: any) => s + n(c.totalDibayar), 0))}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted">Total Diterima</p>
+              <p className="font-semibold text-success tabular-nums">
+                {rupiah((report.contacts ?? []).reduce((s: number, c: any) => s + n(c.totalDiterima), 0))}
+              </p>
+            </div>
+          </GlassPanel>
+
+          {(report.contacts ?? []).map((c: any) => (
+            <GlassPanel key={c.contactId} className="grid gap-3">
+              <div className="flex cursor-pointer items-center justify-between"
+                onClick={() => setExpandedContact(expandedContact === c.contactId ? null : c.contactId)}>
+                <div>
+                  <p className="text-xs text-muted">{KONTAK_TIPE_LABEL[c.kategori] ?? c.kategori}</p>
+                  <h3 className="font-semibold">{c.nama}</h3>
+                </div>
+                <div className="flex gap-6 text-right">
+                  <div><p className="text-xs text-muted">Dibayar</p><p className="font-semibold tabular-nums text-danger">{rupiah(c.totalDibayar)}</p></div>
+                  <div><p className="text-xs text-muted">Diterima</p><p className="font-semibold tabular-nums text-success">{rupiah(c.totalDiterima)}</p></div>
+                </div>
+              </div>
+              {expandedContact === c.contactId && (
+                c.transaksi?.length === 0 ? (
+                  <p className="text-center text-sm text-muted py-4">Tidak ada transaksi dalam periode ini.</p>
+                ) : (
+                  <GlassTable
+                    tableId={`bp-kontak-${c.contactId}`}
+                    columns={[
+                      { key: "nomor",      header: "No. Transaksi" },
+                      { key: "tanggal",    header: "Tanggal",    render: (r: any) => tgl(r.tanggal) },
+                      { key: "keterangan", header: "Keterangan" },
+                      { key: "tipe",       header: "Tipe" },
+                      { key: "jumlah",     header: "Jumlah",     render: (r: any) => rupiah(r.jumlah) },
+                    ]}
+                    rows={c.transaksi ?? []}
+                    empty="Tidak ada transaksi."
+                  />
+                )
+              )}
+            </GlassPanel>
+          ))}
+
+          {(report.contacts ?? []).length === 0 && (
+            <GlassPanel><p className="text-center text-sm text-muted py-6">Belum ada transaksi kas yang terkait kontak dalam periode ini.</p></GlassPanel>
           )}
         </div>
       )}
