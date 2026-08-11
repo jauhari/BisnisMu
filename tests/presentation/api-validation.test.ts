@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { journalSchema, cashTransactionSchema, inventoryStockInSchema, purchaseOrderSchema } from "../../src/presentation/api/request-schemas";
+import { journalSchema, cashTransactionSchema, inventoryStockInSchema, purchaseOrderSchema, idOnlySchema } from "../../src/presentation/api/request-schemas";
 import { parseAndValidate, ValidationError } from "../../src/presentation/api/validation";
 
 function jsonRequest(body: unknown) {
@@ -65,6 +65,36 @@ describe("API input validation", () => {
       apAccountId: "550e8400-e29b-41d4-a716-446655440001",
       items: [{ productId: "550e8400-e29b-41d4-a716-446655440002", quantity: "1", unitCost: "100" }],
     }, purchaseOrderSchema, "supplierId");
+  });
+
+  // Rejecting a legitimate ID on shape alone surfaced as "Invalid request body".
+  // `selectBusinessSchema` no longer runs an ID shape check at all, but every
+  // other route still validates entity IDs through `uuidSchema`, so the legacy
+  // import IDs below must be accepted there too — otherwise posting a journal or
+  // beginning balances for an imported business keeps failing.
+  it.each([
+    ["cuid v1", "cmslmpz3800037di6qkbfroeh"],
+    ["cuid2", "k7mslpku0000000000ponjong"],
+    ["uuid", "550e8400-e29b-41d4-a716-446655440000"],
+    ["nanoid", "V1StGXR8_Z5jdHi6B-myT"],
+    ["ulid", "01ARZ3NDEKTSV4RRFFQ69G5FAV"],
+    // scripts/import-pku-ponjong.mjs mints `pku_<uuid-without-dashes>` for the
+    // imported business, and `pkuacct_` / `pkufiscal_` / `pkujournal_` for its
+    // accounts, periods and journals. These are the IDs that were rejected.
+    ["ExAct import business", "pku_1f2e3d4c5b6a70819283a4b5c6d7e8f9"],
+    ["ExAct import account", "pkuacct_1f2e3d4c5b6a70819283a4b5c6d7e8f9"],
+    ["ExAct import journal", "pkujournal_1f2e3d4c5b6a70819283a4b5c6d7e8f9"],
+  ])("accepts an opaque entity id in %s form", async (_label, accountId) => {
+    await expect(parseAndValidate(jsonRequest({ accountId }), idOnlySchema("accountId"))).resolves.toEqual({ accountId });
+  });
+
+  it.each([
+    ["empty", ""],
+    ["too short", "abc123"],
+    ["path traversal", "../../etc/passwd"],
+    ["sql-ish", "1 OR 1=1"],
+  ])("still rejects a %s id", async (_label, accountId) => {
+    await expectFieldError({ accountId }, idOnlySchema("accountId"), "accountId");
   });
 
   it("exposes field-level validation errors", async () => {

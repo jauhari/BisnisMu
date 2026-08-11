@@ -12,9 +12,13 @@ export class ValidationError extends Error {
   }
 }
 
-// IDs in this app are Prisma cuid()s, not UUIDs. Accept cuid or uuid so route
-// validation doesn't reject valid entity IDs (e.g. customerId, accountId).
-const ID_PATTERN = /^(c[a-z0-9]{20,}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$/;
+// Entity IDs are opaque. This previously accepted only Prisma cuid() v1 and
+// UUIDs, which rejected legitimate IDs in any other shape (cuid2, nanoid, ULID,
+// imported records) with a confusing "Invalid request body" — switching to a
+// business the user actually owns failed that way. Keep this a sanity check on
+// the shape only: authorization comes from resolving the ID against a
+// tenant-scoped query, never from the ID looking a particular way.
+const ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
 export const uuidSchema = z.string().regex(ID_PATTERN, "Invalid id");
 export const dateSchema = z.coerce.date().refine((value) => !Number.isNaN(value.getTime()), "Invalid date");
 export const bigintSchema = z.union([z.string(), z.number(), z.bigint()]).pipe(z.coerce.bigint());
