@@ -133,8 +133,21 @@ async function loadDashboardSummary(input: DashboardSummaryInput): Promise<Dashb
       select: { side: true, amount: true, account: { select: { groupCode: true } } },
     }),
     prisma.journalLine.findMany({
-      where: { businessId, journal: { businessId, status: "POSTED", transactionDate: { lte: endsOn } }, account: { subtype: { in: ["cash", "bank"] } } },
-      select: { side: true, amount: true, account: { select: { subtype: true } } },
+      where: {
+        businessId,
+        journal: { businessId, status: "POSTED", transactionDate: { lte: endsOn } },
+        account: {
+          businessId,
+          groupCode: "ASSET",
+          OR: [
+            { subtype: { equals: "cash", mode: "insensitive" } },
+            { subtype: { equals: "bank", mode: "insensitive" } },
+            { code: { startsWith: "111" } },
+            { code: { startsWith: "112" } },
+          ],
+        },
+      },
+      select: { side: true, amount: true, account: { select: { code: true, subtype: true } } },
     }),
   ]);
 
@@ -148,8 +161,9 @@ async function loadDashboardSummary(input: DashboardSummaryInput): Promise<Dashb
   let bankBalance = 0n;
   for (const line of cashLedgerLines) {
     const balance = signedAmount(line.side, line.amount, "DEBIT");
-    if (line.account.subtype === "cash") cashOnHand += balance;
-    if (line.account.subtype === "bank") bankBalance += balance;
+    const subtype = String(line.account.subtype ?? "").toLowerCase();
+    if (subtype === "bank" || line.account.code.startsWith("112")) bankBalance += balance;
+    else cashOnHand += balance;
   }
 
   const providerBalances = new Map<string, bigint>();

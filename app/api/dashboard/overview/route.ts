@@ -60,7 +60,21 @@ const getCachedDashboardOverview = unstable_cache(
       prisma.payment.findMany({ where: { businessId } }),
       prisma.paymentTransaction.findMany({ where: { businessId, transactionDate: { gte: startsOn, lte: endsOn } } }),
       prisma.customerWallet.findMany({ where: { businessId } }),
-      prisma.account.findMany({ where: { businessId, subtype: { in: ["cash", "bank"] }, isActive: true } })
+      prisma.account.findMany({
+        where: {
+          businessId,
+          groupCode: "ASSET",
+          isActive: true,
+          OR: [
+            { subtype: { equals: "cash", mode: "insensitive" } },
+            { subtype: { equals: "bank", mode: "insensitive" } },
+            // Legacy PKU accounts use codes 111xxx (cash) and 112xxx (bank)
+            // and store subtype as "Kas"/"Bank" rather than cash/bank.
+            { code: { startsWith: "111" } },
+            { code: { startsWith: "112" } },
+          ],
+        },
+      })
     ]);
 
     let profitAndLoss;
@@ -74,12 +88,26 @@ const getCachedDashboardOverview = unstable_cache(
 
     const cashBalanceRows = await prisma.journalLine.groupBy({
       by: ["accountId"],
-      where: { businessId, account: { subtype: { in: ["cash", "bank"] } } },
+      where: {
+        businessId,
+        account: {
+          businessId,
+          groupCode: "ASSET",
+          OR: [
+            { subtype: { equals: "cash", mode: "insensitive" } },
+            { subtype: { equals: "bank", mode: "insensitive" } },
+            { code: { startsWith: "111" } },
+            { code: { startsWith: "112" } },
+          ],
+        },
+      },
       _sum: { amount: true }
     });
     const cashBalances = cashAccounts.map((acc) => {
       const row = cashBalanceRows.find((r) => r.accountId === acc.id);
-      return { businessId, accountId: acc.id, subtype: acc.subtype as "cash" | "bank", balance: row?._sum?.amount ?? 0n };
+      const subtype = String(acc.subtype ?? "").toLowerCase();
+      const normalizedSubtype = subtype === "bank" || acc.code.startsWith("112") ? "bank" : "cash";
+      return { businessId, accountId: acc.id, subtype: normalizedSubtype as "cash" | "bank", balance: row?._sum?.amount ?? 0n };
     });
 
     const range = {

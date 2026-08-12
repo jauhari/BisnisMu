@@ -4,6 +4,11 @@ All notable changes to BisnisMu are documented in this file.
 
 ## [Unreleased]
 
+### Fixed - Saldo Rekening Legacy di Analitik Kas
+- Akun PKU legacy seperti BRImo, ATM, dan Kas Masruri sekarang ikut dihitung meskipun subtype tersimpan sebagai `Bank`/`Kas`.
+- Dashboard mengenali akun kas/bank berdasarkan subtype tanpa sensitif huruf besar-kecil serta kode akun legacy `111xxx`/`112xxx`.
+- Saldo jurnal ter-posting untuk rekening legacy kembali tampil di Analitik Kas dan ringkasan Dashboard.
+
 ### Fixed - Analitik Kas Gagal Memuat
 - Threshold dashboard yang bertipe `BigInt` tidak lagi dikirim langsung melewati boundary cache Next.js.
 - Endpoint `/api/dashboard/overview` sekarang membentuk cache key dengan string lalu mengembalikan threshold ke `BigInt` hanya di dalam domain calculation.

@@ -950,3 +950,9 @@ npx prisma generate
 - Root cause: `lowStockThreshold` and `lowFloatThreshold` were `BigInt` values passed into `unstable_cache`, which serializes its arguments for cache keys.
 - Cache boundary now receives string thresholds; the route converts them back to `BigInt` inside the cached calculation before creating the dashboard domain range.
 - Verified with `npm run typecheck` and an authenticated local smoke test against port 3333; endpoint returns HTTP 200.
+## Phase 37: Legacy Cash/Bank Balance Classification
+
+- Fixed empty cash analytics for PKU Ponjong even though accounts and posted journal balances exist.
+- Root cause: imported accounts store subtype values as `Kas`/`Bank`, while dashboard queries and engine classification only matched lowercase `cash`/`bank`.
+- Dashboard account queries now match subtype case-insensitively and support legacy account code prefixes `111xxx` (cash) and `112xxx` (bank).
+- Verified Neon data: BRImo `272,320,000`, ATM `213,491,724`, Kas Masruri `12,300,000`, and Kas Tunai `1,360,000` are present as posted journal balances.
