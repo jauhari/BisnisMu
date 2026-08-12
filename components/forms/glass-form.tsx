@@ -382,7 +382,7 @@ function optionSearchText(option: SelectOption): string {
   return [option.label, option.code, option.name, account?.code, account?.name, option.groupLabel, option.normalBalance, option.subtype].filter(Boolean).join(" ").toLowerCase();
 }
 
-export function GlassDataSelect({ value, onChange, options, placeholder = "Pilih...", disabled, className, footer }: {
+export function GlassDataSelect({ value, onChange, options, placeholder = "Pilih...", disabled, className, footer, footerOnly = false }: {
   value: string;
   onChange: (value: string) => void;
   options: SelectOption[];
@@ -390,13 +390,14 @@ export function GlassDataSelect({ value, onChange, options, placeholder = "Pilih
   disabled?: boolean;
   className?: string;
   footer?: ReactNode;
+  footerOnly?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const triggerRef = useRef<HTMLElement | null>(null);
   const portalRef = useRef<HTMLDivElement | null>(null);
   const rootRef = useDismissible(open, setOpen, portalRef);
-  const rect = useDropdownRect(open, triggerRef);
+  const rect = useDropdownRect(open, triggerRef, footerOnly ? 360 : 288);
   const selected = options.find((o) => o.value === value);
   const accountMode = options.some(isAccountOption);
   const queryText = query.trim();
@@ -475,9 +476,9 @@ export function GlassDataSelect({ value, onChange, options, placeholder = "Pilih
       </button>
       {open && !disabled && rect && (
         <DropdownPortal rect={rect} portalRef={portalRef}>
-          <div className="max-h-72 overflow-auto rounded-lg border border-border bg-white/95 p-1.5 shadow-xl shadow-slate-900/10 backdrop-blur dark:bg-slate-950/95">
-            {options.length === 0 && <p className="px-3 py-2 text-sm text-muted">Tidak ada pilihan</p>}
-            {options.map((opt) => {
+          <div className={cn("overflow-auto rounded-lg border border-border bg-white/95 p-1.5 shadow-xl shadow-slate-900/10 backdrop-blur dark:bg-slate-950/95", footerOnly ? "max-h-[min(28rem,calc(100vh-1rem))]" : "max-h-72")}>
+            {!footerOnly && options.length === 0 && <p className="px-3 py-2 text-sm text-muted">Tidak ada pilihan</p>}
+            {!footerOnly && options.map((opt) => {
               const rich = Boolean(opt.code && opt.name);
               return (
                 <button
@@ -503,7 +504,7 @@ export function GlassDataSelect({ value, onChange, options, placeholder = "Pilih
                 </button>
               );
             })}
-            {footer ? <div className="mt-1 border-t border-border/70 px-1.5 pt-1.5">{footer}</div> : null}
+            {footer ? <div className={footerOnly ? "px-1.5 py-1" : "mt-1 border-t border-border/70 px-1.5 pt-1.5"}>{footer}</div> : null}
           </div>
         </DropdownPortal>
       )}

@@ -110,7 +110,7 @@ export function RhfSelectField<T extends FieldValues>({ name, label, valueLabel 
 
 export type { SelectOption };
 
-export function RhfDataSelect<T extends FieldValues>({ name, label, options, placeholder = "Pilih...", loading = false, dropdownFooter }: { name: Path<T>; label: string; options: SelectOption[]; placeholder?: string; loading?: boolean; dropdownFooter?: ReactNode }) {
+export function RhfDataSelect<T extends FieldValues>({ name, label, options, placeholder = "Pilih...", loading = false, dropdownFooter, dropdownFooterOnly = false }: { name: Path<T>; label: string; options: SelectOption[]; placeholder?: string; loading?: boolean; dropdownFooter?: ReactNode; dropdownFooterOnly?: boolean }) {
   const { setValue, watch, formState: { errors } } = useFormContext<T>();
   const value = (watch(name) as string) ?? "";
   const error = errors[name]?.message;
@@ -123,6 +123,7 @@ export function RhfDataSelect<T extends FieldValues>({ name, label, options, pla
         options={loading ? [] : options}
         placeholder={loading ? "Memuat..." : placeholder}
         footer={dropdownFooter}
+        footerOnly={dropdownFooterOnly}
       />
     </GlassField>
   );

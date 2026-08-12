@@ -91,6 +91,22 @@ describe("API input validation", () => {
     });
   });
 
+  it("accepts opaque legacy identifiers for cash accounts and contacts", async () => {
+    await expect(parseAndValidate(jsonRequest({
+      type: "CASH_IN",
+      transactionDate: "2026-08-12",
+      cashAccountId: "pkuacct_870fd01615aa40d58306e003f0823b9c",
+      categoryAccountId: "pkuacct_319fe08eb045460493e1276999d839a2",
+      contactId: "cmspln2m9001bu05ufx1ufp34",
+      amount: "5800000",
+      description: "Klaim MuCare Juni",
+    }), cashTransactionSchema)).resolves.toMatchObject({
+      cashAccountId: "pkuacct_870fd01615aa40d58306e003f0823b9c",
+      categoryAccountId: "pkuacct_319fe08eb045460493e1276999d839a2",
+      contactId: "cmspln2m9001bu05ufx1ufp34",
+    });
+  });
+
   it("treats blank payroll amounts as zero for a draft", async () => {
     await expect(parseAndValidate(jsonRequest({
       period: "2026-06-03",

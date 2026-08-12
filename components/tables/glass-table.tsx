@@ -335,6 +335,21 @@ export function GlassTable<T extends object>({ columns, rows, empty = "No data",
     const next = [...order]; const tmp = next[i]!; next[i] = next[j]!; next[j] = tmp; return next;
   });
   const orderedColumns = table.getAllLeafColumns();
+  const visibleColumnConfigs = visibleColumns
+    .map((column) => columns.find((item) => String(item.key) === column.id))
+    .filter((column): column is GlassTableColumn<T> => Boolean(column));
+  const renderMobileCell = (column: GlassTableColumn<T>, row: T) => {
+    const key = String(column.key);
+    return column.render ? column.render(row) : renderDefaultCell(key, (row as Record<string, unknown>)[key]);
+  };
+  const mobilePrimaryColumn = visibleColumnConfigs.find((column) => String(column.key) !== "actions") ?? visibleColumnConfigs[0];
+  const mobileAmountColumn = visibleColumnConfigs.find((column) => isMonetaryColumn(String(column.key)) && String(column.key) !== "actions");
+  const mobileStatusColumn = visibleColumnConfigs.find((column) => String(column.key).toLowerCase() === "status");
+  const mobileDetailColumns = visibleColumnConfigs.filter((column) => {
+    const key = String(column.key);
+    return key !== String(mobilePrimaryColumn?.key) && key !== String(mobileAmountColumn?.key) && key !== "actions";
+  });
+  const mobileActionColumn = visibleColumnConfigs.find((column) => String(column.key) === "actions");
   const menuBtn = "flex h-9 items-center gap-2 rounded-lg border border-border bg-white/60 px-3 text-sm font-medium transition hover:bg-white/80 dark:bg-white/8 dark:hover:bg-white/12";
 
   return <GlassCard className="min-w-0 overflow-hidden p-0 shadow-xl shadow-slate-900/5">
@@ -376,7 +391,33 @@ export function GlassTable<T extends object>({ columns, rows, empty = "No data",
       </div>
     </div>
     {menu ? <div className="fixed inset-0 z-20" onClick={() => setMenu(null)} aria-hidden /> : null}
-    <div className="max-h-[min(640px,calc(100vh-14rem))] overflow-auto bg-white/30 dark:bg-white/3" onScroll={onScroll}>
+    <div className="divide-y divide-border/70 bg-white/30 md:hidden dark:bg-white/3">
+      {searchedRows.length === 0 ? <div className="px-4 py-12 text-center text-sm text-muted">{empty}</div> : searchedRows.map((row, index) => {
+        const primaryKey = String(mobilePrimaryColumn?.key ?? "record");
+        const amountKey = String(mobileAmountColumn?.key ?? "");
+        const statusKey = String(mobileStatusColumn?.key ?? "");
+        const selected = Boolean(rowSelection[String(index)]);
+        return <article key={`mobile-${index}`} className={cn("relative p-4 transition-colors active:bg-accent/5", selected && "bg-accent/8")}>
+          <div className="flex items-start gap-3">
+            {selectable ? <GlassCheckbox aria-label={`Pilih baris ${index + 1}`} checked={selected} onChange={() => setRowSelection((current) => ({ ...current, [String(index)]: !current[String(index)] }))} /> : null}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">{headerLabel(primaryKey)}</p>
+                  <div className="mt-1 break-words text-sm font-semibold text-foreground">{mobilePrimaryColumn ? renderMobileCell(mobilePrimaryColumn, row) : ""}</div>
+                </div>
+                {mobileAmountColumn ? <div className="shrink-0 text-right"><p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">{headerLabel(amountKey)}</p><div className="mt-1 text-base font-semibold tabular-nums text-foreground">{renderMobileCell(mobileAmountColumn, row)}</div></div> : null}
+              </div>
+              {mobileDetailColumns.length ? <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-border/60 pt-3">
+                {mobileDetailColumns.map((column) => { const key = String(column.key); return <div key={key} className="min-w-0"><dt className="text-[10px] font-semibold uppercase tracking-[0.1em] text-muted">{headerLabel(key)}</dt><dd className={cn("mt-1 break-words text-sm text-foreground", key === statusKey && "font-medium")}>{renderMobileCell(column, row)}</dd></div>; })}
+              </dl> : null}
+              {mobileActionColumn ? <div className="mt-4 border-t border-border/60 pt-3">{renderMobileCell(mobileActionColumn, row)}</div> : null}
+            </div>
+          </div>
+        </article>;
+      })}
+    </div>
+    <div className="hidden max-h-[min(640px,calc(100vh-14rem))] overflow-auto bg-white/30 md:block dark:bg-white/3" onScroll={onScroll}>
       <table className="min-w-max w-full border-separate border-spacing-0 text-sm" role="grid" aria-rowcount={totalRows} aria-colcount={visibleColumns.length + (selectable ? 1 : 0)}>
         <thead className="sticky top-0 z-10 border-b border-border bg-slate-50/95 shadow-[0_1px_0_hsl(var(--border))] backdrop-blur dark:bg-slate-950/95">{table.getHeaderGroups().map((headerGroup) => <tr key={headerGroup.id}>{selectable ? <th className="sticky left-0 z-20 w-12 border-b border-r border-border/80 bg-slate-50/95 px-3 py-3 dark:bg-slate-950/95"><GlassCheckbox aria-label="Select all visible rows" checked={table.getIsAllPageRowsSelected()} onChange={table.getToggleAllPageRowsSelectedHandler()} /></th> : null}{headerGroup.headers.map((header, index) => <th key={header.id} draggable onDragStart={() => onDragStart(header.id)} onDragOver={onDragOver} onDrop={() => onDrop(header.id)} style={{ width: header.getSize() }} className={index === 0 && selectable ? "sticky left-12 z-10 border-b border-r border-border/80 bg-slate-50/95 px-4 py-3 text-left text-muted dark:bg-slate-950/95" : "relative border-b border-r border-border/80 bg-slate-50/95 px-4 py-3 text-left text-muted last:border-r-0 dark:bg-slate-950/95"}><button type="button" onClick={header.column.getToggleSortingHandler()?.bind(header.column)} className="w-full cursor-grab text-left active:cursor-grabbing">{header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}</button><div onMouseDown={header.getResizeHandler()} onTouchStart={header.getResizeHandler()} className="absolute right-0 top-0 h-full w-1 cursor-col-resize bg-border/60 opacity-50 transition hover:opacity-100" /></th>)}</tr>)}</thead>
         <tbody>

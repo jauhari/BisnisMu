@@ -38,6 +38,7 @@ function digits(value: string) { return value.replace(/\D/g, ""); }
 function rowType(type: string) { return type === "CASH_OUT" ? "Pengeluaran" : type === "CASH_IN" ? "Pemasukan" : "Transfer"; }
 const CONTACT_TYPE_LABEL: Record<string, string> = { CUSTOMER: "Pelanggan", SUPPLIER: "Pemasok", BOTH: "Pelanggan & Pemasok", OTHER: "Lainnya" };
 const CONTACT_TYPE_QUICK_ADD = [{ value: "CUSTOMER", label: "Pelanggan" }, { value: "SUPPLIER", label: "Pemasok" }, { value: "OTHER", label: "Lainnya" }];
+const CONTACT_TYPE_HELP: Record<string, string> = { CUSTOMER: "Membeli dari Anda", SUPPLIER: "Anda membeli darinya", OTHER: "Kontak umum" };
 function toForm(tx: any): CashForm { return { type: tx.type, transactionDate: tx.transactionDate?.slice?.(0, 10) ?? tx.transactionDate, cashAccountId: tx.cashAccountId, destinationAccountId: tx.destinationAccountId ?? "", categoryAccountId: tx.categoryAccountId ?? "", contactId: tx.contactId ?? "", amount: String(tx.amount), description: tx.description }; }
 
 async function requestJson(url: string, method: string, body?: unknown) {
@@ -45,7 +46,12 @@ async function requestJson(url: string, method: string, body?: unknown) {
   if (body !== undefined) init.body = JSON.stringify(body);
   const res = await fetch(url, init);
   const json = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(json?.message ?? json?.error?.message ?? "Aksi gagal.");
+  if (!res.ok) {
+    const fieldDetails = json?.fields && typeof json.fields === "object"
+      ? Object.entries(json.fields as Record<string, unknown>).map(([field, messages]) => `${field}: ${Array.isArray(messages) ? messages.join(", ") : String(messages)}`).join("; ")
+      : "";
+    throw new Error([json?.message ?? json?.error?.message ?? "Aksi gagal.", fieldDetails].filter(Boolean).join(" — "));
+  }
   return json;
 }
 
@@ -70,7 +76,7 @@ export default function Page() {
   const role = (me.data?.data as any)?.role as Role | undefined;
   const hardMutation = Boolean((me.data?.data as any)?.hardMutation);
   const flat = useMemo(() => flattenAccounts(accounts.data?.data ?? []), [accounts.data]);
-  const cashOptions: SelectOption[] = flat.filter((a) => (a.subtype === "cash" || a.subtype === "bank" || String(a.code).startsWith("11")) && a.isPostingAllowed).map((a) => ({ value: a.id, label: `${a.name}`, code: a.code, name: a.name, groupLabel: "Kas/Bank" }));
+  const cashOptions: SelectOption[] = flat.filter((a) => (String(a.subtype ?? "").toLowerCase() === "cash" || String(a.subtype ?? "").toLowerCase() === "bank" || String(a.code).startsWith("11")) && a.isPostingAllowed).map((a) => ({ value: a.id, label: `${a.name}`, code: a.code, name: a.name, groupLabel: "Kas/Bank" }));
   const categoryOptions: SelectOption[] = flat.filter((a) => (a.groupCode === 4 || a.groupCode === 5 || a.groupCode === 6 || a.groupCode === 7) && a.isPostingAllowed).map((a) => ({ value: a.id, label: `${a.name}`, code: a.code, name: a.name, groupLabel: a.groupCode === 4 ? "Pendapatan" : a.groupCode === 5 ? "HPP" : "Beban", normalBalance: a.normalBalance }));
   const contactOptions: SelectOption[] = (contacts.data?.data ?? []).map((c: any) => ({ value: c.id, label: `${c.name} · ${CONTACT_TYPE_LABEL[c.type] ?? c.type}` }));
 
@@ -132,9 +138,9 @@ export default function Page() {
 
   if (accounts.isLoading) return <GlassSkeleton className="h-72" />;
 
-  const addButton = canMutate(role) ? <button type="button" onClick={openCreate} className="inline-flex h-10 items-center gap-2 rounded-lg bg-foreground px-4 text-sm font-medium text-background"><Plus className="h-4 w-4" />Tambah draft</button> : null;
+  const addButton = canMutate(role) ? <button type="button" onClick={openCreate} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-foreground px-4 text-sm font-semibold text-background shadow-sm transition hover:bg-foreground/90 sm:w-auto"><Plus className="h-4 w-4" />Tambah draft</button> : null;
 
-  return <div className="grid gap-6"><WorkspaceHeader eyebrow="Kas & Bank" title="Transaksi Kas" description="Kelola draft, posting, dan void transaksi kas sesuai role pengguna." action={addButton} /><SplitWorkspace main={<GlassTable selectable={false} columns={[{ key: "number", header: "Nomor" }, { key: "typeLabel", header: "Tipe" }, { key: "date", header: "Tanggal" }, { key: "status", header: "Status" }, { key: "amountLabel", header: "Nominal", render: (row: any) => <span className={row.type === "CASH_OUT" ? "font-medium text-danger" : "font-medium text-success"}>{Number(row.amountLabel).toLocaleString("id-ID")}</span> }, { key: "memo", header: "Keterangan" }, { key: "actions", header: "Aksi", render: (row: any) => <div className="flex flex-wrap gap-1.5"><button type="button" className="rounded border border-border px-2 py-1 text-xs" onClick={() => toast.info(`${row.number}: ${row.memo}`)}><FileText className="inline h-3 w-3" /> Detail</button>{((row.status === "DRAFT" && canMutate(role)) || (row.status !== "VOID" && canHardMutate(role, hardMutation))) ? <button type="button" className="rounded border border-border px-2 py-1 text-xs" onClick={() => openEdit(row)}><Edit3 className="inline h-3 w-3" /> Edit</button> : null}{row.status === "DRAFT" && canMutate(role) ? <button type="button" disabled={busyId === row.id} className="rounded bg-foreground px-2 py-1 text-xs text-background" onClick={() => void action(row, "post")}><Send className="inline h-3 w-3" /> Post</button> : null}{((row.status === "DRAFT" && canDelete(role)) || (row.status !== "VOID" && canHardMutate(role, hardMutation))) ? <button type="button" disabled={busyId === row.id} className="rounded border border-danger/40 px-2 py-1 text-xs text-danger" onClick={() => void action(row, "delete")}><Trash2 className="inline h-3 w-3" /> Delete</button> : null}{row.status === "POSTED" && canVoid(role) && !hardMutation ? <button type="button" disabled={busyId === row.id} className="rounded border border-danger/40 px-2 py-1 text-xs text-danger" onClick={() => void action(row, "void")}><Undo2 className="inline h-3 w-3" /> Void</button> : null}</div> }]} rows={rows} empty="Belum ada transaksi kas. Klik Tambah draft." />} side={<><DetailPanel title="Aturan akses">Kasir bisa membuat, edit, dan posting draft. Void dan delete draft hanya untuk OWNER atau ADMIN. Khusus Hanyukupi, OWNER, ADMIN, ACCOUNTANT dapat edit/delete langsung.</DetailPanel><DetailPanel title="Jejak akuntansi">{hardMutation ? "Mode Hanyukupi aktif: edit posted mengganti jurnal sumber tanpa membuat void journal, dan aksinya tetap diaudit." : "Transaksi posted tidak diedit langsung. Gunakan void agar jurnal pembalik tetap tercatat."}</DetailPanel></>} />
+  return <div className="grid gap-5 sm:gap-6"><WorkspaceHeader eyebrow="Kas & Bank" title="Transaksi Kas" description="Kelola draft, posting, dan void transaksi kas sesuai role pengguna." action={addButton} /><SplitWorkspace main={<GlassTable selectable={false} tableId="cash-transactions" columns={[{ key: "number", header: "Nomor" }, { key: "typeLabel", header: "Tipe" }, { key: "date", header: "Tanggal" }, { key: "status", header: "Status" }, { key: "amountLabel", header: "Nominal", render: (row: any) => <span className={row.type === "CASH_OUT" ? "font-medium text-danger" : "font-medium text-success"}>{Number(row.amountLabel).toLocaleString("id-ID")}</span> }, { key: "memo", header: "Keterangan" }, { key: "actions", header: "Aksi", render: (row: any) => <div className="flex flex-wrap gap-1.5"><button type="button" className="inline-flex min-h-9 items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs font-medium" onClick={() => toast.info(`${row.number}: ${row.memo}`)}><FileText className="h-3.5 w-3.5" /> Detail</button>{((row.status === "DRAFT" && canMutate(role)) || (row.status !== "VOID" && canHardMutate(role, hardMutation))) ? <button type="button" className="inline-flex min-h-9 items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs font-medium" onClick={() => openEdit(row)}><Edit3 className="h-3.5 w-3.5" /> Edit</button> : null}{row.status === "DRAFT" && canMutate(role) ? <button type="button" disabled={busyId === row.id} className="inline-flex min-h-9 items-center gap-1 rounded-md bg-foreground px-2.5 py-1.5 text-xs font-medium text-background" onClick={() => void action(row, "post")}><Send className="h-3.5 w-3.5" /> Post</button> : null}{((row.status === "DRAFT" && canDelete(role)) || (row.status !== "VOID" && canHardMutate(role, hardMutation))) ? <button type="button" disabled={busyId === row.id} className="inline-flex min-h-9 items-center gap-1 rounded-md border border-danger/40 px-2.5 py-1.5 text-xs font-medium text-danger" onClick={() => void action(row, "delete")}><Trash2 className="h-3.5 w-3.5" /> Hapus</button> : null}{row.status === "POSTED" && canVoid(role) && !hardMutation ? <button type="button" disabled={busyId === row.id} className="inline-flex min-h-9 items-center gap-1 rounded-md border border-danger/40 px-2.5 py-1.5 text-xs font-medium text-danger" onClick={() => void action(row, "void")}><Undo2 className="h-3.5 w-3.5" /> Void</button> : null}</div> }]} rows={rows} empty="Belum ada transaksi kas. Klik Tambah draft." />} side={<><DetailPanel title="Aturan akses">Kasir bisa membuat, edit, dan posting draft. Void dan delete draft hanya untuk OWNER atau ADMIN. Khusus Hanyukupi, OWNER, ADMIN, ACCOUNTANT dapat edit/delete langsung.</DetailPanel><DetailPanel title="Jejak akuntansi">{hardMutation ? "Mode Hanyukupi aktif: edit posted mengganti jurnal sumber tanpa membuat void journal, dan aksinya tetap diaudit." : "Transaksi posted tidak diedit langsung. Gunakan void agar jurnal pembalik tetap tercatat."}</DetailPanel></>} />
     <FormDrawer open={drawerOpen} onClose={() => { setDrawerOpen(false); setEditing(null); }} title={editing ? "Edit transaksi" : "Tambah draft transaksi"} subtitle={editing && editing.status !== "DRAFT" ? "Mode Hanyukupi: perubahan akan mengganti jurnal sumber tanpa void." : "Simpan sebagai draft dulu, lalu posting saat sudah benar."}>
       <ManagedForm<CashForm> key={editing?.id ?? "new-cash"} schema={schema} defaultValues={defaults} resetOnSuccess={false} onSubmit={submit}>{({ form, submitting }) => {
         const type = form.watch("type");
@@ -155,17 +161,28 @@ export default function Page() {
             setSavingContact(false);
           }
         }
-        const contactFooter = addingContact ? <div className="grid gap-2 p-1">
-          <GlassInput value={newContactName} onChange={(e) => setNewContactName(e.target.value)} placeholder="Nama kontak" className="h-9" autoFocus />
-          <div className="grid grid-cols-3 gap-1.5">
-            {CONTACT_TYPE_QUICK_ADD.map((opt) => <button key={opt.value} type="button" onClick={() => setNewContactType(opt.value)} className={`h-8 rounded-md border text-xs font-medium transition ${newContactType === opt.value ? "border-foreground bg-foreground text-background" : "border-border hover:bg-white/60 dark:hover:bg-white/8"}`}>{opt.label}</button>)}
+        const contactFooter = addingContact ? <div className="grid gap-3 p-1">
+          <div className="rounded-md border border-accent/20 bg-accent/[0.06] px-3 py-2">
+            <p className="text-sm font-semibold text-foreground">Tambah kontak baru</p>
+            <p className="mt-0.5 text-xs leading-5 text-muted">Kontak akan langsung dipilih untuk transaksi ini.</p>
           </div>
-          <div className="flex gap-2">
-            <button type="button" disabled={savingContact || !newContactName.trim()} onClick={() => void saveNewContact()} className="h-8 rounded-md bg-foreground px-3 text-xs font-medium text-background disabled:opacity-50">{savingContact ? "Menyimpan…" : "Simpan kontak"}</button>
-            <button type="button" onClick={() => { setAddingContact(false); setNewContactName(""); }} className="h-8 rounded-md border border-border px-3 text-xs">Batal</button>
+          <label className="grid gap-1.5 text-xs font-medium text-muted">
+            <span>Nama kontak</span>
+            <GlassInput value={newContactName} onChange={(e) => setNewContactName(e.target.value)} placeholder="Contoh: PKU Wonosari" className="h-10 bg-white/70 dark:bg-white/8" autoFocus />
+          </label>
+          <div className="grid gap-1.5">
+            <span className="text-xs font-medium text-muted">Tipe kontak</span>
+            <div className="grid grid-cols-3 gap-1.5">
+              {CONTACT_TYPE_QUICK_ADD.map((opt) => <button key={opt.value} type="button" aria-pressed={newContactType === opt.value} onClick={() => setNewContactType(opt.value)} className={`h-9 rounded-md border text-xs font-semibold transition ${newContactType === opt.value ? "border-foreground bg-foreground text-background" : "border-border bg-white/50 text-muted hover:bg-white/80 dark:bg-white/5 dark:hover:bg-white/10"}`}>{opt.label}</button>)}
+            </div>
+            <p className="text-[11px] leading-4 text-muted">{CONTACT_TYPE_HELP[newContactType]}</p>
           </div>
-        </div> : <button type="button" onClick={() => setAddingContact(true)} className="flex h-9 w-full items-center gap-2 rounded-md px-2.5 text-left text-sm font-medium text-accent transition hover:bg-accent/10"><UserPlus className="h-4 w-4" />Tambah kontak baru</button>;
-        const contactField = <RhfDataSelect<CashForm> name="contactId" label="Kontak (opsional)" options={contactOptions} placeholder="Pilih kontak (opsional)" dropdownFooter={contactFooter} />;
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <button type="button" disabled={savingContact || !newContactName.trim()} onClick={() => void saveNewContact()} className="h-10 rounded-md bg-foreground px-3 text-xs font-semibold text-background disabled:opacity-50">{savingContact ? "Menyimpan…" : "Simpan & pilih kontak"}</button>
+            <button type="button" onClick={() => { setAddingContact(false); setNewContactName(""); }} className="h-10 rounded-md border border-border px-3 text-xs font-medium">Batal</button>
+          </div>
+        </div> : <button type="button" onClick={() => { setAddingContact(true); setNewContactName(""); setNewContactType("CUSTOMER"); }} className="flex h-9 w-full items-center gap-2 rounded-md px-2.5 text-left text-sm font-medium text-accent transition hover:bg-accent/10"><UserPlus className="h-4 w-4" />Tambah kontak baru</button>;
+        const contactField = <RhfDataSelect<CashForm> name="contactId" label="Kontak (opsional)" options={contactOptions} placeholder="Pilih kontak (opsional)" dropdownFooter={contactFooter} dropdownFooterOnly={addingContact} />;
         return <div className="grid gap-6 pb-1">
           <section className="grid gap-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-foreground"><ReceiptText className="h-4 w-4 text-accent" />Rincian transaksi</div>

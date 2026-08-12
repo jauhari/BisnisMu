@@ -43,7 +43,7 @@ class InMemoryCashRepository implements CashRepository {
 
 const accounts: AccountSnapshot[] = [
   { id: "cash", businessId: "biz-1", code: "110101", name: "Kas", groupCode: 1, subtype: "cash", normalBalance: "DEBIT", isPostingAllowed: true, isActive: true },
-  { id: "bank", businessId: "biz-1", code: "110102", name: "Bank", groupCode: 1, subtype: "bank", normalBalance: "DEBIT", isPostingAllowed: true, isActive: true },
+  { id: "bank", businessId: "biz-1", code: "112002", name: "BRIMo", groupCode: 1, subtype: "Bank", normalBalance: "DEBIT", isPostingAllowed: true, isActive: true },
   { id: "revenue", businessId: "biz-1", code: "410101", name: "Penjualan", groupCode: 4, normalBalance: "CREDIT", isPostingAllowed: true, isActive: true },
   { id: "expense", businessId: "biz-1", code: "610201", name: "Beban Sewa", groupCode: 6, normalBalance: "DEBIT", isPostingAllowed: true, isActive: true },
   { id: "other-cash", businessId: "biz-2", code: "110101", name: "Tenant Cash", groupCode: 1, subtype: "cash", normalBalance: "DEBIT", isPostingAllowed: true, isActive: true }
@@ -131,4 +131,3 @@ describe("CashManagementService", () => {
     await expect(service.preview({ ...base, type: "CASH_IN", cashAccountId: "other-cash", categoryAccountId: "revenue", amount: 1n, description: "Leak" })).rejects.toThrow(/not found/i);
   });
 });
-

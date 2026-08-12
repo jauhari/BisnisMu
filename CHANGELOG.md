@@ -4,6 +4,28 @@ All notable changes to BisnisMu are documented in this file.
 
 ## [Unreleased]
 
+### Improved - CRUD Mobile
+- Tabel CRUD kini otomatis berubah menjadi kartu yang mudah dipindai pada layar kecil, tanpa scroll horizontal untuk membaca detail dan aksi.
+- Aksi detail, edit, posting, hapus, dan void memiliki target sentuh yang lebih nyaman.
+- Drawer form memakai spacing mobile yang lebih rapat, judul yang tidak terpotong, dan safe-area padding untuk perangkat ber-notch.
+- Tombol Tambah draft Transaksi Kas menjadi full-width pada ponsel.
+
+### Fixed - Stabilitas Neon dan Sesi Login
+- Prisma server sekarang memakai koneksi direct Neon bila `DIRECT_URL` tersedia, atau otomatis menurunkan hostname direct dari `DATABASE_URL` pooler.
+- Pool dan transaction timeout dikonfigurasi untuk koneksi remote agar halaman server tidak gagal dengan `P1001`, `connection pool timeout`, atau `Service temporarily unavailable` setelah idle.
+- Operasi multi-write memakai client direct dedicated; tidak ada migration atau penghapusan data yang dilakukan sebagai bagian dari perbaikan ini.
+
+### Fixed - Transaksi Kas, Kontak, dan CoA Legacy
+- Draft transaksi menerima ID akun legacy hasil import PKU Ponjong.
+- Nilai BigInt pada API kontak diserialisasi aman sehingga daftar kontak tidak menyebabkan error server.
+- Akun kas/bank legacy dengan kode grup aset `11...` atau subtype berbeda kapitalisasi tetap tersedia di pemilih Kas/Bank.
+- Quick-add kontak pada form transaksi lebih jelas dan langsung memilih kontak baru ke transaksi.
+
+### Improved - Payroll dan Responsif
+- Tombol Buat Payroll otomatis memindahkan fokus ke form pada layar kecil.
+- Form payroll menyediakan tampilan ringkas dengan opsi menyembunyikan/menampilkan kolom insentif dan potongan.
+- Loader chart dashboard dibuat lebih stabil pada runtime Next.js.
+
 ### Added - Penggajian dan Pembayaran Bertahap
 - Menu dan halaman Penggajian baru untuk mengelola Dokter, Perawat, Staf, dan kategori karyawan lain.
 - CRUD master karyawan mencakup tambah, edit, aktif/nonaktif, dan hapus dengan perlindungan riwayat payroll.

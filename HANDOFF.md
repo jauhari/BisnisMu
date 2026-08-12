@@ -5,6 +5,77 @@ Session scope: Import data legacy ExAct VS / Google Sheets untuk PKU Ponjong, no
 
 ---
 
+## Phase 30: Mobile CRUD Workspace (2026-08-12)
+
+### Masalah
+- CRUD Transaksi Kas pada layar kecil tetap memakai tabel desktop dengan banyak kolom. Pengguna harus menggeser horizontal untuk membaca nominal, status, dan aksi.
+- Tombol CRUD terlalu kecil dan tersebar, sedangkan drawer form memakai padding desktop sehingga area input/aksi terasa sempit di ponsel.
+
+### Perbaikan
+- `components/tables/glass-table.tsx` kini otomatis memakai mode kartu pada breakpoint `< md`: satu kartu per record, field utama dan nominal diprioritaskan, detail ditata dalam grid dua kolom, dan aksi tetap berada di dalam kartu.
+- Mode tabel desktop tetap dipertahankan mulai breakpoint `md`, termasuk sorting, resize, drag kolom, virtualisasi, ekspor, dan menu kolom.
+- Seleksi baris tetap tersedia pada mode kartu dengan checkbox yang lebih mudah disentuh.
+- Tombol aksi Transaksi Kas diberi target sentuh minimum, label Hapus yang lebih jelas, dan tombol Tambah draft dibuat full-width di ponsel.
+- `components/layout/form-drawer.tsx` dipadatkan untuk mobile, menjaga judul tetap terbaca, close button tidak terdorong, serta menambahkan safe-area padding di bagian bawah layar.
+
+### Verifikasi
+- `npm run typecheck`: lulus.
+- `npm test`: lulus, 36 file dan 232 test.
+- `git diff --check`: lulus.
+- Smoke test `/cash/transactions`: kartu mobile ter-render dan tidak ada horizontal overflow pada layout halaman.
+
+---
+
+## Phase 29: Neon Connection Stability, Cash Draft, dan Responsive Forms (2026-08-12)
+
+### Masalah yang ditemukan
+- Login dan halaman `/cash/transactions` kadang menampilkan `Service temporarily unavailable`, lalu error server `PrismaClientKnownRequestError` / `P1001` pada `prisma.session.findUnique()`.
+- Error bukan disebabkan password atau data transaksi. Endpoint Neon dapat dijangkau, tetapi koneksi Prisma ke hostname `-pooler` dapat menjadi stale setelah proses Next.js idle. Pada kondisi tertentu pool juga penuh (`connection pool timeout`, limit 17).
+- Draft transaksi sebelumnya sempat gagal karena validator hanya menerima UUID/CUID, sedangkan data import PKU memakai ID legacy opaque; kontak sempat gagal serialisasi karena nilai `BigInt`.
+- Payroll pada layar kecil membutuhkan fokus otomatis ke form, layout tabel melebar, dan kolom insentif/potongan perlu dapat disembunyikan.
+- Dashboard sempat gagal memuat chart karena dynamic loader memanggil modul chart yang tidak aman untuk runtime saat itu.
+
+### Perbaikan database dan auth
+- `src/presentation/api/prisma.ts` sekarang memilih hostname direct Neon: `DIRECT_URL` jika tersedia, atau menurunkan hostname direct dari `DATABASE_URL` dengan menghapus suffix `-pooler`.
+- Prisma diberi `connection_limit=3`, `pool_timeout=20`, dan transaction timeout yang cukup untuk query remote. Ini mencegah server-rendered session bergantung pada socket PgBouncer yang stale.
+- `prismaDirect` sekarang selalu dibuat sebagai client dedicated menggunakan koneksi direct yang sama, sehingga operasi multi-write atomic tetap konsisten.
+- Koneksi direct diverifikasi dengan query sesi read-only; halaman `/cash/transactions` kemudian berhasil `200` setelah restart penuh server.
+- Tidak ada data database yang dihapus atau diubah selama diagnosis.
+
+### Perbaikan transaksi kas dan kontak
+- `src/presentation/api/validation.ts` menerima ID legacy `pku...` dan `c-...` selain UUID/CUID.
+- `tests/presentation/api-validation.test.ts` menambah regresi untuk ID akun legacy pada draft transaksi kas.
+- `app/api/contacts/route.ts` menserialisasi `totalRevenue` BigInt menjadi string pada GET/POST, termasuk jalur cache.
+- Form transaksi kas (`app/(app)/cash/transactions/page.tsx`) mendukung tambah kontak inline dengan label dan penjelasan tipe yang lebih jelas, menyembunyikan daftar kontak saat mini-form aktif, dan menampilkan detail error field.
+- `GlassDataSelect`/`RhfDataSelect` mendukung mode footer-only untuk quick-add contact.
+- Cash account sekarang mengenali subtype `cash`/`bank` tanpa peduli kapitalisasi dan akun posting grup aset dengan kode `11...`, sesuai CoA legacy.
+- Test cash service diperbarui untuk memastikan subtype `Bank` tetap lolos.
+
+### Perbaikan payroll dan UI responsif
+- Tombol buat payroll memindahkan fokus/scroll ke form, termasuk pada layar kecil.
+- Form payroll dioptimalkan menjadi kartu responsif dan menyediakan kontrol hide/show untuk insentif serta potongan agar area gaji lebih usable.
+- Dynamic chart loader dashboard diperbaiki agar `RevenueTrendChart` dimuat dari named export secara stabil.
+
+### Verifikasi terakhir
+- `npm run typecheck`: lulus.
+- `npm test`: lulus, 36 file dan 232 test.
+- `git diff --check`: lulus.
+- Query direct Neon read-only untuk session: lulus.
+- Browser smoke test `/cash/transactions`: `200`, daftar transaksi tampil, tombol `Tambah draft` tampil, dan tidak ada error Prisma/503 di halaman.
+- Endpoint API yang diuji setelah restart: `/api/auth/businesses`, `/api/cash/transactions`, `/api/accounting/chart-of-accounts`, `/api/contacts`, dan `/api/auth/me` semuanya `200`.
+
+### Operasional lokal
+- Jalankan: `npm run dev -- --hostname 127.0.0.1`
+- Port tetap: `3333`
+- URL: `http://localhost:3333`
+- Jika mengubah `.env.local`, lakukan restart penuh server agar Prisma client dan pool lama tidak tertinggal.
+- Jangan commit `.env.local` atau kredensial database. File `.pnpm-store/` lokal dibiarkan untracked.
+
+### Commit/deploy
+- Perubahan fase ini didokumentasikan bersama perubahan working tree dan akan dipush ke `origin/main` setelah verifikasi.
+
+---
+
 ## Phase 28: Payroll, CoA, Kontak, dan Dashboard (2026-08-12)
 
 ### Payroll baru

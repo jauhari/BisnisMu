@@ -16,6 +16,10 @@ const createSchema = z.object({
   type:     z.enum(["CUSTOMER", "SUPPLIER", "BOTH", "OTHER"]).default("CUSTOMER"),
 });
 
+function serializeContact<T extends { totalRevenue?: bigint | string | number }>(contact: T) {
+  return { ...contact, totalRevenue: String(contact.totalRevenue ?? 0) };
+}
+
 export async function GET(request: Request) {
   return handleApi(async () => {
     const { businessId } = await requireTenantContext(request);
@@ -24,25 +28,29 @@ export async function GET(request: Request) {
     const id = params.get("id");
     // Direct lookup by id (used to resolve the configured default customer).
     if (id) {
-      return prisma.contact.findMany({ where: { businessId, isActive: true, id } });
+      const contacts = await prisma.contact.findMany({ where: { businessId, isActive: true, id } });
+      return contacts.map(serializeContact);
     }
 
     const getCachedContacts = unstable_cache(
-      async (bizId: string, search: string) => prisma.contact.findMany({
-        where: {
-          businessId: bizId,
-          isActive: true,
-          ...(search ? {
-            OR: [
-              { name:    { contains: search, mode: "insensitive" } },
-              { picName: { contains: search, mode: "insensitive" } },
-              { phone:   { contains: search } },
-            ],
-          } : {}),
-        },
-        orderBy: { name: "asc" },
-        take: 100,
-      }),
+      async (bizId: string, search: string) => {
+        const contacts = await prisma.contact.findMany({
+          where: {
+            businessId: bizId,
+            isActive: true,
+            ...(search ? {
+              OR: [
+                { name:    { contains: search, mode: "insensitive" } },
+                { picName: { contains: search, mode: "insensitive" } },
+                { phone:   { contains: search } },
+              ],
+            } : {}),
+          },
+          orderBy: { name: "asc" },
+          take: 100,
+        });
+        return contacts.map(serializeContact);
+      },
       ["contacts", businessId, q],
       { revalidate: 60, tags: [CONTACTS_CACHE_TAG] }
     );
@@ -59,6 +67,6 @@ export async function POST(request: Request) {
       data: { businessId, name, category, picName: picName ?? null, phone: phone ?? null, email: email ?? null, address: address ?? null, type },
     });
     revalidateTag(CONTACTS_CACHE_TAG);
-    return contact;
+    return serializeContact(contact);
   });
 }
