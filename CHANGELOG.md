@@ -4,6 +4,11 @@ All notable changes to BisnisMu are documented in this file.
 
 ## [Unreleased]
 
+### Improved - Prioritas CRUD di Mobile
+- Panel Aturan akses dan Jejak akuntansi dipindahkan setelah area CRUD pada layar kecil.
+- Panel informasi kembali berada di sisi kanan pada layar besar.
+- Spacing panel informasi dipadatkan di mobile agar tabel/form mendapat ruang utama.
+
 ### Improved - Aksi CRUD Transaksi Kas
 - Tombol aksi per baris diringkas menjadi ikon dengan tooltip dan label aksesibilitas.
 - Legenda aksi ditampilkan di bawah tabel agar fungsi ikon tetap mudah dipahami.

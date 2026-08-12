@@ -5,6 +5,21 @@ Session scope: Import data legacy ExAct VS / Google Sheets untuk PKU Ponjong, no
 
 ---
 
+## Phase 34: Mobile Information Panel Order (2026-08-12)
+
+### Perbaikan
+- `SplitWorkspace` sekarang menetapkan area CRUD/main sebagai `order-1` dan panel informasi sebagai `order-2` pada layar kecil.
+- Pada breakpoint `2xl`, layout kembali menjadi dua kolom dengan panel informasi di sisi kanan.
+- `DetailPanel` memakai spacing yang lebih rapat di mobile agar keterangan tidak mengambil ruang berlebihan.
+
+### Verifikasi
+- Struktur DOM dan class responsive terverifikasi: main `order-1`, aside `order-2`.
+- `npm run typecheck`: lulus.
+- `npm test`: lulus, 36 file dan 232 test.
+- `git diff --check`: lulus.
+
+---
+
 ## Phase 33: Compact Transaction Actions (2026-08-12)
 
 ### Perbaikan
