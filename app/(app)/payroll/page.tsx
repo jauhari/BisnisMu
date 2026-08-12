@@ -34,6 +34,7 @@ const roleOptions = (Object.keys(ROLE_LABEL) as EmployeeRole[]).map((role) => ({
 function flatten(nodes: Account[]): Account[] { return nodes.flatMap((node) => [node, ...flatten(node.children ?? [])]); }
 function idr(value: string | number | bigint): string { return `Rp ${BigInt(value || 0).toLocaleString("id-ID")}`; }
 function firstDayOfMonth(): string { const now = new Date(); return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0, 10); }
+function todayDate(): string { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`; }
 function numberOf(value: string): bigint { return BigInt(value || "0"); }
 function preferredExpenseAccount(accounts: Account[]): Account | undefined { return accounts.find((account) => account.subtype === "salary_expense" || account.code === "610101") ?? accounts[0]; }
 function preferredPayableAccount(accounts: Account[]): Account | undefined { return accounts.find((account) => account.subtype === "salary_payable" || account.code === "210501") ?? accounts[0]; }
@@ -68,6 +69,7 @@ export default function PayrollPage() {
   const [busy, setBusy] = useState(false);
   const [paymentAccountIds, setPaymentAccountIds] = useState<Record<string, string>>({});
   const [paymentAmounts, setPaymentAmounts] = useState<Record<string, string>>({});
+  const [paymentDates, setPaymentDates] = useState<Record<string, string>>({});
   const [draft, setDraft] = useState({ period: firstDayOfMonth(), expenseAccountId: "", payableAccountId: "", deductionPayableAccountId: "", items: [] as DraftItem[] });
 
   const employees = employeesQuery.data?.data ?? [];
@@ -77,7 +79,10 @@ export default function PayrollPage() {
   const postingAccounts = useMemo(() => accounts.filter((account) => account.isPostingAllowed && account.isActive), [accounts]);
   const expenseAccounts = useMemo(() => postingAccounts.filter((account) => account.groupCode === 6), [postingAccounts]);
   const liabilityAccounts = useMemo(() => postingAccounts.filter((account) => account.groupCode === 2), [postingAccounts]);
-  const cashAccounts = useMemo(() => postingAccounts.filter((account) => account.subtype === "cash" || account.subtype === "bank"), [postingAccounts]);
+  const cashAccounts = useMemo(() => postingAccounts.filter((account) => {
+    const subtype = account.subtype?.toLowerCase();
+    return subtype === "cash" || subtype === "bank" || account.groupCode === 1;
+  }), [postingAccounts]);
   const activeEmployees = employees.filter((employee) => employee.isActive);
 
   const accountOptions = (items: Account[]) => items.map((account) => ({ value: account.id, label: account.name, code: account.code, name: account.name }));
@@ -201,16 +206,17 @@ export default function PayrollPage() {
   }
 
   async function payItem(run: PayrollRun, item: PayrollItem) {
-    const paymentAccountId = paymentAccountIds[run.id];
-    if (!paymentAccountId) { toast.error("Siapkan akun kas atau bank terlebih dahulu."); return; }
     const key = `${run.id}:${item.employeeId}`;
+    const paymentAccountId = paymentAccountIds[key];
+    if (!paymentAccountId) { toast.error("Pilih sumber pembayaran untuk karyawan ini."); return; }
+    const paidAt = paymentDates[key] ?? todayDate();
     const remaining = numberOf(item.netAmount) - numberOf(item.paidAmount);
     const amount = numberOf(paymentAmounts[key] ?? remaining.toString());
     if (amount <= 0n) { toast.error("Masukkan nominal pembayaran."); return; }
     if (amount > remaining) { toast.error("Nominal melebihi sisa utang gaji."); return; }
     setBusy(true);
     try {
-      await requestJson(`/api/payroll/runs/${run.id}/items/${item.employeeId}/pay`, "POST", { paymentAccountId, amount: amount.toString(), paidAt: new Date().toISOString() });
+      await requestJson(`/api/payroll/runs/${run.id}/items/${item.employeeId}/pay`, "POST", { paymentAccountId, amount: amount.toString(), paidAt });
       setPaymentAmounts((current) => ({ ...current, [key]: "" }));
       await refresh();
       toast.success(`Pembayaran ${item.employeeName} dicatat.`);
@@ -258,8 +264,6 @@ export default function PayrollPage() {
         ) : runs.filter((run) => run.id === (selectedRunId ?? runs[0]?.id)).map((run) => {
           const totalPaid = run.items.reduce((sum, item) => sum + numberOf(item.paidAmount), 0n);
           const totalRemaining = numberOf(run.totalNetAmount) - totalPaid;
-          const paymentAccountId = paymentAccountIds[run.id] ?? "";
-
           return <GlassPanel key={run.id} className="grid gap-4 p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
@@ -276,29 +280,35 @@ export default function PayrollPage() {
               <div><p className="text-xs text-muted">Sisa utang</p><p className="mt-1 text-sm font-semibold tabular-nums">{idr(totalRemaining)}</p></div>
             </div>
 
-            {run.status !== "DRAFT" && totalRemaining > 0n ? <div className="grid gap-2 rounded-md border border-accent/20 bg-accent/[0.035] p-3 sm:grid-cols-[minmax(0,1fr)_280px] sm:items-end">
-              <div><p className="text-sm font-semibold">Pembayaran per karyawan</p><p className="mt-1 text-xs text-muted">Pilih kas atau bank sekali, kemudian catat pembayaran masing-masing karyawan sesuai nominal yang dibayarkan.</p></div>
-              <label className="grid gap-1.5 text-xs font-medium text-muted">Akun kas/bank
-                <GlassDataSelect value={paymentAccountId} onChange={(value) => setPaymentAccountIds((current) => ({ ...current, [run.id]: value }))} options={accountOptions(cashAccounts)} placeholder="Pilih sumber pembayaran" className="h-10" />
-              </label>
+            {run.status !== "DRAFT" && totalRemaining > 0n ? <div className="rounded-md border border-accent/20 bg-accent/[0.035] p-3">
+              <p className="text-sm font-semibold">Pembayaran per karyawan</p><p className="mt-1 text-xs text-muted">Setiap pembayaran dapat memakai akun kas atau bank yang berbeda.</p>
             </div> : null}
 
             <div className="overflow-hidden rounded-md border border-border">
-              <div className="grid grid-cols-[minmax(150px,1.4fr)_minmax(105px,1fr)_minmax(105px,1fr)_minmax(105px,1fr)] gap-3 bg-slate-950/[0.035] px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-muted dark:bg-white/[0.045] sm:grid-cols-[minmax(150px,1.25fr)_repeat(4,minmax(105px,1fr))_120px]">
-                <span>Karyawan</span><span className="text-right">Gaji bersih</span><span className="text-right">Terbayar</span><span className="text-right">Sisa utang</span><span className="hidden text-right sm:block">Pembayaran</span><span className="hidden sm:block" />
+              <div className="hidden grid-cols-[minmax(0,1.35fr)_repeat(3,minmax(110px,1fr))] gap-4 bg-slate-950/[0.035] px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-muted dark:bg-white/[0.045] sm:grid">
+                <span>Karyawan</span><span className="text-right">Gaji bersih</span><span className="text-right">Terbayar</span><span className="text-right">Sisa utang</span>
               </div>
               <div className="divide-y divide-border/60">
                 {run.items.map((item) => {
                   const key = `${run.id}:${item.employeeId}`;
                   const remaining = numberOf(item.netAmount) - numberOf(item.paidAmount);
                   const amount = paymentAmounts[key] ?? remaining.toString();
-                  return <div key={item.id ?? item.employeeId} className="grid gap-3 px-4 py-3 text-sm sm:grid-cols-[minmax(150px,1.25fr)_repeat(4,minmax(105px,1fr))_120px] sm:items-center">
-                    <div className="min-w-0"><p className="truncate font-medium">{item.employeeName}</p><div className="mt-1 flex flex-wrap items-center gap-1.5"><span className="text-xs text-muted">{ROLE_LABEL[item.employeeRole]}</span><span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${PAYMENT_STATUS_TONE[item.paymentStatus]}`}>{PAYMENT_STATUS_LABEL[item.paymentStatus]}</span></div></div>
-                    <span className="text-right tabular-nums">{idr(item.netAmount)}</span>
-                    <span className="text-right tabular-nums text-muted">{idr(item.paidAmount)}</span>
-                    <span className="text-right font-semibold tabular-nums">{idr(remaining)}</span>
-                    {run.status !== "DRAFT" && remaining > 0n ? <MoneyField value={amount} onChange={(value) => setPaymentAmounts((current) => ({ ...current, [key]: value }))} placeholder="0" className="h-9 w-full rounded-md border border-border bg-white/60 px-2 text-right text-sm tabular-nums dark:bg-white/8" /> : <span className="hidden text-right text-xs text-muted sm:block">{item.paymentStatus === "PAID" ? "Lunas" : "Setujui dahulu"}</span>}
-                    {run.status !== "DRAFT" && remaining > 0n ? <button type="button" disabled={busy || !paymentAccountId} onClick={() => void payItem(run, item)} className="h-9 rounded-md bg-success px-3 text-xs font-semibold text-white disabled:opacity-50">Bayar</button> : <span className="hidden sm:block" />}
+                  const paymentAccountId = paymentAccountIds[key] ?? "";
+                  const paymentDate = paymentDates[key] ?? todayDate();
+                  const canPay = run.status !== "DRAFT" && remaining > 0n;
+                  return <div key={item.id ?? item.employeeId} className="px-4 py-4 text-sm transition hover:bg-foreground/[0.018]">
+                    <div className="grid gap-3 sm:grid-cols-[minmax(0,1.35fr)_repeat(3,minmax(110px,1fr))] sm:items-center sm:gap-4">
+                      <div className="min-w-0"><p className="truncate font-semibold">{item.employeeName}</p><div className="mt-1 flex flex-wrap items-center gap-1.5"><span className="text-xs text-muted">{ROLE_LABEL[item.employeeRole]}</span><span className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${PAYMENT_STATUS_TONE[item.paymentStatus]}`}>{PAYMENT_STATUS_LABEL[item.paymentStatus]}</span></div></div>
+                      <div className="flex items-center justify-between gap-3 sm:block sm:text-right"><span className="text-xs text-muted sm:hidden">Gaji bersih</span><span className="tabular-nums">{idr(item.netAmount)}</span></div>
+                      <div className="flex items-center justify-between gap-3 sm:block sm:text-right"><span className="text-xs text-muted sm:hidden">Terbayar</span><span className="tabular-nums text-muted">{idr(item.paidAmount)}</span></div>
+                      <div className="flex items-center justify-between gap-3 sm:block sm:text-right"><span className="text-xs text-muted sm:hidden">Sisa utang</span><span className="font-semibold tabular-nums">{idr(remaining)}</span></div>
+                    </div>
+                    {canPay ? <div className="mt-4 grid gap-3 rounded-md border border-accent/15 bg-accent/[0.035] p-3 sm:grid-cols-[minmax(200px,1.25fr)_minmax(150px,.9fr)_minmax(140px,.8fr)_88px] sm:items-end">
+                      <label className="grid gap-1.5 text-xs font-medium text-muted"><span>Sumber pembayaran</span><GlassDataSelect value={paymentAccountId} onChange={(value) => setPaymentAccountIds((current) => ({ ...current, [key]: value }))} options={accountOptions(cashAccounts)} placeholder="Pilih akun kas/bank" className="h-10 bg-white/70 dark:bg-white/8" /></label>
+                      <label className="grid gap-1.5 text-xs font-medium text-muted"><span>Tanggal bayar</span><GlassDatePicker value={paymentDate} onChange={(value) => setPaymentDates((current) => ({ ...current, [key]: value }))} className="h-10 bg-white/70 dark:bg-white/8" /></label>
+                      <label className="grid gap-1.5 text-xs font-medium text-muted"><span>Nominal bayar</span><MoneyField value={amount} onChange={(value) => setPaymentAmounts((current) => ({ ...current, [key]: value }))} placeholder="0" className="h-10 w-full rounded-md border border-border bg-white/70 px-3 text-right text-sm tabular-nums dark:bg-white/8" /></label>
+                      <button type="button" disabled={busy || !paymentAccountId} onClick={() => void payItem(run, item)} className="h-10 rounded-md bg-success px-3 text-xs font-semibold text-white transition hover:bg-success/90 disabled:cursor-not-allowed disabled:opacity-50">Bayar</button>
+                    </div> : null}
                   </div>;
                 })}
               </div>

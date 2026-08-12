@@ -17,9 +17,12 @@ All notable changes to BisnisMu are documented in this file.
 - Kontak baru dan perubahan kontak kini menginvalidasi cache daftar kontak agar langsung tersedia pada transaksi kas.
 - Pemilihan CoA dan seed chart mendukung business ID legacy dari sesi pengguna.
 - Dashboard tidak lagi gagal karena nilai `BigInt` diteruskan ke React Server Component.
+- Dropdown sumber pembayaran Payroll tidak lagi kosong untuk CoA legacy yang menyimpan akun kas/bank sebagai akun posting grup aset tanpa subtype `cash`/`bank`.
 
 ### Improved - Workspace Keuangan
 - Workspace Payroll dipadatkan menjadi ringkasan terintegrasi, pemilih periode tunggal, panel tim yang ringkas, dan kontrol status yang jelas.
+- Pembayaran Payroll memakai layout responsif per karyawan tanpa tabel melebar. Sumber akun kas/bank, tanggal pembayaran, nominal, dan aksi bayar dikelompokkan dalam panel yang mudah dipindai.
+- Sumber pembayaran dipilih per pembayaran, sehingga satu payroll dapat menggunakan Dana Operasional PKU, BRImo, atau akun lain tanpa mengikat pilihan ke karyawan maupun periode.
 - Form Transaksi Kas diperbaiki untuk pemilihan CoA, kontak, format nominal, dan penataan field.
 
 ### Added - Kontak di Transaksi Kas

@@ -13,6 +13,8 @@ Session scope: Import data legacy ExAct VS / Google Sheets untuk PKU Ponjong, no
 - Payroll per periode memiliki alur `DRAFT -> APPROVED -> PAID`. Draft tidak membuat jurnal dan tidak mengubah saldo CoA.
 - Approval membuat jurnal akrual: debit Beban Gaji, kredit Utang Gaji, serta kredit Utang Potongan bila terdapat potongan.
 - Pembayaran dibuat per karyawan dan dapat parsial. Setiap pembayaran mencatat jurnal debit Utang Gaji dan kredit Kas/Bank; payroll lain dalam periode yang sama tetap dapat belum dibayar.
+- Sumber pembayaran tidak melekat pada karyawan atau bulan payroll. Setiap pembayaran memilih akun kas/bank sendiri, sehingga satu periode dapat memakai Dana Operasional PKU, BRImo, atau sumber lain.
+- Tanggal pembayaran dipilih saat pembayaran per karyawan dan diteruskan sebagai tanggal jurnal, bukan selalu memakai waktu saat tombol diklik.
 - Dashboard Payroll menampilkan kewajiban disetujui, nominal terbayar, sisa utang, draft, riwayat periode, saldo utang per karyawan, serta rincian pembayaran.
 
 ### Persistensi dan import data lama
@@ -26,10 +28,13 @@ Session scope: Import data legacy ExAct VS / Google Sheets untuk PKU Ponjong, no
 - Query kontak memiliki cache tag dan invalidasi mutasi yang benar sehingga kontak baru muncul di form transaksi kas tanpa perlu restart server.
 - Form transaksi kas diperbaiki untuk pemilihan CoA, tata letak, format nominal, dan pengalaman tambah kontak langsung dari dropdown.
 - Hotfix setelah rilis: schema request Payroll sekarang menerima ID akun, karyawan, dan kas/bank legacy yang opaque. Sebelumnya validator UUID membuat simpan draft PKU Ponjong gagal dengan `Invalid request body`.
+- Hotfix pembayaran Payroll: daftar sumber pembayaran juga mengenali akun posting pada grup aset (`groupCode = 1`), sesuai struktur CoA legacy PKU yang tidak selalu mengisi subtype `cash`/`bank`.
+- UI pembayaran Payroll diubah dari tabel melebar menjadi baris responsif dengan panel kontrol per karyawan. Nama karyawan tidak lagi terpotong oleh scrollbar horizontal, dan sumber, tanggal, nominal, serta aksi bayar tampil berdekatan.
 
 ### Verifikasi
 - `npm run typecheck`: lulus.
 - `npm test`: lulus, 36 file dan 228 test.
+- Tes terfokus Payroll/API: lulus, 3 file dan 16 test.
 - Test baru tersedia untuk payroll, kontak route, dan dashboard summary.
 - UI Payroll memerlukan sesi pengguna aktif untuk verifikasi visual penuh. Browser pengujian terisolasi tidak memakai kredensial atau sesi pengguna.
 
