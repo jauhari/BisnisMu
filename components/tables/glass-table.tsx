@@ -95,7 +95,7 @@ function renderDefaultCell(key: string, raw: unknown): ReactNode {
 }
 
 function columnSize(key: string): number {
-  if (key === "actions") return 128;
+  if (key === "actions") return 176;
   if (isDateColumn(key)) return 150;
   if (isAccountColumn(key)) return 224;
   if (isMonetaryColumn(key)) return 132;
@@ -103,7 +103,7 @@ function columnSize(key: string): number {
 }
 
 function columnMinSize(key: string): number {
-  if (key === "actions") return 112;
+  if (key === "actions") return 156;
   if (isDateColumn(key)) return 132;
   if (isAccountColumn(key)) return 180;
   if (isMonetaryColumn(key)) return 116;

@@ -4,6 +4,11 @@ All notable changes to BisnisMu are documented in this file.
 
 ## [Unreleased]
 
+### Improved - Aksi CRUD Transaksi Kas
+- Tombol aksi per baris diringkas menjadi ikon dengan tooltip dan label aksesibilitas.
+- Legenda aksi ditampilkan di bawah tabel agar fungsi ikon tetap mudah dipahami.
+- Kolom aksi diberi ruang yang lebih stabil sehingga kontrol tidak menumpuk atau pecah ke baris yang tidak rapi.
+
 ### Fixed - Popover Kolom dan Ekspor
 - Menu Kolom/Ekspor sekarang tampil sebagai overlay viewport sehingga tidak tertutup atau terpotong oleh kartu tabel.
 - Toggle kolom dan urutan kolom dapat digunakan normal; popover menutup saat klik di luar atau menekan Escape.

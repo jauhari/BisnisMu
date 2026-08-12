@@ -5,6 +5,24 @@ Session scope: Import data legacy ExAct VS / Google Sheets untuk PKU Ponjong, no
 
 ---
 
+## Phase 33: Compact Transaction Actions (2026-08-12)
+
+### Perbaikan
+- Aksi Detail, Edit, Post, Hapus, dan Void pada Transaksi Kas diubah dari tombol teks bertumpuk menjadi tombol ikon 36×36 px.
+- Setiap ikon tetap memiliki `title` dan `aria-label`, sehingga tetap jelas saat hover, keyboard focus, dan screen reader.
+- Legenda aksi ditambahkan di bawah tabel untuk menjelaskan arti ikon tanpa membebani setiap baris.
+- Kolom aksi diperlebar secukupnya agar ikon tidak wrap/menumpuk; mode kartu mobile tetap menggunakan kontrol yang sama.
+
+### Verifikasi
+- Tombol aksi terlihat dengan ukuran 36×36 px.
+- Legenda `Aksi: Detail, Edit, Post, Hapus, Void` tampil.
+- Tidak ada horizontal overflow pada halaman Transaksi Kas.
+- `npm run typecheck`: lulus.
+- `npm test`: lulus, 36 file dan 232 test.
+- `git diff --check`: lulus.
+
+---
+
 ## Phase 32: Column Popover Overlay Fix (2026-08-12)
 
 ### Masalah
