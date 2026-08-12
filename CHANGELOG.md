@@ -4,6 +4,11 @@ All notable changes to BisnisMu are documented in this file.
 
 ## [Unreleased]
 
+### Fixed - Analitik Kas Gagal Memuat
+- Threshold dashboard yang bertipe `BigInt` tidak lagi dikirim langsung melewati boundary cache Next.js.
+- Endpoint `/api/dashboard/overview` sekarang membentuk cache key dengan string lalu mengembalikan threshold ke `BigInt` hanya di dalam domain calculation.
+- Halaman Analitik Kas kembali dapat memuat posisi kas, saldo bank, dan arus kas hari ini.
+
 ### Fixed - Responsive Workspace Berdasarkan Lebar Konten
 - Split CRUD dan panel informasi sekarang memakai lebar area kerja aktual setelah sidebar, bukan lebar viewport browser.
 - Pada desktop kecil, panel info turun ke bawah sehingga tabel CRUD mendapat lebar penuh.

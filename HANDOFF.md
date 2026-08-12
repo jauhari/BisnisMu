@@ -944,3 +944,9 @@ npx prisma generate
    - `DIRECT_URL` — Neon direct connection string
    - `DATABASE_URL` — Neon pooler connection string
    - `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` — untuk deploy
+## Phase 36: Cash Analytics Cache Serialization Fix
+
+- Fixed `POST /api/dashboard/overview` returning `DOMAIN_ERROR: Do not know how to serialize a BigInt`.
+- Root cause: `lowStockThreshold` and `lowFloatThreshold` were `BigInt` values passed into `unstable_cache`, which serializes its arguments for cache keys.
+- Cache boundary now receives string thresholds; the route converts them back to `BigInt` inside the cached calculation before creating the dashboard domain range.
+- Verified with `npm run typecheck` and an authenticated local smoke test against port 3333; endpoint returns HTTP 200.

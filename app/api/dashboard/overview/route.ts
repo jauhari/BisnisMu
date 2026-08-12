@@ -17,9 +17,13 @@ const getCachedDashboardOverview = unstable_cache(
     // The original heavy logic (many finds + reporting + engine)
     const {
       businessId, actorUserId, startsOn, endsOn,
-      lowStockThreshold = 5n,
-      lowFloatThreshold = 100n,
+      lowStockThreshold = "5",
+      lowFloatThreshold = "100",
     } = input;
+    // `unstable_cache` serializes its arguments to build a cache key. Keep
+    // bigint values out of that boundary, then restore the domain type here.
+    const lowStockThresholdBigInt = BigInt(lowStockThreshold);
+    const lowFloatThresholdBigInt = BigInt(lowFloatThreshold);
 
     const [
       salesOrders,
@@ -78,7 +82,14 @@ const getCachedDashboardOverview = unstable_cache(
       return { businessId, accountId: acc.id, subtype: acc.subtype as "cash" | "bank", balance: row?._sum?.amount ?? 0n };
     });
 
-    const range = { businessId, startsOn, endsOn, asOf: new Date(), lowStockThreshold, lowFloatThreshold };
+    const range = {
+      businessId,
+      startsOn,
+      endsOn,
+      asOf: new Date(),
+      lowStockThreshold: lowStockThresholdBigInt,
+      lowFloatThreshold: lowFloatThresholdBigInt,
+    };
     const engineInput = {
       salesOrders: salesOrders as any,
       purchaseOrders: purchaseOrders as any,
@@ -122,8 +133,8 @@ export async function POST(request: Request) {
       actorUserId,
       startsOn,
       endsOn,
-      lowStockThreshold,
-      lowFloatThreshold,
+      lowStockThreshold: lowStockThreshold.toString(),
+      lowFloatThreshold: lowFloatThreshold.toString(),
     });
   });
 }
