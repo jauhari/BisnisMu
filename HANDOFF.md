@@ -5,6 +5,22 @@ Session scope: Import data legacy ExAct VS / Google Sheets untuk PKU Ponjong, no
 
 ---
 
+## Phase 31: Cash List Identity and Search Filter (2026-08-12)
+
+### Perbaikan
+- Nomor transaksi tidak lagi memakai kolom desktop tersendiri pada halaman Transaksi Kas. Nomor ditampilkan sebagai metadata kecil di bawah keterangan agar lebar tabel lebih efisien.
+- Nomor tetap menjadi bagian dari data pencarian, sehingga pencarian berdasarkan `CASH-...` tetap berfungsi.
+- Mode kartu mobile menjadikan Keterangan/identitas sebagai field utama, dengan tipe, tanggal, status, nominal, dan aksi sebagai detail.
+
+### Verifikasi
+- Pencarian `CASH-202607` menghasilkan empty state karena tidak ada baris yang cocok.
+- Pencarian `CASH-202604` menampilkan dua transaksi yang cocok.
+- `npm run typecheck`: lulus.
+- `npm test`: lulus, 36 file dan 232 test.
+- `git diff --check`: lulus.
+
+---
+
 ## Phase 30: Mobile CRUD Workspace (2026-08-12)
 
 ### Masalah

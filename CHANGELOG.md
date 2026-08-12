@@ -4,6 +4,10 @@ All notable changes to BisnisMu are documented in this file.
 
 ## [Unreleased]
 
+### Improved - Identitas dan Filter Transaksi Kas
+- Nomor transaksi digabung ke metadata kolom Keterangan agar tabel tidak membuang satu kolom hanya untuk nomor.
+- Pencarian tetap mendukung nomor transaksi dan memfilter data secara langsung berdasarkan seluruh field transaksi.
+
 ### Improved - CRUD Mobile
 - Tabel CRUD kini otomatis berubah menjadi kartu yang mudah dipindai pada layar kecil, tanpa scroll horizontal untuk membaca detail dan aksi.
 - Aksi detail, edit, posting, hapus, dan void memiliki target sentuh yang lebih nyaman.

@@ -342,7 +342,7 @@ export function GlassTable<T extends object>({ columns, rows, empty = "No data",
     const key = String(column.key);
     return column.render ? column.render(row) : renderDefaultCell(key, (row as Record<string, unknown>)[key]);
   };
-  const mobilePrimaryColumn = visibleColumnConfigs.find((column) => String(column.key) !== "actions") ?? visibleColumnConfigs[0];
+  const mobilePrimaryColumn = visibleColumnConfigs.find((column) => ["memo", "name", "title", "description"].includes(String(column.key).toLowerCase())) ?? visibleColumnConfigs.find((column) => String(column.key) !== "actions") ?? visibleColumnConfigs[0];
   const mobileAmountColumn = visibleColumnConfigs.find((column) => isMonetaryColumn(String(column.key)) && String(column.key) !== "actions");
   const mobileStatusColumn = visibleColumnConfigs.find((column) => String(column.key).toLowerCase() === "status");
   const mobileDetailColumns = visibleColumnConfigs.filter((column) => {
