@@ -62,3 +62,20 @@ button, input, textarea { font: inherit; }
   scrollbar-color: hsl(var(--muted) / 0.2) transparent;
 }
 
+/* Split workspaces must respond to the usable content width, not the browser
+   viewport. The app sidebar consumes a large part of the viewport on compact
+   desktop windows, so a viewport breakpoint would make CRUD tables too narrow. */
+.workspace-split {
+  container-type: inline-size;
+  container-name: workspace;
+}
+
+@container workspace (min-width: 1760px) {
+  .workspace-split {
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+  }
+
+  .workspace-split > aside {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

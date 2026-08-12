@@ -4,6 +4,11 @@ All notable changes to BisnisMu are documented in this file.
 
 ## [Unreleased]
 
+### Fixed - Responsive Workspace Berdasarkan Lebar Konten
+- Split CRUD dan panel informasi sekarang memakai lebar area kerja aktual setelah sidebar, bukan lebar viewport browser.
+- Pada desktop kecil, panel info turun ke bawah sehingga tabel CRUD mendapat lebar penuh.
+- Split dua kolom hanya aktif ketika workspace benar-benar cukup lebar.
+
 ### Improved - Prioritas CRUD di Mobile
 - Panel Aturan akses dan Jejak akuntansi dipindahkan setelah area CRUD pada layar kecil.
 - Panel informasi kembali berada di sisi kanan pada layar besar.

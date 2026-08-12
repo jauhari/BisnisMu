@@ -5,6 +5,27 @@ Session scope: Import data legacy ExAct VS / Google Sheets untuk PKU Ponjong, no
 
 ---
 
+## Phase 35: Usable-Width Responsive Split (2026-08-12)
+
+### Masalah
+- Breakpoint sebelumnya membaca lebar viewport browser. Pada desktop kecil, viewport terlihat lebar tetapi sidebar aplikasi mengurangi area kerja secara signifikan.
+- Akibatnya panel info tetap berada di kanan ketika area CRUD sebenarnya hanya sekitar 944 px, membuat tabel dan kolom aksi menyempit/terpotong.
+
+### Perbaikan
+- `SplitWorkspace` sekarang memakai container query bernama `workspace`, bukan breakpoint viewport.
+- Panel informasi hanya diposisikan di kanan saat area konten aktual minimal 1760 px.
+- Pada area kerja yang lebih kecil, CRUD/main memakai satu kolom penuh dan panel informasi turun ke bawah.
+- Sidebar info tetap kembali menjadi satu kolom di sisi kanan ketika workspace benar-benar lebar.
+
+### Verifikasi
+- Workspace lokal terukur 944 px: `grid-template-columns` satu kolom, main 944 px, panel info berada di bawah main.
+- Tidak ada horizontal overflow.
+- `npm run typecheck`: lulus.
+- `npm test`: lulus, 36 file dan 232 test.
+- `git diff --check`: lulus.
+
+---
+
 ## Phase 34: Mobile Information Panel Order (2026-08-12)
 
 ### Perbaikan
