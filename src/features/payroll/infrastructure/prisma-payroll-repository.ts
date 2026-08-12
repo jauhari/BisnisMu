@@ -59,7 +59,7 @@ export class PrismaPayrollRepository implements PayrollRepository {
         totalDeductionAmount: input.totalDeductionAmount,
         totalNetAmount: input.totalNetAmount,
         createdByUserId: ctx.actorUserId,
-        items: { create: input.items.map((item) => ({ businessId: ctx.businessId, employeeId: item.employeeId, employeeName: item.employeeName, employeeRole: item.employeeRole, salaryAmount: item.salaryAmount, incentiveAmount: item.incentiveAmount, deductionAmount: item.deductionAmount, grossAmount: item.grossAmount, netAmount: item.netAmount, notes: item.notes ?? null })) },
+        items: { create: input.items.map((item) => ({ businessId: ctx.businessId, employeeId: item.employeeId, employeeName: item.employeeName, employeeRole: item.employeeRole, salaryAmount: item.salaryAmount, incentiveAmount: item.incentiveAmount, deductionAmount: item.deductionAmount, grossAmount: item.grossAmount, netAmount: item.netAmount, paymentStatus: item.netAmount === 0n ? "PAID" : "UNPAID", notes: item.notes ?? null })) },
       },
       include: { items: { orderBy: { employeeName: "asc" } } },
     });
@@ -79,7 +79,7 @@ export class PrismaPayrollRepository implements PayrollRepository {
           totalGrossAmount: input.totalGrossAmount,
           totalDeductionAmount: input.totalDeductionAmount,
           totalNetAmount: input.totalNetAmount,
-          items: { create: input.items.map((item) => ({ businessId: ctx.businessId, employeeId: item.employeeId, employeeName: item.employeeName, employeeRole: item.employeeRole, salaryAmount: item.salaryAmount, incentiveAmount: item.incentiveAmount, deductionAmount: item.deductionAmount, grossAmount: item.grossAmount, netAmount: item.netAmount, notes: item.notes ?? null })) },
+          items: { create: input.items.map((item) => ({ businessId: ctx.businessId, employeeId: item.employeeId, employeeName: item.employeeName, employeeRole: item.employeeRole, salaryAmount: item.salaryAmount, incentiveAmount: item.incentiveAmount, deductionAmount: item.deductionAmount, grossAmount: item.grossAmount, netAmount: item.netAmount, paymentStatus: item.netAmount === 0n ? "PAID" : "UNPAID", notes: item.notes ?? null })) },
         },
         include: { items: { orderBy: { employeeName: "asc" } } },
       });

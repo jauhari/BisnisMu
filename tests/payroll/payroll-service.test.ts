@@ -65,6 +65,25 @@ describe("PayrollService", () => {
     expect(run.items[1]!.netAmount).toBe(5_500_000n);
   });
 
+  it("allows a draft item without a known salary yet", async () => {
+    const repository = new InMemoryPayrollRepository();
+    const service = new PayrollService(repository as any, new InMemoryJournal() as any);
+
+    const run = await service.createRun({
+      ...ctx,
+      period: new Date("2026-09-01"),
+      expenseAccountId: "expense-1",
+      payableAccountId: "payable-1",
+      items: [
+        { employeeId: "doctor-1", salaryAmount: 12_500_000n, incentiveAmount: 0n, deductionAmount: 0n },
+        { employeeId: "nurse-1", salaryAmount: 0n, incentiveAmount: 0n, deductionAmount: 0n },
+      ],
+    });
+
+    expect(run.totalGrossAmount).toBe(12_500_000n);
+    expect(run.items.find((item: any) => item.employeeId === "nurse-1")?.netAmount).toBe(0n);
+  });
+
   it("posts expense, wage payable, and deduction payable when a payroll is approved", async () => {
     const repository = new InMemoryPayrollRepository();
     const journal = new InMemoryJournal();

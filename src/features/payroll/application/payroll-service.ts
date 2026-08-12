@@ -147,6 +147,7 @@ export class PayrollService {
   async approveRun(command: PayrollContext & { payrollRunId: string; approvedAt: Date }): Promise<PayrollRunRecord> {
     const run = await this.requireRun(command, command.payrollRunId);
     if (run.status !== "DRAFT") throw new Error("Hanya payroll draft yang dapat disetujui.");
+    if (run.totalGrossAmount <= 0n) throw new Error("Isi minimal satu nominal gaji sebelum menyetujui payroll.");
 
     const lines = [
       { accountId: run.expenseAccountId, side: "DEBIT" as const, amount: run.totalGrossAmount },

@@ -9,17 +9,33 @@ import { glassTokens } from "@/presentation/theme/tokens";
 import { formatDateLong } from "@/presentation/format/number";
 import { GlassCalendar } from "./glass-calendar";
 
-// Hook: hitung posisi dropdown berdasarkan trigger element
-function useDropdownRect(open: boolean, triggerRef: React.RefObject<HTMLElement | null>) {
+// Hook: hitung posisi dropdown dan balik ke atas bila ruang bawah viewport tidak cukup.
+function useDropdownRect(open: boolean, triggerRef: React.RefObject<HTMLElement | null>, estimatedHeight = 288) {
   const [rect, setRect] = useState<{ top: number; left: number; width: number } | null>(null);
   useEffect(() => {
-    if (open && triggerRef.current) {
-      const r = triggerRef.current.getBoundingClientRect();
-      setRect({ top: r.bottom + 4, left: r.left, width: r.width });
-    } else {
-      setRect(null);
-    }
-  }, [open, triggerRef]);
+    if (!open || !triggerRef.current) { setRect(null); return; }
+
+    const updatePosition = () => {
+      if (!triggerRef.current) return;
+      const trigger = triggerRef.current.getBoundingClientRect();
+      const gutter = 8;
+      const spaceBelow = window.innerHeight - trigger.bottom - gutter;
+      const spaceAbove = trigger.top - gutter;
+      const shouldOpenAbove = spaceBelow < estimatedHeight && spaceAbove > spaceBelow;
+      const rawTop = shouldOpenAbove ? trigger.top - estimatedHeight - 4 : trigger.bottom + 4;
+      const top = Math.max(gutter, Math.min(rawTop, window.innerHeight - estimatedHeight - gutter));
+      const maxLeft = Math.max(gutter, window.innerWidth - trigger.width - gutter);
+      setRect({ top, left: Math.max(gutter, Math.min(trigger.left, maxLeft)), width: trigger.width });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [estimatedHeight, open, triggerRef]);
   return rect;
 }
 
@@ -122,7 +138,7 @@ export function GlassDatePicker({ value, onChange, placeholder = "Pilih tanggal"
   const triggerRef = useRef<HTMLDivElement | null>(null);
   const portalRef = useRef<HTMLDivElement | null>(null);
   const rootRef = useDismissible(open, setOpen, portalRef);
-  const rect = useDropdownRect(open, triggerRef);
+  const rect = useDropdownRect(open, triggerRef, 320);
   const dateObj = value ? new Date(value + "T00:00:00") : undefined;
 
   function handleSelect(date: Date) {

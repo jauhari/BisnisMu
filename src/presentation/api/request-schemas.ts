@@ -347,11 +347,12 @@ const employeeRoleSchema = z.enum(["DOCTOR", "NURSE", "STAFF", "OTHER"]);
 // Tenant-scoped repository lookups still enforce ownership before any journal is posted.
 const payrollIdSchema = z.string().trim().min(1, "Id wajib diisi");
 const optionalPayrollIdSchema = payrollIdSchema.optional();
+const payrollMoneySchema = z.preprocess((value) => typeof value === "string" && value.trim() === "" ? "0" : value, nonNegativeMoneySchema);
 const payrollItemSchema = z.object({
   employeeId: payrollIdSchema,
-  salaryAmount: nonNegativeMoneySchema,
-  incentiveAmount: nonNegativeMoneySchema.optional(),
-  deductionAmount: nonNegativeMoneySchema.optional(),
+  salaryAmount: payrollMoneySchema,
+  incentiveAmount: payrollMoneySchema.optional(),
+  deductionAmount: payrollMoneySchema.optional(),
   notes: optionalString,
 });
 

@@ -25,6 +25,15 @@ describe("PayrollEngine", () => {
     })).toThrow(/potongan/i);
   });
 
+  it("keeps an employee with unknown salary at zero for a draft", () => {
+    const engine = new PayrollEngine();
+
+    expect(engine.calculateItem({ salaryAmount: 0n, incentiveAmount: 0n, deductionAmount: 0n })).toMatchObject({
+      grossAmount: 0n,
+      netAmount: 0n,
+    });
+  });
+
   it("summarizes a payroll run across doctors and nurses", () => {
     const engine = new PayrollEngine();
 

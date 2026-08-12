@@ -22,7 +22,6 @@ export class PayrollEngine {
     }
 
     const grossAmount = amounts.salaryAmount + amounts.incentiveAmount;
-    if (grossAmount <= 0n) throw new Error("Gaji atau insentif harus lebih dari nol.");
     if (amounts.deductionAmount > grossAmount) throw new Error("Potongan tidak boleh melebihi gaji bruto.");
 
     return { ...amounts, grossAmount, netAmount: grossAmount - amounts.deductionAmount };

@@ -90,4 +90,15 @@ describe("API input validation", () => {
       items: [{ employeeId: "pku_employee_dokter" }],
     });
   });
+
+  it("treats blank payroll amounts as zero for a draft", async () => {
+    await expect(parseAndValidate(jsonRequest({
+      period: "2026-06-03",
+      expenseAccountId: "pku_account_610001",
+      payableAccountId: "pku_account_210001",
+      items: [{ employeeId: "pku_employee_fisioterapi", salaryAmount: "", incentiveAmount: "", deductionAmount: "" }],
+    }), payrollRunSchema)).resolves.toMatchObject({
+      items: [{ employeeId: "pku_employee_fisioterapi", salaryAmount: 0n, incentiveAmount: 0n, deductionAmount: 0n }],
+    });
+  });
 });

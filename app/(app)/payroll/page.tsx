@@ -161,7 +161,13 @@ export default function PayrollPage() {
       await requestJson(editingRunId ? `/api/payroll/runs/${editingRunId}` : "/api/payroll/runs", editingRunId ? "PATCH" : "POST", {
         ...draft,
         deductionPayableAccountId: draft.deductionPayableAccountId || undefined,
-        items: draft.items.map((item) => ({ ...item, notes: item.notes || undefined })),
+        items: draft.items.map((item) => ({
+          ...item,
+          salaryAmount: item.salaryAmount || "0",
+          incentiveAmount: item.incentiveAmount || "0",
+          deductionAmount: item.deductionAmount || "0",
+          notes: item.notes || undefined,
+        })),
       });
       setCreatingRun(false);
       setEditingRunId(null);
