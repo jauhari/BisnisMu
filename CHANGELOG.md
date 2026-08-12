@@ -4,6 +4,10 @@ All notable changes to BisnisMu are documented in this file.
 
 ## [Unreleased]
 
+### Fixed - Popover Kolom dan Ekspor
+- Menu Kolom/Ekspor sekarang tampil sebagai overlay viewport sehingga tidak tertutup atau terpotong oleh kartu tabel.
+- Toggle kolom dan urutan kolom dapat digunakan normal; popover menutup saat klik di luar atau menekan Escape.
+
 ### Improved - Identitas dan Filter Transaksi Kas
 - Nomor transaksi digabung ke metadata kolom Keterangan agar tabel tidak membuang satu kolom hanya untuk nomor.
 - Pencarian tetap mendukung nomor transaksi dan memfilter data secara langsung berdasarkan seluruh field transaksi.

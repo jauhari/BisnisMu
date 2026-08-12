@@ -5,6 +5,27 @@ Session scope: Import data legacy ExAct VS / Google Sheets untuk PKU Ponjong, no
 
 ---
 
+## Phase 32: Column Popover Overlay Fix (2026-08-12)
+
+### Masalah
+- Menu `Kolom` dan `Ekspor` berada di dalam kartu tabel yang memakai `overflow-hidden`, sehingga dropdown tampak menumpuk/terpotong oleh header dan isi tabel.
+- Interaksi toggle kolom sulit digunakan karena layer tabel dapat menutup popover.
+
+### Perbaikan
+- Popover sekarang dirender melalui portal ke `document.body` dengan posisi fixed yang dihitung dari tombol pemicu.
+- Posisi otomatis memilih area bawah atau atas tombol sesuai ruang viewport dan memperbarui posisi saat resize/scroll.
+- Popover memiliki z-index overlay, batas tinggi dengan scroll internal, target sentuh minimum, serta menutup saat klik di luar atau menekan Escape.
+- Toggle visibility tetap terhubung langsung ke state TanStack Table; menyembunyikan `Tipe` terverifikasi menghapus header/kolom dari tabel.
+
+### Verifikasi
+- Popover `Kolom` ter-render tanpa clipping pada viewport lokal.
+- Toggle `Tipe` berhasil menghilangkan kolom `TIPE` dari tabel.
+- `npm run typecheck`: lulus.
+- `npm test`: lulus, 36 file dan 232 test.
+- `git diff --check`: lulus.
+
+---
+
 ## Phase 31: Cash List Identity and Search Filter (2026-08-12)
 
 ### Perbaikan

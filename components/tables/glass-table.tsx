@@ -1,7 +1,8 @@
 "use client";
 
 import type { DragEvent, KeyboardEvent, ReactNode, UIEvent } from "react";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { flexRender, getCoreRowModel, getSortedRowModel, useReactTable, type ColumnDef, type ColumnOrderState, type ColumnSizingState, type RowSelectionState, type SortingState, type VisibilityState } from "@tanstack/react-table";
 import { Check, ChevronDown, ChevronUp, Columns3, Download, GripVertical, Search } from "lucide-react";
 import { GlassCard } from "../glass/glass-primitives";
@@ -230,6 +231,9 @@ export function GlassTable<T extends object>({ columns, rows, empty = "No data",
   const [virtualStart, setVirtualStart] = useState(0);
   const [activeCell, setActiveCell] = useState<{ row: number; col: number }>({ row: 0, col: 0 });
   const [menu, setMenu] = useState<null | "columns" | "export">(null);
+  const menuAnchorRef = useRef<HTMLButtonElement>(null);
+  const menuPanelRef = useRef<HTMLDivElement>(null);
+  const [menuPosition, setMenuPosition] = useState<React.CSSProperties>({});
   const rowHeight = 48;
   const viewportRows = 30;
 
@@ -352,6 +356,60 @@ export function GlassTable<T extends object>({ columns, rows, empty = "No data",
   const mobileActionColumn = visibleColumnConfigs.find((column) => String(column.key) === "actions");
   const menuBtn = "flex h-9 items-center gap-2 rounded-lg border border-border bg-white/60 px-3 text-sm font-medium transition hover:bg-white/80 dark:bg-white/8 dark:hover:bg-white/12";
 
+  useEffect(() => {
+    if (!menu) return;
+    const updateMenuPosition = () => {
+      const anchor = menuAnchorRef.current;
+      if (!anchor) return;
+      const rect = anchor.getBoundingClientRect();
+      const width = menu === "columns" ? 288 : 192;
+      const estimatedHeight = menu === "columns" ? Math.min(560, 56 + orderedColumns.length * 40) : 180;
+      const left = Math.min(Math.max(8, rect.right - width), Math.max(8, window.innerWidth - width - 8));
+      const below = rect.bottom + 8;
+      const top = below + estimatedHeight <= window.innerHeight ? below : Math.max(8, rect.top - estimatedHeight - 8);
+      setMenuPosition({ top, left, width, maxHeight: Math.max(180, window.innerHeight - top - 12) });
+    };
+    updateMenuPosition();
+    window.addEventListener("resize", updateMenuPosition);
+    window.addEventListener("scroll", updateMenuPosition, true);
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!menuPanelRef.current?.contains(target) && !menuAnchorRef.current?.contains(target)) setMenu(null);
+    };
+    const onKeyDown = (event: globalThis.KeyboardEvent) => { if (event.key === "Escape") setMenu(null); };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("resize", updateMenuPosition);
+      window.removeEventListener("scroll", updateMenuPosition, true);
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [menu, orderedColumns.length]);
+
+  const menuPortal = menu && typeof document !== "undefined" ? createPortal(
+    <div ref={menuPanelRef} role="menu" className="fixed z-[100] overflow-y-auto rounded-xl border border-border bg-background p-1.5 shadow-2xl shadow-slate-900/20" style={menuPosition}>
+      {menu === "columns" ? <>
+        <p className="px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">Tampilkan & urutkan</p>
+        {orderedColumns.map((column) => (
+          <div key={column.id} className="flex items-center gap-1 rounded-lg px-2 py-1 hover:bg-white/60 dark:hover:bg-white/8">
+            <button type="button" role="menuitemcheckbox" aria-checked={column.getIsVisible()} onClick={() => column.toggleVisibility(!column.getIsVisible())} className="flex min-h-9 flex-1 items-center gap-2 text-left text-sm">
+              <span className={`grid h-4 w-4 place-items-center rounded border ${column.getIsVisible() ? "border-accent bg-accent text-background" : "border-border"}`}>{column.getIsVisible() ? <Check className="h-3 w-3" /> : null}</span>
+              <span className="truncate">{headerLabel(column.id)}</span>
+            </button>
+            <button type="button" aria-label={`Naikkan ${headerLabel(column.id)}`} onClick={() => moveColumn(column.id, -1)} className="grid h-8 w-8 place-items-center rounded text-muted hover:text-foreground"><ChevronUp className="h-3.5 w-3.5" /></button>
+            <button type="button" aria-label={`Turunkan ${headerLabel(column.id)}`} onClick={() => moveColumn(column.id, 1)} className="grid h-8 w-8 place-items-center rounded text-muted hover:text-foreground"><ChevronDown className="h-3.5 w-3.5" /></button>
+          </div>
+        ))}
+      </> : <>
+        <button type="button" onClick={() => { exportCsv(tableId, exportHeaders, buildExportRows()); setMenu(null); }} className="block min-h-10 w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-white/60 dark:hover:bg-white/8">Ekspor CSV</button>
+        <button type="button" onClick={() => { exportSpreadsheetXml(tableId, exportHeaders, buildExportRows()); setMenu(null); }} className="block min-h-10 w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-white/60 dark:hover:bg-white/8">Ekspor Excel</button>
+        <button type="button" onClick={() => { exportPrintHtml(tableId, exportHeaders, buildExportRows()); setMenu(null); }} className="block min-h-10 w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-white/60 dark:hover:bg-white/8">Ekspor PDF</button>
+      </>}
+    </div>,
+    document.body
+  ) : null;
+
   return <GlassCard className="min-w-0 overflow-hidden p-0 shadow-xl shadow-slate-900/5">
     <div className="flex flex-col gap-3 border-b border-border/70 bg-white/35 px-3 py-3 backdrop-blur md:flex-row md:items-center sm:px-4 dark:bg-white/5">
       <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-border bg-white/60 px-3 dark:bg-white/8"><Search className="h-4 w-4 shrink-0 text-muted" /><GlassInput value={search} onChange={(event) => { setSearch(event.target.value); setVirtualStart(0); setActiveCell({ row: 0, col: 0 }); }} placeholder="Cari…" className="h-9 min-w-0 w-full border-0 bg-transparent shadow-none backdrop-blur-none" /></div>
@@ -360,37 +418,15 @@ export function GlassTable<T extends object>({ columns, rows, empty = "No data",
         <span className="hidden text-xs text-muted sm:inline">{totalRows} baris</span>
 
         <div className="relative">
-          <button type="button" onClick={() => setMenu((m) => m === "columns" ? null : "columns")} className={menuBtn} aria-haspopup="menu" aria-expanded={menu === "columns"}><Columns3 className="h-4 w-4" /><span className="hidden sm:inline">Kolom</span></button>
-          {menu === "columns" ? (
-            <div className="absolute right-0 z-30 mt-2 w-60 rounded-xl border border-border bg-background p-1.5 shadow-xl">
-              <p className="px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">Tampilkan & urutkan</p>
-              {orderedColumns.map((column) => (
-                <div key={column.id} className="flex items-center gap-1 rounded-lg px-2 py-1 hover:bg-white/60 dark:hover:bg-white/8">
-                  <button type="button" onClick={() => column.toggleVisibility(!column.getIsVisible())} className="flex flex-1 items-center gap-2 text-left text-sm">
-                    <span className={`grid h-4 w-4 place-items-center rounded border ${column.getIsVisible() ? "border-accent bg-accent text-background" : "border-border"}`}>{column.getIsVisible() ? <Check className="h-3 w-3" /> : null}</span>
-                    <span className="truncate">{headerLabel(column.id)}</span>
-                  </button>
-                  <button type="button" aria-label={`Naikkan ${headerLabel(column.id)}`} onClick={() => moveColumn(column.id, -1)} className="grid h-6 w-6 place-items-center rounded text-muted hover:text-foreground"><ChevronUp className="h-3.5 w-3.5" /></button>
-                  <button type="button" aria-label={`Turunkan ${headerLabel(column.id)}`} onClick={() => moveColumn(column.id, 1)} className="grid h-6 w-6 place-items-center rounded text-muted hover:text-foreground"><ChevronDown className="h-3.5 w-3.5" /></button>
-                </div>
-              ))}
-            </div>
-          ) : null}
+          <button ref={menu === "columns" ? menuAnchorRef : undefined} type="button" onClick={() => setMenu((m) => m === "columns" ? null : "columns")} className={menuBtn} aria-haspopup="menu" aria-expanded={menu === "columns"}><Columns3 className="h-4 w-4" /><span className="hidden sm:inline">Kolom</span></button>
         </div>
 
         <div className="relative">
-          <button type="button" onClick={() => setMenu((m) => m === "export" ? null : "export")} className={menuBtn} aria-haspopup="menu" aria-expanded={menu === "export"}><Download className="h-4 w-4" /><span className="hidden sm:inline">Ekspor</span></button>
-          {menu === "export" ? (
-            <div className="absolute right-0 z-30 mt-2 w-44 rounded-xl border border-border bg-background p-1.5 shadow-xl">
-              <button type="button" onClick={() => { exportCsv(tableId, exportHeaders, buildExportRows()); setMenu(null); }} className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-white/60 dark:hover:bg-white/8">Ekspor CSV</button>
-              <button type="button" onClick={() => { exportSpreadsheetXml(tableId, exportHeaders, buildExportRows()); setMenu(null); }} className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-white/60 dark:hover:bg-white/8">Ekspor Excel</button>
-              <button type="button" onClick={() => { exportPrintHtml(tableId, exportHeaders, buildExportRows()); setMenu(null); }} className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-white/60 dark:hover:bg-white/8">Ekspor PDF</button>
-            </div>
-          ) : null}
+          <button ref={menu === "export" ? menuAnchorRef : undefined} type="button" onClick={() => setMenu((m) => m === "export" ? null : "export")} className={menuBtn} aria-haspopup="menu" aria-expanded={menu === "export"}><Download className="h-4 w-4" /><span className="hidden sm:inline">Ekspor</span></button>
         </div>
       </div>
     </div>
-    {menu ? <div className="fixed inset-0 z-20" onClick={() => setMenu(null)} aria-hidden /> : null}
+    {menuPortal}
     <div className="divide-y divide-border/70 bg-white/30 md:hidden dark:bg-white/3">
       {searchedRows.length === 0 ? <div className="px-4 py-12 text-center text-sm text-muted">{empty}</div> : searchedRows.map((row, index) => {
         const primaryKey = String(mobilePrimaryColumn?.key ?? "record");
