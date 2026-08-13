@@ -87,9 +87,10 @@ const getCachedDashboardOverview = unstable_cache(
     }
 
     const cashBalanceRows = await prisma.journalLine.groupBy({
-      by: ["accountId"],
+      by: ["accountId", "side"],
       where: {
         businessId,
+        journal: { businessId, status: "POSTED" },
         account: {
           businessId,
           groupCode: "ASSET",
@@ -104,10 +105,12 @@ const getCachedDashboardOverview = unstable_cache(
       _sum: { amount: true }
     });
     const cashBalances = cashAccounts.map((acc) => {
-      const row = cashBalanceRows.find((r) => r.accountId === acc.id);
+      const balance = cashBalanceRows
+        .filter((row) => row.accountId === acc.id)
+        .reduce((total, row) => total + (row._sum.amount ?? 0n) * (row.side === "DEBIT" ? 1n : -1n), 0n);
       const subtype = String(acc.subtype ?? "").toLowerCase();
       const normalizedSubtype = subtype === "bank" || acc.code.startsWith("112") ? "bank" : "cash";
-      return { businessId, accountId: acc.id, subtype: normalizedSubtype as "cash" | "bank", balance: row?._sum?.amount ?? 0n };
+      return { businessId, accountId: acc.id, subtype: normalizedSubtype as "cash" | "bank", balance };
     });
 
     const range = {

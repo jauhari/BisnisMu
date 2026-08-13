@@ -956,3 +956,9 @@ npx prisma generate
 - Root cause: imported accounts store subtype values as `Kas`/`Bank`, while dashboard queries and engine classification only matched lowercase `cash`/`bank`.
 - Dashboard account queries now match subtype case-insensitively and support legacy account code prefixes `111xxx` (cash) and `112xxx` (bank).
 - Verified Neon data: BRImo `272,320,000`, ATM `213,491,724`, Kas Masruri `12,300,000`, and Kas Tunai `1,360,000` are present as posted journal balances.
+
+## Phase 38: Correct Net Cash/Bank Balance Calculation
+
+- Fixed the cash analytics route to group journal lines by account and debit/credit side.
+- Cash and bank balances now use `Debit - Credit` and only `POSTED` journal entries.
+- This prevents the previous gross-activity total from appearing as available cash.

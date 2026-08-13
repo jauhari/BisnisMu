@@ -9,6 +9,10 @@ All notable changes to BisnisMu are documented in this file.
 - Dashboard mengenali akun kas/bank berdasarkan subtype tanpa sensitif huruf besar-kecil serta kode akun legacy `111xxx`/`112xxx`.
 - Saldo jurnal ter-posting untuk rekening legacy kembali tampil di Analitik Kas dan ringkasan Dashboard.
 
+### Fixed - Rumus Saldo Kas dan Bank
+- Analitik Kas sekarang menghitung saldo rekening dengan rumus akuntansi `Debit - Kredit`, bukan menjumlahkan seluruh nominal jurnal.
+- Perhitungan hanya memakai jurnal berstatus `POSTED`, sehingga draft dan jurnal yang belum sah tidak ikut masuk saldo.
+
 ### Fixed - Analitik Kas Gagal Memuat
 - Threshold dashboard yang bertipe `BigInt` tidak lagi dikirim langsung melewati boundary cache Next.js.
 - Endpoint `/api/dashboard/overview` sekarang membentuk cache key dengan string lalu mengembalikan threshold ke `BigInt` hanya di dalam domain calculation.
