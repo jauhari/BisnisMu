@@ -390,6 +390,7 @@ export default function Page() {
       });
       toast.success(editingDailySaleId ? "Penjualan diperbarui." : "Penjualan tersimpan & jurnal dibuat otomatis.");
       void qc.invalidateQueries({ queryKey: ["list", "daily-sales"] });
+      void qc.invalidateQueries({ queryKey: ["list", "transaction-history"] });
       resetDailySaleForm();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Gagal menyimpan.");
@@ -403,11 +404,13 @@ export default function Page() {
       if (kind === "daily-delete") {
         await apiRequest(`/api/sales/daily/${row.saleId}`, { method: "DELETE" });
         toast.success("Penjualan harian dihapus.");
+        void qc.invalidateQueries({ queryKey: ["list", "transaction-history"] });
         await dailyList.refetch();
       }
       if (kind === "daily-void") {
         await apiRequest(`/api/sales/daily/${row.saleId}`, { method: "DELETE", body: JSON.stringify({ reason: `Void penjualan harian ${row.saleId}` }) });
         toast.success("Penjualan harian dibatalkan.");
+        void qc.invalidateQueries({ queryKey: ["list", "transaction-history"] });
         await dailyList.refetch();
       }
       if (kind === "sales-confirm") {

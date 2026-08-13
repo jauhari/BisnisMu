@@ -4,6 +4,11 @@ All notable changes to BisnisMu are documented in this file.
 
 ## [Unreleased]
 
+### Fixed - Riwayat Transaksi Memuat Input Manual
+- Endpoint Riwayat Transaksi tidak lagi berhenti pada 100 transaksi kas pertama, sehingga transaksi input manual tetap muncul meskipun data import legacy banyak.
+- Urutan riwayat memakai tanggal, waktu dibuat, dan ID sebagai tie-breaker agar transaksi manual dengan tanggal berdekatan tidak tertutup oleh row import.
+- Cache Riwayat Transaksi sekarang langsung di-invalidasi setelah transaksi kas disimpan, diedit, diposting, dihapus, atau di-void, serta setelah penjualan harian berubah.
+
 ### Added - Transaksi Kas dari Jurnal Legacy
 - 158 jurnal import PKU Ponjong sekarang tampil pada daftar Transaksi Kas tanpa membuat jurnal baru.
 - Transaksi diklasifikasikan menjadi 116 Pengeluaran, 24 Transfer, dan 18 Pemasukan legacy; satu Pemasukan sebelumnya tetap dipertahankan sehingga total daftar menjadi 159 transaksi.

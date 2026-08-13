@@ -12,7 +12,14 @@ export async function GET(request: Request) {
 
     const [business, cashTransactions, dailySales, salesOrders] = await Promise.all([
       prisma.business.findUnique({ where: { id: tenant.businessId }, select: { organization: { select: { settings: true } } } }),
-      prisma.cashTransaction.findMany({ where: { businessId: tenant.businessId }, orderBy: { transactionDate: "desc" }, take: 100 }),
+      // Keep the history list broad enough to include manually entered cash
+      // transactions alongside the legacy-import rows. The secondary order
+      // is important because many imported rows share the same date.
+      prisma.cashTransaction.findMany({
+        where: { businessId: tenant.businessId },
+        orderBy: [{ transactionDate: "desc" }, { createdAt: "desc" }, { id: "desc" }],
+        take: 500,
+      }),
       prisma.dailySale.findMany({
         where: { businessId: tenant.businessId },
         include: {
@@ -25,10 +32,10 @@ export async function GET(request: Request) {
             orderBy: { lineNo: "asc" },
           },
         },
-        orderBy: { saleDate: "desc" },
-        take: 100,
+        orderBy: [{ saleDate: "desc" }, { createdAt: "desc" }, { id: "desc" }],
+        take: 500,
       }),
-      prisma.salesOrder.findMany({ where: { businessId: tenant.businessId }, orderBy: { saleDate: "desc" }, take: 100, include: { items: true } }),
+      prisma.salesOrder.findMany({ where: { businessId: tenant.businessId }, orderBy: [{ saleDate: "desc" }, { createdAt: "desc" }, { id: "desc" }], take: 500, include: { items: true } }),
     ]);
 
     const rows = [

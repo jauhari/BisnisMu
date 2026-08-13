@@ -5,6 +5,30 @@ Session scope: Import data legacy ExAct VS / Google Sheets untuk PKU Ponjong, no
 
 ---
 
+## Phase 36: Riwayat Input Manual dan Import (2026-08-13)
+
+### Masalah
+- Halaman `/transactions` terlihat hanya menampilkan transaksi hasil import ketika jumlah transaksi legacy sudah banyak.
+- Endpoint mengambil maksimal 100 transaksi kas dan tidak memiliki tie-breaker saat banyak row memiliki tanggal yang sama.
+- Setelah form Transaksi Kas menyimpan perubahan, cache query Riwayat Transaksi dapat tetap menampilkan snapshot lama sampai stale time berakhir.
+
+### Temuan data Neon
+- PKU Ponjong memiliki 162 transaksi kas, seluruhnya berstatus `POSTED`.
+- 158 row adalah hasil import dengan tag `legacy-import`.
+- 4 row manual terbaru tetap tersimpan: `CASH-202607-00002` (Biaya Internet), `CASH-202607-00001` (Bulan April - Juni), `CASH-202606-00002` (Isi Pulsa Listrik), dan `CASH-202606-00001` (Biaya Internet).
+- Tidak ada row yang dihapus atau diubah pada database saat diagnosis.
+
+### Perbaikan
+- `app/api/transactions/history/route.ts` mengambil hingga 500 transaksi kas, daily sale, dan sales order dengan urutan deterministik berdasarkan tanggal, `createdAt`, lalu ID.
+- `app/(app)/cash/transactions/page.tsx` meng-invalidasi cache Riwayat Transaksi setelah create/update/post/delete/void.
+- `app/(app)/sales/orders/page.tsx` meng-invalidasi cache Riwayat Transaksi setelah daily sale dibuat, diedit, dihapus, atau di-void.
+
+### Verifikasi
+- Query read-only direct Neon berhasil mengonfirmasi 162 row transaksi kas dan 4 input manual terbaru.
+- `npm run typecheck` dan `npm test` perlu dijalankan setelah perubahan ini; `.pnpm-store/` tetap untracked dan tidak disentuh.
+
+---
+
 ## Phase 35: Usable-Width Responsive Split (2026-08-12)
 
 ### Masalah

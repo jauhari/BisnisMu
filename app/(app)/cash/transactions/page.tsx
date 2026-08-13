@@ -87,6 +87,7 @@ export default function Page() {
     const payload = { ...values, destinationAccountId: values.destinationAccountId || undefined, categoryAccountId: values.categoryAccountId || undefined, contactId: values.contactId || undefined, amount: digits(values.amount) };
     if (editing) await requestJson(`/api/cash/transactions/${editing.id}`, "PATCH", payload);
     else await requestJson("/api/cash/transactions", "POST", payload);
+    await qc.invalidateQueries({ queryKey: ["list", "transaction-history"] });
     await list.refetch?.();
     setDrawerOpen(false);
     setEditing(null);
@@ -112,6 +113,7 @@ export default function Page() {
       if (kind === "delete") await requestJson(`/api/cash/transactions/${tx.id}`, "DELETE");
       if (kind === "void") await requestJson("/api/cash/transactions/void", "POST", { transactionId: tx.id, reason: `Void transaksi ${tx.transactionNumber}` });
       toast.success(kind === "post" ? "Transaksi diposting." : kind === "void" ? "Transaksi dibatalkan." : "Draft dihapus.");
+      await qc.invalidateQueries({ queryKey: ["list", "transaction-history"] });
       await list.refetch?.();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Aksi gagal.");
