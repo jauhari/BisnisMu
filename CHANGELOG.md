@@ -4,6 +4,12 @@ All notable changes to BisnisMu are documented in this file.
 
 ## [Unreleased]
 
+### Added - Transaksi Kas dari Jurnal Legacy
+- 158 jurnal import PKU Ponjong sekarang tampil pada daftar Transaksi Kas tanpa membuat jurnal baru.
+- Transaksi diklasifikasikan menjadi 116 Pengeluaran, 24 Transfer, dan 18 Pemasukan legacy; satu Pemasukan sebelumnya tetap dipertahankan sehingga total daftar menjadi 159 transaksi.
+- Transaksi Internet/Telpon dihubungkan ke Telkom, Listrik ke PLN, pemasukan Klaim/Transfer PKU ke PKU Wonosari, dan pembayaran gaji ke kontak karyawan terkait.
+- Setiap transaksi menyimpan referensi jurnal lama pada `postedJournalId` dan tag `legacy-import`, sehingga import dapat dijalankan ulang tanpa duplikasi.
+
 ### Added - Rincian Saldo Tiap Rekening
 - Halaman Analitik Kas sekarang menampilkan daftar saldo bersih per rekening kas/bank.
 - Setiap baris menampilkan kode, nama rekening, jenis akun, saldo, dan status saldo.

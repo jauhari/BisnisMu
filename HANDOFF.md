@@ -969,3 +969,12 @@ npx prisma generate
 - `/dashboard/cash` now shows each active legacy or native account with code, name, account type, net balance, and a balance status.
 - Account detail uses the same posted-journal `Debit - Credit` calculation as the aggregate cards.
 - Added regression coverage for the new account detail payload.
+
+## Phase 40: Legacy Journals Linked to Cash Transactions
+
+- Added `scripts/import-legacy-cash-transactions.mjs` with dry-run by default and explicit `--apply` for writes.
+- Imported 158 `LEGACY_EXACT_VS` posted journals for PKU Ponjong into `cash_transactions` without creating replacement journals.
+- Classification: 116 `CASH_OUT`, 24 `TRANSFER`, and 18 imported `CASH_IN`; the existing cash transaction remains, giving 159 total posted cash transactions.
+- Mapping uses the journal's cash account, opposing category account, original date/amount, journal number as reference, and the old journal ID as `postedJournalId`.
+- Contact mapping: Telkom for Internet/Telpon, PLN for Listrik, PKU Wonosari for Klaim/Transfer PKU, and employee contacts for payroll descriptions. Other expenses and bank fees remain without a contact where the source journal did not identify a counterparty.
+- Idempotency verified: a second dry-run reports `alreadyLinked: 158` and `toImport: 0`.
