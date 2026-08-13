@@ -9,6 +9,8 @@ class InMemoryPayrollRepository {
     { id: "nurse-1", businessId: "clinic-1", name: "Siti", role: "NURSE", isActive: true },
   ];
   run: any = null;
+  listEmployeesCalls = 0;
+  listRunsCalls = 0;
 
   async findEmployees(_ctx: unknown, ids: string[]) { return this.employees.filter((employee) => ids.includes(employee.id)); }
   async findRunByPeriod() { return this.run; }
@@ -22,14 +24,14 @@ class InMemoryPayrollRepository {
     if (this.run.items.every((candidate: any) => candidate.paymentStatus === "PAID")) this.run.status = "PAID";
     return this.run;
   }
-  async listEmployees() { return this.employees; }
+  async listEmployees() { this.listEmployeesCalls += 1; return this.employees; }
   async createEmployee(_ctx: unknown, input: any) { const employee = { id: "employee-3", isActive: true, ...input }; this.employees.push(employee); return employee; }
   async updateEmployee(_ctx: unknown, employeeId: string, input: any) { const employee = this.employees.find((candidate) => candidate.id === employeeId); if (!employee) throw new Error("Karyawan tidak ditemukan."); Object.assign(employee, input); return employee; }
   async countEmployeePayrollItems() { return 0; }
   async deleteEmployee(_ctx: unknown, employeeId: string) { this.employees = this.employees.filter((employee) => employee.id !== employeeId); }
   async replaceDraftRun(_ctx: unknown, runId: string, input: any) { this.run = { ...this.run, id: runId, ...input, items: input.items.map((item: any) => ({ ...item, paidAmount: 0n, paymentStatus: "UNPAID" })) }; return this.run; }
   async deleteRun() { this.run = null; }
-  async listRuns() { return this.run ? [this.run] : []; }
+  async listRuns() { this.listRunsCalls += 1; return this.run ? [this.run] : []; }
 }
 
 class InMemoryJournal {
@@ -42,6 +44,19 @@ class InMemoryJournal {
 }
 
 describe("PayrollService", () => {
+  it("loads the payroll screen data with one employee query and one run query", async () => {
+    const repository = new InMemoryPayrollRepository();
+    const service = new PayrollService(repository as any, new InMemoryJournal() as any);
+
+    const overview = await service.getOverview(ctx);
+
+    expect(overview.employees).toHaveLength(2);
+    expect(overview.runs).toEqual([]);
+    expect(overview.dashboard.pendingApprovalCount).toBe(0);
+    expect(repository.listEmployeesCalls).toBe(1);
+    expect(repository.listRunsCalls).toBe(1);
+  });
+
   it("creates a monthly payroll with a different salary for each employee", async () => {
     const repository = new InMemoryPayrollRepository();
     const service = new PayrollService(repository as any, new InMemoryJournal() as any);

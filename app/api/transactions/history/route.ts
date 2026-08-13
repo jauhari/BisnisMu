@@ -17,25 +17,51 @@ export async function GET(request: Request) {
       // is important because many imported rows share the same date.
       prisma.cashTransaction.findMany({
         where: { businessId: tenant.businessId },
+        select: {
+          id: true,
+          transactionNumber: true,
+          transactionDate: true,
+          type: true,
+          status: true,
+          amount: true,
+          description: true,
+        },
         orderBy: [{ transactionDate: "desc" }, { createdAt: "desc" }, { id: "desc" }],
         take: 500,
       }),
       prisma.dailySale.findMany({
         where: { businessId: tenant.businessId },
-        include: {
-          cashAccount: { select: { code: true, name: true } },
+        select: {
+          id: true,
+          saleDate: true,
+          status: true,
+          description: true,
+          totalAmount: true,
           items: {
-            include: {
-              revenueAccount: { select: { code: true, name: true } },
-              contacts: { include: { contact: { select: { id: true, name: true, category: true, phone: true } } } },
+            select: {
+              revenueAccount: { select: { name: true } },
             },
             orderBy: { lineNo: "asc" },
+            take: 1,
           },
         },
         orderBy: [{ saleDate: "desc" }, { createdAt: "desc" }, { id: "desc" }],
         take: 500,
       }),
-      prisma.salesOrder.findMany({ where: { businessId: tenant.businessId }, orderBy: [{ saleDate: "desc" }, { createdAt: "desc" }, { id: "desc" }], take: 500, include: { items: true } }),
+      prisma.salesOrder.findMany({
+        where: { businessId: tenant.businessId },
+        select: {
+          id: true,
+          salesNumber: true,
+          saleDate: true,
+          status: true,
+          description: true,
+          totalAmount: true,
+          paidAmount: true,
+        },
+        orderBy: [{ saleDate: "desc" }, { createdAt: "desc" }, { id: "desc" }],
+        take: 500,
+      }),
     ]);
 
     const rows = [

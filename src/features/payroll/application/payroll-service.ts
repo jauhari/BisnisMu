@@ -1,6 +1,6 @@
 import type { JournalPostingService } from "../../accounting/application/journal-posting-service";
 import { PayrollEngine, type PayrollAmounts } from "../domain/payroll-engine";
-import type { CreatePayrollRunData, EmployeeRole, PayrollContext, PayrollDashboard, PayrollEmployee, PayrollRepository, PayrollRunRecord } from "./payroll-repository";
+import type { CreatePayrollRunData, EmployeeRole, PayrollContext, PayrollDashboard, PayrollEmployee, PayrollOverview, PayrollRepository, PayrollRunRecord } from "./payroll-repository";
 
 export interface CreateEmployeeCommand extends PayrollContext {
   name: string;
@@ -62,6 +62,18 @@ export class PayrollService {
 
   async getDashboard(ctx: PayrollContext): Promise<PayrollDashboard> {
     const runs = await this.repository.listRuns(ctx);
+    return this.buildDashboard(runs);
+  }
+
+  async getOverview(ctx: PayrollContext): Promise<PayrollOverview> {
+    const [employees, runs] = await Promise.all([
+      this.repository.listEmployees(ctx),
+      this.repository.listRuns(ctx),
+    ]);
+    return { employees, runs, dashboard: this.buildDashboard(runs) };
+  }
+
+  private buildDashboard(runs: PayrollRunRecord[]): PayrollDashboard {
     const current = this.normalizePeriod(new Date());
     const currentPeriod = runs.find((run) => run.period.getTime() === current.getTime()) ?? null;
     const approvedRuns = runs.filter((run) => run.status !== "DRAFT");

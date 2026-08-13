@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
 
+const prismaCli = "node_modules/prisma/build/index.js";
+
 if (!process.env.SHADOW_DATABASE_URL) {
   console.error("SHADOW_DATABASE_URL is required to verify migration history against prisma/schema.prisma.");
   process.exit(1);
 }
 
-const result = spawnSync("npx", [
-  "prisma",
+const result = spawnSync(process.execPath, [
+  prismaCli,
   "migrate",
   "diff",
   "--from-migrations",

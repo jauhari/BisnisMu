@@ -4,6 +4,19 @@ All notable changes to BisnisMu are documented in this file.
 
 ## [Unreleased]
 
+### Improved - Performance and Production Stability
+- Routine Prisma API traffic now uses the configured Neon PgBouncer `DATABASE_URL`; the dedicated `prismaDirect` client still uses `DIRECT_URL` for atomic multi-write flows. This restores production `/api/health` from repeated `500` responses after approximately 5 seconds to `200` (cold 627 ms; warm 163-189 ms in the local production server benchmark).
+- The Windows migration startup guard invokes the local Prisma CLI through `process.execPath`, so `npm run start` no longer fails because `spawnSync("npx")` cannot resolve the Windows command shim.
+- Payroll now loads employees, payroll runs, and the derived dashboard through one `/api/payroll/overview` request. The service fetches employees and runs in parallel and derives dashboard totals from the already-loaded runs, reducing the page's initial API fan-out from four requests to two (overview plus CoA).
+- Unified Transaction History now selects only fields rendered by the UI, fetches only the first daily-sale account needed for its fallback description, and no longer serializes unused nested `raw` source records.
+- Added tenant-scoped composite ordering indexes for cash transactions, daily sales, and sales orders. Migration `202608130001_optimize_transaction_history_indexes` has been applied to the configured Neon database.
+- Dashboard financial charts are lazy-loaded with stable skeletons so summary KPIs and exceptions can render before chart JavaScript evaluates.
+
+### Verification - Performance Baseline
+- Neon query plans on the configured dataset (166 cash transactions, 13 sales orders, 327 accounts, 618 journal lines, 25 payroll runs) were already fast at the database layer: the candidate history/CoA scans executed in 0.09-1.59 ms. The observed application slowness was connection routing, request fan-out, and unnecessary payload rather than an N+1 query.
+- Production build first-load sizes: Dashboard 277 kB, Payroll 183 kB, Cash Transactions 227 kB, Transaction History 200 kB, CoA 204 kB, with 103 kB shared. The dashboard chart split improves execution priority but does not lower the route aggregate because charts are also used by dashboard subroutes.
+- Browser Core Web Vitals and authenticated desktop/mobile interaction were not measured: Chrome DevTools MCP, `agent-browser`, and a usable Playwright runtime were unavailable in this environment. This remains a release verification gap.
+
 ### Fixed - Riwayat Transaksi Memuat Input Manual
 - Endpoint Riwayat Transaksi tidak lagi berhenti pada 100 transaksi kas pertama, sehingga transaksi input manual tetap muncul meskipun data import legacy banyak.
 - Urutan riwayat memakai tanggal, waktu dibuat, dan ID sebagai tie-breaker agar transaksi manual dengan tanggal berdekatan tidak tertutup oleh row import.

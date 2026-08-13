@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import dynamic from "next/dynamic";
 import { notFound } from "next/navigation";
 import { DashboardGrid, DashboardExceptionPanel, KpiGrid, RealtimeStatus } from "@/components/charts/dashboard-layout";
 import { GlassErrorState, GlassSkeleton } from "@/components/feedback/glass-feedback";
@@ -6,7 +7,13 @@ import { GlassTable } from "@/components/tables/glass-table";
 import { formatMoney, formatNumber } from "@/presentation/format/number";
 import { getAuthenticatedUserContextByToken, getServerSessionToken } from "@/presentation/auth/session";
 import { getCachedDashboardSummary } from "@/presentation/dashboard/dashboard-summary";
-import { DashboardCharts } from "./dashboard-charts";
+
+const DashboardCharts = dynamic(
+  () => import("./dashboard-charts").then((module) => module.DashboardCharts),
+  {
+    loading: () => <div className="grid gap-6 xl:grid-cols-2"><GlassSkeleton className="h-72" /><GlassSkeleton className="h-72" /></div>,
+  },
+);
 
 type FilterOption = "1w" | "1m" | "3m" | "6m" | "1y";
 

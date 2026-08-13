@@ -34,6 +34,9 @@ describe("transaction history presentation", () => {
     expect(daily).toMatchObject({ id: "daily-1", source: "DAILY_SALE", kind: "Penjualan Harian", direction: "IN", reference: "daily-1" });
     expect(order).toMatchObject({ id: "sale-1", source: "SALES_ORDER", kind: "Sales Order", direction: "IN", reference: "SO-001" });
     expect(cash).toMatchObject({ id: "cash-1", source: "CASH_TRANSACTION", kind: "Pengeluaran Kas", direction: "OUT", reference: "CASH-001" });
+    expect(daily).not.toHaveProperty("raw");
+    expect(order).not.toHaveProperty("raw");
+    expect(cash).not.toHaveProperty("raw");
   });
 
   it("filters by transaction type, status, search, and date range", () => {

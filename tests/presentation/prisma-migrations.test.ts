@@ -22,6 +22,8 @@ describe("Prisma migration hardening", () => {
     expect(guard).toContain("status");
     expect(guard).toContain("Pending Prisma migrations detected");
     expect(guard).toContain("process.exit(1)");
+    expect(guard).toContain('node_modules/prisma/build/index.js');
+    expect(guard).toContain("process.execPath");
   });
 
   it("migration verifier requires a shadow database", () => {
@@ -30,5 +32,15 @@ describe("Prisma migration hardening", () => {
     expect(verifier).toContain("--from-migrations");
     expect(verifier).toContain("--to-schema-datamodel");
     expect(verifier).toContain("--exit-code");
+    expect(verifier).toContain('node_modules/prisma/build/index.js');
+    expect(verifier).toContain("process.execPath");
+  });
+
+  it("uses Neon pooler for routine Prisma traffic and direct URL for atomic writes", () => {
+    const client = readFileSync("src/presentation/api/prisma.ts", "utf8");
+    expect(client).toContain("const pooledDatabaseUrl = addConnectionOptions(process.env.DATABASE_URL)");
+    expect(client).toContain("const directDatabaseUrl = addConnectionOptions(process.env.DIRECT_URL ?? process.env.DATABASE_URL)");
+    expect(client).toContain("url: pooledDatabaseUrl");
+    expect(client).toContain("url: directDatabaseUrl");
   });
 });

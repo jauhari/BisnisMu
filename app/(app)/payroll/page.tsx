@@ -22,6 +22,7 @@ interface PayrollItem { id?: string; employeeId: string; employeeName: string; e
 interface PayrollRun { id: string; period: string; status: PayrollStatus; expenseAccountId: string; payableAccountId: string; deductionPayableAccountId?: string | null; totalGrossAmount: string; totalDeductionAmount: string; totalNetAmount: string; items: PayrollItem[]; }
 interface DraftItem { employeeId: string; salaryAmount: string; incentiveAmount: string; deductionAmount: string; notes: string; }
 interface PayrollDashboard { totalAccruedAmount: string; totalPaidAmount: string; totalOutstandingAmount: string; pendingApprovalCount: number; currentPeriod: PayrollRun | null; employeeBalances: Array<{ employeeId: string; employeeName: string; employeeRole: EmployeeRole; outstandingAmount: string }>; }
+interface PayrollOverview { employees: Employee[]; runs: PayrollRun[]; dashboard: PayrollDashboard; }
 
 const ROLE_LABEL: Record<EmployeeRole, string> = { DOCTOR: "Dokter", NURSE: "Perawat", STAFF: "Staf", OTHER: "Lainnya" };
 const ROLE_TONE: Record<EmployeeRole, string> = { DOCTOR: "bg-violet-500/10 text-violet-700 dark:text-violet-300", NURSE: "bg-teal-500/10 text-teal-700 dark:text-teal-300", STAFF: "bg-amber-500/10 text-amber-700 dark:text-amber-300", OTHER: "bg-slate-950/5 text-muted dark:bg-white/8" };
@@ -53,9 +54,7 @@ async function requestJson(path: string, method: string, body?: unknown) {
 
 export default function PayrollPage() {
   const queryClient = useQueryClient();
-  const employeesQuery = useListQuery<Employee[]>("/api/payroll/employees", ["list", "payroll-employees"]);
-  const payrollQuery = useListQuery<PayrollRun[]>("/api/payroll/runs", ["list", "payroll-runs"]);
-  const dashboardQuery = useListQuery<PayrollDashboard>("/api/payroll/dashboard", ["detail", "payroll-dashboard"]);
+  const payrollOverviewQuery = useListQuery<PayrollOverview>("/api/payroll/overview", ["detail", "payroll-overview"]);
   const accountsQuery = useListQuery<Account[]>("/api/accounting/chart-of-accounts", ["list", "accounting-coa"]);
   const [addingEmployee, setAddingEmployee] = useState(false);
   const [editingEmployeeId, setEditingEmployeeId] = useState<string | null>(null);
@@ -74,9 +73,9 @@ export default function PayrollPage() {
   const [draft, setDraft] = useState({ period: firstDayOfMonth(), expenseAccountId: "", payableAccountId: "", deductionPayableAccountId: "", items: [] as DraftItem[] });
   const payrollFormRef = useRef<HTMLDivElement | null>(null);
 
-  const employees = employeesQuery.data?.data ?? [];
-  const runs = payrollQuery.data?.data ?? [];
-  const dashboard = dashboardQuery.data?.data;
+  const employees = payrollOverviewQuery.data?.data?.employees ?? [];
+  const runs = payrollOverviewQuery.data?.data?.runs ?? [];
+  const dashboard = payrollOverviewQuery.data?.data?.dashboard;
   const accounts = useMemo(() => flatten(accountsQuery.data?.data ?? []), [accountsQuery.data]);
   const postingAccounts = useMemo(() => accounts.filter((account) => account.isPostingAllowed && account.isActive), [accounts]);
   const expenseAccounts = useMemo(() => postingAccounts.filter((account) => account.groupCode === 6), [postingAccounts]);
@@ -109,13 +108,11 @@ export default function PayrollPage() {
     return () => cancelAnimationFrame(frame);
   }, [creatingRun]);
 
-  if (employeesQuery.isLoading || payrollQuery.isLoading || accountsQuery.isLoading) return <GlassSkeleton className="h-80" />;
+  if (payrollOverviewQuery.isLoading || accountsQuery.isLoading) return <GlassSkeleton className="h-80" />;
 
   function refresh() {
     return Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["list", "payroll-employees"] }),
-      queryClient.invalidateQueries({ queryKey: ["list", "payroll-runs"] }),
-      queryClient.invalidateQueries({ queryKey: ["detail", "payroll-dashboard"] }),
+      queryClient.invalidateQueries({ queryKey: ["detail", "payroll-overview"] }),
     ]);
   }
 

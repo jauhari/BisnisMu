@@ -14,7 +14,6 @@ export interface TransactionHistoryRow {
   amount: string;
   paidAmount?: string;
   href: string;
-  raw: unknown;
 }
 
 export interface TransactionHistoryFilters {
@@ -48,7 +47,6 @@ export function normalizeDailySale(row: any): TransactionHistoryRow {
     description: row.description ?? row.items?.[0]?.revenueAccount?.name ?? "Penjualan harian",
     amount: amountText(row.totalAmount),
     href: `/sales/orders?dailySaleId=${row.id}`,
-    raw: row,
   };
 }
 
@@ -65,7 +63,6 @@ export function normalizeSalesOrder(row: any): TransactionHistoryRow {
     amount: amountText(row.totalAmount),
     paidAmount: amountText(row.paidAmount),
     href: `/sales/orders?salesOrderId=${row.id}`,
-    raw: row,
   };
 }
 
@@ -82,7 +79,6 @@ export function normalizeCashTransaction(row: any): TransactionHistoryRow {
     description: row.description ?? "Transaksi kas",
     amount: amountText(row.amount),
     href: `/cash/transactions?transactionId=${row.id}`,
-    raw: row,
   };
 }
 

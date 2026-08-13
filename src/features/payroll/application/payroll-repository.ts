@@ -70,6 +70,12 @@ export interface PayrollDashboard {
   employeeBalances: Array<{ employeeId: string; employeeName: string; employeeRole: EmployeeRole; outstandingAmount: bigint }>;
 }
 
+export interface PayrollOverview {
+  employees: PayrollEmployee[];
+  runs: PayrollRunRecord[];
+  dashboard: PayrollDashboard;
+}
+
 export interface PayrollRepository {
   listEmployees(ctx: PayrollContext): Promise<PayrollEmployee[]>;
   findEmployees(ctx: PayrollContext, employeeIds: string[]): Promise<PayrollEmployee[]>;

@@ -5,6 +5,42 @@ Session scope: Import data legacy ExAct VS / Google Sheets untuk PKU Ponjong, no
 
 ---
 
+## Phase 37: Performance and Stability Audit (2026-08-13)
+
+### Scope and evidence
+- Priority paths audited: Dashboard, Payroll, Transaksi Kas, Riwayat Transaksi, and CoA.
+- The configured Neon database was used throughout. Baseline row counts: 166 cash transactions, 13 sales orders, 327 accounts, 618 journal lines, 25 payroll runs, and 54 payroll items.
+- `EXPLAIN ANALYZE` for representative history and CoA queries reported 0.09-1.59 ms at the database layer. No N+1 query was found on the priority paths. The major causes were runtime connection routing, duplicate Payroll requests, and oversized transaction-history payloads.
+
+### Changes made
+- `src/presentation/api/prisma.ts`: routine API client uses `DATABASE_URL` (Neon PgBouncer); `prismaDirect` retains `DIRECT_URL` for atomic multi-write work.
+- `scripts/check-prisma-migrations.mjs` and `scripts/verify-prisma-migrations.mjs`: run the checked-in Prisma CLI using `process.execPath`, fixing Windows `spawnSync("npx")` startup failures.
+- `app/api/payroll/overview/route.ts`, Payroll service, and Payroll page: combined employee/runs/dashboard initial load. Employee and run reads are parallel; dashboard reuses the run result. Initial Payroll API requests are now 2 instead of 4.
+- `app/api/transactions/history/route.ts` and transaction normalizers: replaced broad includes and unused `raw` data with field-level selects; daily-sale fallback reads one account name only.
+- Applied Neon migration `prisma/migrations/202608130001_optimize_transaction_history_indexes` with composite tenant/order indexes for cash transactions, daily sales, and sales orders.
+- `app/(app)/dashboard/page.tsx`: financial charts are lazy-loaded with stable skeletons.
+
+### Measured results
+- Production startup: 1.878 s before the runtime connection fix was observed; the standard `npm run start` guard now completes and starts the server successfully.
+- `/api/health`: before `500` in 5,016-5,108 ms; after `200`, cold 627 ms, warm 163-189 ms.
+- Priority route unauthenticated middleware redirects after: Dashboard 15-16 ms warm; Payroll 14-15 ms; Transactions 13-14 ms; Cash 21-29 ms; CoA 12-13 ms. They return 307 until a valid session is supplied, so these are middleware/redirect timings, not authenticated page LCP.
+- Production build: 17.0 s compile; First Load JS Dashboard 277 kB, Payroll 183 kB, Cash 227 kB, Transactions 200 kB, CoA 204 kB, shared 103 kB.
+
+### Verification
+- `npm run typecheck` passed.
+- `npm test` passed: 36 files, 234 tests.
+- `npm run build` passed. Existing unrelated React hook dependency warnings remain.
+- `npm run prisma:migrate:deploy` applied migration; `npm run prisma:migrate:status` and `npm run prisma:migrations:check` passed against Neon.
+- Local production server is running on `http://localhost:3344` for manual inspection.
+
+### Residual risks / next priorities
+- P0: Set up Chrome DevTools MCP or a working browser runtime, then capture authenticated desktop/mobile CWV (LCP, INP, CLS), request waterfalls, and screenshots. Current environment lacked `agent-browser`, DevTools MCP, and a working Playwright module.
+- P1: Add cursor pagination and server-side filters to `/api/transactions/history` before tenant datasets grow beyond the current 500-row cap; no payload before/after byte comparison is available without an authenticated browser/session.
+- P1: Reduce Dashboard 277 kB aggregate bundle by extracting shared chart dependencies from dashboard subroutes; the lazy split improves evaluation priority but the build aggregate is unchanged.
+- P2: Resolve existing `react-hooks/exhaustive-deps` warnings and set `outputFileTracingRoot` to remove the multiple-lockfile warning. Keep these separate from accounting changes.
+
+---
+
 ## Phase 36: Riwayat Input Manual dan Import (2026-08-13)
 
 ### Masalah

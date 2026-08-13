@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
 
-const result = spawnSync("npx", ["prisma", "migrate", "status", "--schema", "prisma/schema.prisma"], {
+const prismaCli = "node_modules/prisma/build/index.js";
+const result = spawnSync(process.execPath, [prismaCli, "migrate", "status", "--schema", "prisma/schema.prisma"], {
   encoding: "utf8",
   stdio: "pipe",
 });
