@@ -64,7 +64,20 @@ export class DashboardEngine {
     const bankBalance = cashBalances.filter((balance) => balance.subtype === "bank").reduce((sum, balance) => sum + balance.balance, 0n);
     const today = this.asOf(range);
     const cashFlowToday = (input.cashTransactions ?? []).filter((tx) => tx.businessId === range.businessId && tx.status === "POSTED" && this.sameUtcDate(tx.transactionDate, today)).reduce((sum, tx) => sum + (tx.type === "CASH_OUT" ? -tx.amount : tx.type === "CASH_IN" ? tx.amount : 0n), 0n);
-    return { cashOnHand, bankBalance, cashFlowToday };
+    return {
+      cashOnHand,
+      bankBalance,
+      cashFlowToday,
+      accounts: cashBalances.map((account) => ({
+        accountId: account.accountId,
+        code: account.code ?? account.accountId,
+        name: account.name ?? account.accountId,
+        subtype: account.subtype,
+        balance: account.balance,
+        debit: account.debit ?? 0n,
+        credit: account.credit ?? 0n,
+      })),
+    };
   }
 
   getFloatAnalytics(range: DashboardDateRange, input: DashboardInput): FloatDashboardAnalytics {

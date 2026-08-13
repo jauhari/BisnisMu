@@ -4,6 +4,11 @@ All notable changes to BisnisMu are documented in this file.
 
 ## [Unreleased]
 
+### Added - Rincian Saldo Tiap Rekening
+- Halaman Analitik Kas sekarang menampilkan daftar saldo bersih per rekening kas/bank.
+- Setiap baris menampilkan kode, nama rekening, jenis akun, saldo, dan status saldo.
+- Rekening tanpa jurnal tetap ditampilkan sebagai `Rp 0` agar mudah dibedakan dari rekening yang belum dipakai.
+
 ### Fixed - Saldo Rekening Legacy di Analitik Kas
 - Akun PKU legacy seperti BRImo, ATM, dan Kas Masruri sekarang ikut dihitung meskipun subtype tersimpan sebagai `Bank`/`Kas`.
 - Dashboard mengenali akun kas/bank berdasarkan subtype tanpa sensitif huruf besar-kecil serta kode akun legacy `111xxx`/`112xxx`.

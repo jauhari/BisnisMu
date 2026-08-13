@@ -32,12 +32,17 @@ export interface DashboardInput {
   customerWallets?: CustomerWalletEntity[];
   profitAndLoss?: ProfitAndLossReport;
   cashFlow?: CashFlowReport;
-  cashBalances?: Array<{ businessId: string; accountId: string; subtype: "cash" | "bank"; balance: bigint }>;
+  cashBalances?: Array<{ businessId: string; accountId: string; code?: string; name?: string; subtype: "cash" | "bank"; balance: bigint; debit?: bigint; credit?: bigint }>;
 }
 
 export interface SalesDashboardAnalytics { salesToday: bigint; salesThisMonth: bigint; salesGrowth: bigint; topProducts: RankedAmount[]; topCategories: RankedAmount[]; }
 export interface ProfitabilityDashboardAnalytics { grossProfit: bigint; netProfit: bigint; profitMargin: number; }
-export interface CashDashboardAnalytics { cashOnHand: bigint; bankBalance: bigint; cashFlowToday: bigint; }
+export interface CashDashboardAnalytics {
+  cashOnHand: bigint;
+  bankBalance: bigint;
+  cashFlowToday: bigint;
+  accounts: Array<{ accountId: string; code: string; name: string; subtype: "cash" | "bank"; balance: bigint; debit: bigint; credit: bigint }>;
+}
 export interface ReceivableDashboardAnalytics { totalReceivable: bigint; overdueReceivable: bigint; }
 export interface PayableDashboardAnalytics { totalPayable: bigint; overduePayable: bigint; }
 export interface InventoryDashboardAnalytics { inventoryValue: bigint; lowStockItems: LowStockItem[]; fastMovingItems: RankedAmount[]; slowMovingItems: RankedAmount[]; }

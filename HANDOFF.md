@@ -962,3 +962,10 @@ npx prisma generate
 - Fixed the cash analytics route to group journal lines by account and debit/credit side.
 - Cash and bank balances now use `Debit - Credit` and only `POSTED` journal entries.
 - This prevents the previous gross-activity total from appearing as available cash.
+
+## Phase 39: Per-Account Cash Analytics
+
+- Added per-account cash/bank balances to the dashboard overview contract and cash analytics page.
+- `/dashboard/cash` now shows each active legacy or native account with code, name, account type, net balance, and a balance status.
+- Account detail uses the same posted-journal `Debit - Credit` calculation as the aggregate cards.
+- Added regression coverage for the new account detail payload.

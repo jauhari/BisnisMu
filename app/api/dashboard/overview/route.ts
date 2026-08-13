@@ -105,12 +105,12 @@ const getCachedDashboardOverview = unstable_cache(
       _sum: { amount: true }
     });
     const cashBalances = cashAccounts.map((acc) => {
-      const balance = cashBalanceRows
-        .filter((row) => row.accountId === acc.id)
-        .reduce((total, row) => total + (row._sum.amount ?? 0n) * (row.side === "DEBIT" ? 1n : -1n), 0n);
+      const debit = cashBalanceRows.find((row) => row.accountId === acc.id && row.side === "DEBIT")?._sum.amount ?? 0n;
+      const credit = cashBalanceRows.find((row) => row.accountId === acc.id && row.side === "CREDIT")?._sum.amount ?? 0n;
+      const balance = debit - credit;
       const subtype = String(acc.subtype ?? "").toLowerCase();
       const normalizedSubtype = subtype === "bank" || acc.code.startsWith("112") ? "bank" : "cash";
-      return { businessId, accountId: acc.id, subtype: normalizedSubtype as "cash" | "bank", balance };
+      return { businessId, accountId: acc.id, code: acc.code, name: acc.name, subtype: normalizedSubtype as "cash" | "bank", balance, debit, credit };
     });
 
     const range = {
