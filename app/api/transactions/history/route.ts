@@ -1,6 +1,6 @@
 import { handleApi } from "@/presentation/api/route-handler";
 import { prisma } from "@/presentation/api/prisma";
-import { normalizeCashTransaction, normalizeDailySale, normalizeSalesOrder } from "@/presentation/transactions/history";
+import { normalizeCashTransaction, normalizeDailySale, normalizePayrollPayment, normalizeSalesOrder } from "@/presentation/transactions/history";
 import { AuthError } from "@/presentation/auth/auth-error";
 import { canHardMutateOrganizationTransaction, canReadTransaction, organizationHardMutationEnabled } from "@/presentation/auth/permissions";
 import { requireTenantContext } from "@/presentation/auth/session";
@@ -10,7 +10,7 @@ export async function GET(request: Request) {
     const tenant = await requireTenantContext(request);
     if (!canReadTransaction(tenant.role)) throw new AuthError("FORBIDDEN", "Forbidden");
 
-    const [business, cashTransactions, dailySales, salesOrders] = await Promise.all([
+    const [business, cashTransactions, dailySales, salesOrders, payrollPayments] = await Promise.all([
       prisma.business.findUnique({ where: { id: tenant.businessId }, select: { organization: { select: { settings: true } } } }),
       // Keep the history list broad enough to include manually entered cash
       // transactions alongside the legacy-import rows. The secondary order
@@ -62,12 +62,25 @@ export async function GET(request: Request) {
         orderBy: [{ saleDate: "desc" }, { createdAt: "desc" }, { id: "desc" }],
         take: 500,
       }),
+      prisma.payrollPayment.findMany({
+        where: { businessId: tenant.businessId },
+        select: {
+          id: true,
+          paidAt: true,
+          amount: true,
+          payrollRunId: true,
+          payrollItem: { select: { employeeName: true, employeeRole: true } },
+        },
+        orderBy: [{ paidAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
+        take: 500,
+      }),
     ]);
 
     const rows = [
       ...dailySales.map(normalizeDailySale),
       ...salesOrders.map(normalizeSalesOrder),
       ...cashTransactions.map(normalizeCashTransaction),
+      ...payrollPayments.map(normalizePayrollPayment),
     ].sort((a, b) => b.date.localeCompare(a.date));
 
     return { role: tenant.role, hardMutation: canHardMutateOrganizationTransaction(tenant.role, organizationHardMutationEnabled(business?.organization?.settings)), rows };

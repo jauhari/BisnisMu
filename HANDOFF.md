@@ -5,6 +5,29 @@ Session scope: Import data legacy ExAct VS / Google Sheets untuk PKU Ponjong, no
 
 ---
 
+## Phase 38: Payroll di Riwayat Transaksi dan Perbaikan Tanggal (2026-08-14)
+
+### Masalah
+- Halaman `/transactions` hanya menggabungkan Transaksi Kas, Sales Order, dan Penjualan Harian. Pembayaran gaji yang diproses lewat modul Payroll (`PayrollPayment`) tersimpan terpisah dan sama sekali tidak muncul di Riwayat Transaksi.
+- `isoDate()` di `src/presentation/transactions/history.ts` salah mendeteksi objek `Date` mentah dari Prisma: `String(date)` menghasilkan string seperti `"Wed Jul 15 2026 ... GMT+0700 ..."`, dan huruf "T" pada "GMT" lolos pengecekan `text.includes("T")`, sehingga hasil slice kehilangan tahun. `GlassTable` lalu mem-parse ulang string tanpa tahun tersebut dan V8 selalu jatuh ke tahun 2001 — inilah sumber tanggal "20 Mei 2001" dkk. yang tampil di semua baris (Kas, Sales Order, Daily Sale), bukan data import yang sengaja bertahun 2001.
+
+### Perbaikan
+- `src/presentation/transactions/history.ts`: tambah `normalizePayrollPayment` dan source `PAYROLL_PAYMENT`, filter tipe baru `payroll`. `isoDate()` sekarang mengecek `value instanceof Date` lebih dulu dan memakai `toISOString().slice(0, 10)`, sebelum jatuh ke fallback string lama.
+- `app/api/transactions/history/route.ts`: query `prisma.payrollPayment.findMany` (field-level select, pola sama dengan tiga source lain) digabung ke `rows`.
+- `app/(app)/transactions/page.tsx`: opsi filter "Payroll" ditambahkan; baris `PAYROLL_PAYMENT` hanya menampilkan aksi Detail — Edit/Delete/Void disembunyikan karena belum ada endpoint pembalik pembayaran payroll yang sudah POSTED (mencegah tombol yang terlihat aktif tapi tidak melakukan apa-apa).
+- `app/(app)/payroll/page.tsx`: membaca query param `?runId=` (pola sama dengan `dailySaleId`/`salesOrderId`/`transactionId` di halaman lain) agar tautan Detail dari Riwayat Transaksi langsung membuka payroll run yang benar.
+
+### Verifikasi
+- `npm run typecheck`: lulus.
+- Verifikasi data langsung ke Neon (skrip sementara, dihapus setelah dipakai): PKU Ponjong memiliki 49 `PayrollPayment`. Query select baru berhasil dieksekusi tanpa error Prisma.
+- Sebelum perbaikan `isoDate`, tanggal asli `2026-07-15` menghasilkan tampilan yang di-parse ulang `GlassTable` menjadi `"15 Juli 2001"`. Setelah perbaikan, tampilan menjadi `"15 Juli 2026"` — dikonfirmasi untuk baris Transaksi Kas maupun Payroll.
+- Belum diverifikasi visual di browser: tab preview tidak memiliki sesi login dan pengecekan ini tidak menangani kredensial pengguna.
+
+### Catatan
+- Ditemukan indikasi double-entry: satu baris Transaksi Kas hasil import ("Gaji Dokter", Rp 3.462.000) memiliki nominal persis sama dengan satu `PayrollPayment` nyata. Belum diverifikasi lebih lanjut atau diubah — perlu dicek terpisah oleh pengguna.
+
+---
+
 ## Phase 37: Performance and Stability Audit (2026-08-13)
 
 ### Scope and evidence

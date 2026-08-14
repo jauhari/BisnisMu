@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { BadgeDollarSign, CheckCircle2, CircleDollarSign, Eye, EyeOff, Landmark, Pencil, Plus, Trash2, UserRoundPlus, UsersRound, WalletCards, X } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -54,6 +55,7 @@ async function requestJson(path: string, method: string, body?: unknown) {
 
 export default function PayrollPage() {
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
   const payrollOverviewQuery = useListQuery<PayrollOverview>("/api/payroll/overview", ["detail", "payroll-overview"]);
   const accountsQuery = useListQuery<Account[]>("/api/accounting/chart-of-accounts", ["list", "accounting-coa"]);
   const [addingEmployee, setAddingEmployee] = useState(false);
@@ -107,6 +109,12 @@ export default function PayrollPage() {
     });
     return () => cancelAnimationFrame(frame);
   }, [creatingRun]);
+
+  useEffect(() => {
+    const runId = searchParams.get("runId");
+    if (!runId || !runs.length || selectedRunId === runId) return;
+    if (runs.some((run) => run.id === runId)) setSelectedRunId(runId);
+  }, [searchParams, runs, selectedRunId]);
 
   if (payrollOverviewQuery.isLoading || accountsQuery.isLoading) return <GlassSkeleton className="h-80" />;
 

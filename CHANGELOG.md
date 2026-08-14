@@ -4,6 +4,13 @@ All notable changes to BisnisMu are documented in this file.
 
 ## [Unreleased]
 
+### Added - Payroll di Riwayat Transaksi
+- Pembayaran gaji dari modul Payroll sekarang tampil di Riwayat Transaksi bersama Kas, Sales Order, dan Penjualan Harian, lengkap dengan filter tipe "Payroll" dan tautan Detail yang membuka payroll run terkait.
+- Baris pembayaran Payroll hanya menampilkan aksi Detail; belum ada Edit/Delete/Void karena belum tersedia endpoint pembalik untuk pembayaran yang sudah diposting.
+
+### Fixed - Tanggal Palsu di Riwayat Transaksi
+- Semua baris di Riwayat Transaksi (Kas, Sales Order, Penjualan Harian) sebelumnya menampilkan tahun yang salah (sekitar 2001) akibat kesalahan deteksi string tanggal saat Prisma mengembalikan objek `Date` mentah. Tanggal asli sekarang tampil dan terurut dengan benar, termasuk untuk filter "Dari tanggal"/"Sampai tanggal".
+
 ### Improved - Performance and Production Stability
 - Routine Prisma API traffic now uses the configured Neon PgBouncer `DATABASE_URL`; the dedicated `prismaDirect` client still uses `DIRECT_URL` for atomic multi-write flows. This restores production `/api/health` from repeated `500` responses after approximately 5 seconds to `200` (cold 627 ms; warm 163-189 ms in the local production server benchmark).
 - The Windows migration startup guard invokes the local Prisma CLI through `process.execPath`, so `npm run start` no longer fails because `spawnSync("npx")` cannot resolve the Windows command shim.

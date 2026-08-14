@@ -1,6 +1,8 @@
-export type TransactionHistorySource = "DAILY_SALE" | "SALES_ORDER" | "CASH_TRANSACTION";
+export type TransactionHistorySource = "DAILY_SALE" | "SALES_ORDER" | "CASH_TRANSACTION" | "PAYROLL_PAYMENT";
 export type TransactionHistoryDirection = "IN" | "OUT" | "TRANSFER";
-export type TransactionHistoryTypeFilter = "all" | "sales" | "cash";
+export type TransactionHistoryTypeFilter = "all" | "sales" | "cash" | "payroll";
+
+const PAYROLL_ROLE_LABEL: Record<string, string> = { DOCTOR: "Dokter", NURSE: "Perawat", STAFF: "Staf", OTHER: "Lainnya" };
 
 export interface TransactionHistoryRow {
   id: string;
@@ -26,6 +28,11 @@ export interface TransactionHistoryFilters {
 
 function isoDate(value: unknown): string {
   if (!value) return "";
+  // Prisma returns @db.Date columns as real Date objects. String(date) yields
+  // e.g. "Wed Jul 15 2026 ... GMT+0700 ...", whose "T" (from "GMT") used to
+  // fool the ISO-string check below into slicing off a year-less fragment
+  // that downstream date parsing then defaulted to the year 2001.
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? "" : value.toISOString().slice(0, 10);
   const text = String(value);
   return text.includes("T") ? text.slice(0, 10) : text;
 }
@@ -82,11 +89,29 @@ export function normalizeCashTransaction(row: any): TransactionHistoryRow {
   };
 }
 
+export function normalizePayrollPayment(row: any): TransactionHistoryRow {
+  const role = PAYROLL_ROLE_LABEL[row.payrollItem?.employeeRole] ?? "";
+  const employeeName = row.payrollItem?.employeeName ?? "";
+  return {
+    id: row.id,
+    source: "PAYROLL_PAYMENT",
+    kind: "Pembayaran Gaji",
+    direction: "OUT",
+    reference: row.id,
+    date: isoDate(row.paidAt),
+    status: "POSTED",
+    description: role ? `Gaji ${employeeName} (${role})` : `Gaji ${employeeName}`,
+    amount: amountText(row.amount),
+    href: `/payroll?runId=${row.payrollRunId}`,
+  };
+}
+
 export function filterTransactionHistoryRows(rows: TransactionHistoryRow[], filters: TransactionHistoryFilters): TransactionHistoryRow[] {
   const query = filters.query.trim().toLowerCase();
   return rows.filter((row) => {
-    if (filters.type === "sales" && row.source === "CASH_TRANSACTION") return false;
+    if (filters.type === "sales" && (row.source === "CASH_TRANSACTION" || row.source === "PAYROLL_PAYMENT")) return false;
     if (filters.type === "cash" && row.source !== "CASH_TRANSACTION") return false;
+    if (filters.type === "payroll" && row.source !== "PAYROLL_PAYMENT") return false;
     if (filters.status !== "all" && row.status !== filters.status) return false;
     if (filters.startDate && row.date < filters.startDate) return false;
     if (filters.endDate && row.date > filters.endDate) return false;
