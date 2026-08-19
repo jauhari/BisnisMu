@@ -10,11 +10,21 @@ export async function POST(request: Request) {
     const session = await prisma.session.findUnique({ where: { token } });
     if (!session || session.expiresAt <= new Date()) throw new Error("Unauthorized");
 
-    const membership = await prisma.businessMember.findFirst({
-      where: { userId: session.userId, isActive: true },
-      include: { business: true },
-      orderBy: { joinedAt: "asc" },
-    });
+    const user = await prisma.user.findUnique({ where: { id: session.userId }, select: { defaultBusinessId: true } });
+
+    // Prefer the user's chosen default business; fall back to the earliest-joined
+    // active membership if it was never set or no longer applies (e.g. removed from that business).
+    const membership =
+      (user?.defaultBusinessId &&
+        (await prisma.businessMember.findFirst({
+          where: { userId: session.userId, isActive: true, businessId: user.defaultBusinessId },
+          include: { business: true },
+        }))) ||
+      (await prisma.businessMember.findFirst({
+        where: { userId: session.userId, isActive: true },
+        include: { business: true },
+        orderBy: { joinedAt: "asc" },
+      }));
     if (!membership) throw new Error("Business not found");
 
     await prisma.session.update({ where: { token }, data: { activeBusinessId: membership.businessId } });

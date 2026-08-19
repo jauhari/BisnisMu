@@ -27,11 +27,17 @@ export async function POST(request: Request) {
     const valid = await verifyPassword(account.password, password);
     if (!valid) throw new Error("Invalid email or password");
 
-    const membership = await prisma.businessMember.findFirst({
-      where: { userId: user.id, isActive: true },
-      include: { business: true },
-      orderBy: { joinedAt: "asc" },
-    });
+    const membership =
+      (user.defaultBusinessId &&
+        (await prisma.businessMember.findFirst({
+          where: { userId: user.id, isActive: true, businessId: user.defaultBusinessId },
+          include: { business: true },
+        }))) ||
+      (await prisma.businessMember.findFirst({
+        where: { userId: user.id, isActive: true },
+        include: { business: true },
+        orderBy: { joinedAt: "asc" },
+      }));
     if (!membership) throw new Error("Business not found");
 
     const token = randomBytes(32).toString("hex");

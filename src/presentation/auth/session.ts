@@ -157,6 +157,21 @@ export async function selectActiveBusiness(request: Request, businessId: string)
   await prisma.session.update({ where: { token }, data: { activeBusinessId: businessId } });
 }
 
+export async function setDefaultBusiness(request: Request, businessId: string): Promise<void> {
+  const token = getRequestSessionToken(request);
+  if (!token) throw new AuthError("UNAUTHENTICATED", "Unauthorized");
+
+  const session = await prisma.session.findUnique({ where: { token } });
+  if (!session || session.expiresAt <= new Date()) throw new AuthError("UNAUTHENTICATED", "Unauthorized");
+
+  const membership = await prisma.businessMember.findUnique({
+    where: { businessId_userId: { businessId, userId: session.userId } },
+  });
+  if (!membership?.isActive) throw new AuthError("FORBIDDEN", "Forbidden");
+
+  await prisma.user.update({ where: { id: session.userId }, data: { defaultBusinessId: businessId } });
+}
+
 export function isPublicApiPath(pathname: string): boolean {
   return isPublicTenantApiPath(pathname);
 }

@@ -460,6 +460,9 @@ model Business {
   organizationId String?       @map("organization_id")
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
 
+  // Business default per user saat login (additive, opsional).
+  defaultForUsers User[] @relation("UserDefaultBusiness")
+
   @@index([createdByUserId])
   @@index([organizationId])
   @@map("businesses")
@@ -482,6 +485,11 @@ model User {
   dailySales       DailySale[]
   orgMemberships   OrgMember[]
 
+  // Usaha default yang dipakai saat login (additive, opsional).
+  defaultBusinessId String?   @map("default_business_id")
+  defaultBusiness   Business? @relation("UserDefaultBusiness", fields: [defaultBusinessId], references: [id], onDelete: SetNull)
+
+  @@index([defaultBusinessId])
   @@map("users")
 }
 

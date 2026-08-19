@@ -5,13 +5,14 @@ import { useRouter } from "next/navigation";
 import { GlassCard } from "@/components/glass/glass-primitives";
 import { GlassSkeleton } from "@/components/feedback/glass-feedback";
 
-interface Business { id: string; name: string; role: string; active: boolean; }
+interface Business { id: string; name: string; role: string; active: boolean; isDefault: boolean; }
 
 export default function Page() {
   const router = useRouter();
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [loading, setLoading] = useState(true);
   const [switching, setSwitching] = useState<string | null>(null);
+  const [settingDefault, setSettingDefault] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -39,6 +40,23 @@ export default function Page() {
     }
   }
 
+  async function makeDefault(businessId: string) {
+    setSettingDefault(businessId); setError(null);
+    try {
+      const res = await fetch("/api/auth/default-business", {
+        method: "POST", credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ businessId }),
+      });
+      if (!res.ok) throw new Error("Gagal menjadikan usaha default.");
+      setBusinesses((current) => current.map((b) => ({ ...b, isDefault: b.id === businessId })));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal.");
+    } finally {
+      setSettingDefault(null);
+    }
+  }
+
   return (
     <main className="grid min-h-screen place-items-center bg-background p-6">
       <GlassCard className="w-full max-w-lg">
@@ -48,22 +66,36 @@ export default function Page() {
           <div className="mt-6 grid gap-3">
             {businesses.length === 0 ? <p className="text-sm text-muted">Belum tergabung di usaha manapun.</p> : null}
             {businesses.map((b) => (
-              <button
+              <div
                 key={b.id}
-                type="button"
-                disabled={switching !== null}
-                onClick={() => select(b.id)}
-                className={`flex items-center justify-between rounded-xl border px-4 py-3 text-left transition ${b.active ? "border-accent bg-accent/8" : "border-border hover:bg-white/60 dark:hover:bg-white/8"} disabled:opacity-50`}
+                className={`flex items-center justify-between rounded-xl border px-4 py-3 transition ${b.active ? "border-accent bg-accent/8" : "border-border"}`}
               >
-                <div>
+                <button
+                  type="button"
+                  disabled={switching !== null}
+                  onClick={() => select(b.id)}
+                  className="flex-1 rounded-lg text-left disabled:opacity-50"
+                >
                   <p className="font-medium">{b.name}</p>
                   <p className="text-xs text-muted">{b.role}</p>
-                </div>
+                </button>
                 <div className="flex items-center gap-2">
                   {b.active ? <span className="rounded-full bg-accent/15 px-2 py-0.5 text-xs font-medium text-accent">Aktif</span> : null}
+                  {b.isDefault ? (
+                    <span className="rounded-full bg-foreground/10 px-2 py-0.5 text-xs font-medium text-foreground">Default</span>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={settingDefault !== null}
+                      onClick={() => makeDefault(b.id)}
+                      className="text-xs text-muted underline decoration-dotted hover:text-foreground disabled:opacity-50"
+                    >
+                      {settingDefault === b.id ? "Menyimpan…" : "Jadikan default"}
+                    </button>
+                  )}
                   {switching === b.id ? <span className="text-xs text-muted">Memuat…</span> : null}
                 </div>
-              </button>
+              </div>
             ))}
           </div>
         )}

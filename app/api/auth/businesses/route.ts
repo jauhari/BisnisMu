@@ -5,7 +5,7 @@ import { prisma } from "@/presentation/api/prisma";
 import { getRequestSessionToken } from "@/presentation/auth/session";
 
 const getCachedUserBusinesses = unstable_cache(
-  async (userId: string, activeBusinessId: string | null) => {
+  async (userId: string, activeBusinessId: string | null, defaultBusinessId: string | null) => {
     const memberships = await prisma.businessMember.findMany({
       where: { userId, isActive: true },
       include: { business: true },
@@ -17,6 +17,7 @@ const getCachedUserBusinesses = unstable_cache(
       name: membership.business.name,
       role: membership.role,
       active: membership.business.id === activeBusinessId,
+      isDefault: membership.business.id === defaultBusinessId,
     }));
   },
   ["user-businesses"],
@@ -28,9 +29,12 @@ export async function GET(request: Request) {
     const token = getRequestSessionToken(request);
     if (!token) throw new Error("Unauthorized");
 
-    const session = await prisma.session.findUnique({ where: { token } });
+    const session = await prisma.session.findUnique({
+      where: { token },
+      include: { user: { select: { defaultBusinessId: true } } },
+    });
     if (!session || session.expiresAt <= new Date()) throw new Error("Unauthorized");
 
-    return getCachedUserBusinesses(session.userId, session.activeBusinessId);
+    return getCachedUserBusinesses(session.userId, session.activeBusinessId, session.user.defaultBusinessId);
   });
 }
