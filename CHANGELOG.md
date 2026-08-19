@@ -4,6 +4,19 @@ All notable changes to BisnisMu are documented in this file.
 
 ## [Unreleased]
 
+### Fixed - Kontras dan Konsistensi Ikon Aksi Transaksi
+- Tombol "Posting" di Transaksi Kas dan Transfer Dana ternyata menampilkan ikon abu-abu (bukan putih) di atas kotak gelap — `text-muted` dari style dasar diam-diam menang atas `text-background` karena urutan generate CSS Tailwind (berdasarkan urutan warna di `tailwind.config.ts`), bukan urutan class di kode. Kontras ikon naik dari sekitar 3.8:1 (mode terang) / 2.5:1 (mode gelap) menjadi ikon warna accent yang jelas terbaca di kedua tema.
+- Keempat ikon aksi (Detail, Edit, Posting, Hapus/Void) sekarang satu keluarga visual yang sama — dibedakan lewat warna chip tipis (netral/biru/merah), bukan campuran outline transparan dengan kotak solid gelap yang bobot visualnya njomplang.
+
+### Added - Usaha Default saat Login
+- Pengguna dengan beberapa usaha sekarang bisa menandai satu usaha sebagai default dari halaman Pilih Usaha (tombol "Jadikan default").
+- Login berikutnya otomatis membuka usaha default tersebut; jika belum diset, sistem tetap jatuh ke usaha dengan keanggotaan paling lama seperti sebelumnya.
+
+### Added - Rebuild Halaman Transfer Dana
+- Halaman Transfer Dana Kas & Bank dibangun ulang memakai form drawer (validasi Zod + React Hook Form), lengkap dengan pratinjau jurnal debit/kredit sebelum disimpan.
+- Baris transfer sekarang punya aksi ikon Detail, Posting, Hapus draft, dan Void, sama seperti Transaksi Kas.
+- `POST`/`GET /api/cash/transfers` dipindahkan dari jalur `cashSession.transferCash`/`cashMovementRecord` yang lama ke `cashManagement.createDraft`/`cashTransaction`, konsisten dengan alur Transaksi Kas.
+
 ### Added - Payroll di Riwayat Transaksi
 - Pembayaran gaji dari modul Payroll sekarang tampil di Riwayat Transaksi bersama Kas, Sales Order, dan Penjualan Harian, lengkap dengan filter tipe "Payroll" dan tautan Detail yang membuka payroll run terkait.
 - Baris pembayaran Payroll hanya menampilkan aksi Detail; belum ada Edit/Delete/Void karena belum tersedia endpoint pembalik untuk pembayaran yang sudah diposting.

@@ -5,6 +5,71 @@ Session scope: Import data legacy ExAct VS / Google Sheets untuk PKU Ponjong, no
 
 ---
 
+## Phase 41: Konsistensi dan Kontras Ikon Aksi Transaksi (2026-08-19)
+
+### Masalah
+- Baris aksi di Transaksi Kas dan Transfer Dana Kas & Bank menampilkan 3-4 ikon (Detail, Edit, Posting, Hapus/Void) dengan bahasa visual yang tidak seragam: tiga ikon berupa outline nyaris transparan (`border-border text-muted`, tanpa latar sama sekali sampai di-hover), sedangkan tombol Posting berupa kotak solid `bg-foreground text-background` — bobot visualnya jauh berbeda dari yang lain.
+- Investigasi lebih lanjut menemukan bug nyata, bukan cuma soal selera: className tombol Posting digabung dari `${actionIconClass} ... text-background`, padahal `actionIconClass` sudah memuat `text-muted`. Tailwind men-generate stylesheet berdasarkan urutan warna di `tailwind.config.ts` (background, foreground, muted, ...), bukan urutan classname di kode — sehingga `.text-muted` (didefinisikan setelah `.text-background`) selalu menang di specificity yang sama. Ikon "Send" pada tombol Posting akhirnya render abu-abu di atas kotak gelap, bukan putih seperti maksud kode aslinya.
+- Diverifikasi dengan `getComputedStyle` pada halaman percobaan sementara (route Next.js, dihapus setelah dipakai) memakai token warna asli `app/globals.css`: kontras ikon-vs-latar tombol Posting hanya ~3.8:1 (mode terang) dan ~2.5:1 (mode gelap) — jauh di bawah ~18:1 yang seharusnya berlaku kalau `text-background` benar-benar menang.
+
+### Perbaikan
+- `app/(app)/cash/transactions/page.tsx` dan `app/(app)/cash/transfers/page.tsx`: `actionIconClass`/`actionClass` dipecah jadi tiga konstanta independen (netral, `actionPostClass`, `actionDangerClass`), masing-masing string class lengkap berdiri sendiri — tidak lagi digabung dari base + override, sehingga bug urutan-CSS di atas tidak bisa terulang.
+- Tombol Posting sekarang memakai chip biru (`border-accent/40 bg-accent/15 text-accent`) alih-alih kotak solid `bg-foreground`, konsisten dengan warna accent yang sudah dipakai di hover state tombol lain.
+- Tombol Detail/Edit diberi latar tipis (`bg-white/60` terang, `bg-white/5` gelap) supaya tetap punya permukaan yang kelihatan saat idle, tidak transparan total seperti sebelumnya.
+- Tombol Hapus/Void diberi latar merah tipis (`bg-danger/10`) untuk konsisten dengan chip lain, bukan cuma outline.
+
+### Verifikasi
+- `npm run typecheck` dan `npm test` (234 test, 36 file) lulus.
+- Class akhir diverifikasi lewat halaman preview Next.js sementara yang me-render kelas yang sama persis dengan token CSS asli (percobaan pertama pakai `public/*.html` + Tailwind CDN gagal karena CDN diblokir jaringan sandbox; beralih ke route Next.js asli), lalu dihapus lagi setelah verifikasi.
+- Belum diverifikasi visual di browser sungguhan — screenshot Browser pane tidak tersedia di sesi ini (pane tidak ter-display). Verifikasi mengandalkan angka kontras `getComputedStyle`, bukan pengecekan mata langsung.
+
+---
+
+## Phase 40: Usaha Default saat Login (2026-08-19)
+
+### Masalah
+- Pengguna dengan beberapa usaha selalu diarahkan ke usaha dengan keanggotaan (`BusinessMember.joinedAt`) paling lama setiap login — tidak ada cara memilih usaha mana yang jadi default, baik dari sisi data (`User` tidak punya kolom preferensi) maupun UI.
+- Memilih usaha lain lewat halaman Pilih Usaha hanya mengubah `Session.activeBusinessId` (berlaku untuk sesi saat itu saja); login berikutnya kembali memakai urutan `joinedAt` lama.
+
+### Perbaikan
+- `prisma/schema.prisma`: kolom baru `User.defaultBusinessId` (nullable, relasi ke `Business` dengan `onDelete: SetNull`, mengikuti pola `Business.organizationId`). Migration `202608180001_add_user_default_business`.
+- `src/presentation/auth/session.ts`: fungsi `setDefaultBusiness()` — mengecek keanggotaan aktif sebelum menyimpan `defaultBusinessId`, sama seperti `selectActiveBusiness()`.
+- `app/api/auth/default-business/route.ts` (baru): `POST` untuk menyimpan usaha default, memanggil `revalidateTag("businesses")` agar daftar usaha langsung mencerminkan perubahan.
+- `app/api/auth/bootstrap/route.ts` dan `app/api/auth/dev-login/route.ts`: keduanya sekarang mengutamakan `defaultBusinessId` (kalau menunjuk ke keanggotaan aktif), baru jatuh ke urutan `joinedAt` lama sebagai fallback.
+- `app/api/auth/businesses/route.ts`: response daftar usaha menambah field `isDefault`.
+- `app/(auth)/select-business/page.tsx`: tombol "Jadikan default" per usaha, jadi badge "Default" setelah diklik.
+
+### Verifikasi
+- `npm run typecheck` dan `npm test` (234 test) lulus.
+- `npm run prisma:migrate:status`: database sesuai riwayat migrasi, tidak ada drift.
+- Diverifikasi end-to-end di browser: dibuat user + 2 usaha percobaan sementara (email `verify-default-business-test@bisnismu.local`, dihapus setelah dipakai), lalu dikonfirmasi (a) tanpa default, login jatuh ke usaha `joinedAt` paling lama; (b) setelah "Jadikan default" diklik di UI, `bootstrap` dan `dev-login` sama-sama mengarah ke usaha yang di-default-kan; (c) data dan skrip percobaan dihapus lagi setelah verifikasi (`git status` bersih).
+- Catatan infra yang ditemukan saat migrasi (bukan bug fitur ini): migration `202606010001_repair_current_schema` gagal direplay di shadow database Prisma (`CREATE TYPE "BusinessMemberRole"` bentrok dengan `20260531150000_auth_business_member` yang sudah membuatnya lebih dulu) — `prisma migrate dev` akan selalu gagal P3006 sampai ini diperbaiki terpisah. Migration baru ini diterapkan lewat `prisma migrate deploy` (tidak butuh shadow DB) sebagai workaround.
+
+### Catatan
+- Belum ada UI untuk menghapus/meng-unset usaha default selain memilih usaha lain sebagai default baru — tidak diminta di sesi ini.
+
+---
+
+## Phase 39: Rebuild Halaman Transfer Dana Kas & Bank (2026-08-19)
+
+### Masalah
+- Halaman Transfer Dana sebelumnya berupa form sederhana dengan state manual (`useState` per field, `GlassDataSelect`/`GlassInput` langsung), tanpa preview jurnal, tanpa validasi Zod, dan tanpa aksi lanjutan (posting/hapus/void) pada baris riwayat transfer.
+- `POST`/`GET /api/cash/transfers` memakai jalur lama `serverServices.cashSession.transferCash` dan tabel `cashMovementRecord`, terpisah dari alur `cashManagement`/`cashTransaction` yang dipakai Transaksi Kas — sehingga transfer tidak konsisten dengan pola CRUD+posting halaman kas lainnya.
+
+### Perbaikan
+- `app/(app)/cash/transfers/page.tsx`: dibangun ulang memakai `FormDrawer` + `ManagedForm` (Zod + React Hook Form), dengan pratinjau jurnal debit/kredit sebelum transfer disimpan, dan baris riwayat mendapat aksi ikon Detail/Posting/Hapus draft/Void sama seperti Transaksi Kas.
+- `app/api/cash/transfers/route.ts`: `POST` dipindahkan ke `serverServices.cashManagement.createDraft(...)` dengan `type: "TRANSFER"`; `GET` membaca dari `prisma.cashTransaction` (bukan `cashMovementRecord` lagi).
+- `tests/cash-management/cash-service.test.ts`: disesuaikan dengan alur `createDraft` untuk transfer.
+
+### Verifikasi
+- `npm run typecheck` dan `npm test` (234 test) lulus sebagai bagian dari verifikasi gabungan sesi ini.
+- Belum diverifikasi manual end-to-end di browser (drawer buat-transfer, posting, delete draft, void) — di luar cakupan sesi dokumentasi ini; disarankan dicoba langsung sebelum rilis.
+
+### Catatan
+- Perubahan ini sudah ada di working tree sebelum sesi dokumentasi ini dimulai (bukan hasil sesi Phase 39-41); dicatat dan di-commit di sini supaya riwayatnya tidak hilang dan tidak menumpuk sebagai uncommitted diff.
+
+---
+
 ## Phase 38: Payroll di Riwayat Transaksi dan Perbaikan Tanggal (2026-08-14)
 
 ### Masalah
