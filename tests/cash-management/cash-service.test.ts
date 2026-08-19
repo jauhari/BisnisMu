@@ -75,10 +75,12 @@ describe("CashManagementService", () => {
     expect(postingRepo.posted[0]?.lines.map((l) => [l.accountId, l.side])).toEqual([["expense", "DEBIT"], ["cash", "CREDIT"]]);
   });
 
-  it("posts transfer between cash and bank", async () => {
-    const { service } = setup();
-    const preview = await service.preview({ ...base, type: "TRANSFER", cashAccountId: "cash", destinationAccountId: "bank", amount: 75000n, description: "Setor kas ke bank" });
-    expect(preview.lines.map((l) => [l.accountId, l.side])).toEqual([["bank", "DEBIT"], ["cash", "CREDIT"]]);
+  it("posts a cash-to-bank transfer from draft", async () => {
+    const { postingRepo, service } = setup();
+    const draft = await service.createDraft({ ...base, type: "TRANSFER", cashAccountId: "cash", destinationAccountId: "bank", amount: 75000n, description: "Setor kas ke bank" });
+    const result = await service.post({ businessId: "biz-1", actorUserId: "user-1", transactionId: draft.id });
+    expect(result.transaction.status).toBe("POSTED");
+    expect(postingRepo.posted[0]?.lines.map((l) => [l.accountId, l.side])).toEqual([["bank", "DEBIT"], ["cash", "CREDIT"]]);
   });
 
   it("voids posted transaction with reversing journal", async () => {
