@@ -7,6 +7,7 @@ import { flexRender, getCoreRowModel, getSortedRowModel, useReactTable, type Col
 import { Check, ChevronDown, ChevronUp, Columns3, Download, GripVertical, Search } from "lucide-react";
 import { GlassCard } from "../glass/glass-primitives";
 import { GlassInput } from "@/components/forms/glass-form";
+import { GlassCheckbox } from "@/components/ui/glass-checkbox";
 import { loadTableLayout, saveTableLayout } from "@/presentation/state/table-layout";
 import { formatNumber } from "@/presentation/format/number";
 import { cn } from "@/presentation/theme/cn";
@@ -181,42 +182,6 @@ function exportPrintHtml(filename: string, headers: string[], rows: string[][]) 
   const blob = new Blob([html], { type: "text/html;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   window.open(url, "_blank", "noopener,noreferrer");
-}
-
-function GlassCheckbox({ checked, onChange, 'aria-label': ariaLabel, indeterminate }: {
-  checked: boolean;
-  onChange: React.ChangeEventHandler<HTMLInputElement>;
-  'aria-label'?: string;
-  indeterminate?: boolean;
-}) {
-  const ref = React.useRef<HTMLInputElement>(null);
-  React.useEffect(() => {
-    if (ref.current) ref.current.indeterminate = !!indeterminate;
-  }, [indeterminate]);
-  // Accessible custom control: a real (visually hidden) input drives state and
-  // keyboard/AT behaviour, while a styled box provides the glass design visual.
-  return (
-    <label className="relative inline-flex h-4 w-4 cursor-pointer items-center justify-center">
-      <input
-        ref={ref}
-        type="checkbox"
-        aria-label={ariaLabel}
-        checked={checked}
-        onChange={onChange}
-        className="peer absolute inset-0 m-0 h-4 w-4 cursor-pointer opacity-0"
-      />
-      <span
-        aria-hidden
-        className={cn(
-          "pointer-events-none flex h-4 w-4 items-center justify-center rounded border border-border transition-colors",
-          checked || indeterminate ? "border-accent bg-accent text-white" : "bg-white/60 dark:bg-white/10",
-          "peer-focus-visible:ring-2 peer-focus-visible:ring-accent/60"
-        )}
-      >
-        {indeterminate ? <span className="h-0.5 w-2 rounded bg-current" /> : checked ? <Check className="h-3 w-3" /> : null}
-      </span>
-    </label>
-  );
 }
 
 export function GlassTable<T extends object>({ columns, rows, empty = "No data", tableId = "default-table", selectable = true }: { columns: GlassTableColumn<T>[]; rows: T[]; empty?: string; tableId?: string; selectable?: boolean }) {

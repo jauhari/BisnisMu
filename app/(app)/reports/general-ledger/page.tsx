@@ -7,6 +7,7 @@ import { GlassErrorState, GlassSkeleton } from "@/components/feedback/glass-feed
 import { GlassStatsCard } from "@/components/glass/glass-primitives";
 import { useSessionContext } from "@/components/layout/session-context";
 import { GlassTable } from "@/components/tables/glass-table";
+import { GlassCheckbox } from "@/components/ui/glass-checkbox";
 import { useGeneralLedgerReport } from "@/presentation/query/dashboard-hooks";
 import { useReportRange, buildRequest } from "@/presentation/query/report-hooks";
 import { formatRupiah } from "@/presentation/format/number";
@@ -171,7 +172,7 @@ export default function Page() {
             {" · "}<span className="text-accent">klik akun untuk lihat transaksi</span>
           </p>
           <label className="flex cursor-pointer items-center gap-2 text-sm text-muted select-none">
-            <input type="checkbox" checked={showEmpty} onChange={(e) => setShowEmpty(e.target.checked)} className="h-4 w-4 accent-accent" />
+            <GlassCheckbox checked={showEmpty} onChange={(e) => setShowEmpty(e.target.checked)} aria-label="Tampilkan akun kosong" />
             Tampilkan akun kosong
           </label>
         </div>
