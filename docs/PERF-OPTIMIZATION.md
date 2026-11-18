@@ -147,6 +147,50 @@ Dokumen tetap ±2,3–4 detik karena tiga hal yang **bukan kode aplikasi**:
 
 Artinya plafon perbaikan kode sudah dekat. Sisanya ada di keputusan infrastruktur (bagian 4.1).
 
+
+---
+
+## 5b. Penyamaan region (infrastruktur) — SELESAI
+
+Dikerjakan 18 Nov 2026 malam, setelah bagian 5.
+
+### Temuan yang mengubah rencana
+
+Rencana awal: memindahkan database ke `us-east-1` mengikuti region fungsi `iad1`.
+Ternyata hasil pengukuran setelah pemindahan DB **tidak seragam**:
+
+| Jenis route | Sebelum pindah DB | Setelah pindah DB saja |
+|---|---:|---:|
+| Dokumen / halaman | 2.9–5.9 s | **0.34 s** |
+| API publik (`/api/health`, `/api/auth/*`) | 1.4–4.0 s | **0.32–0.47 s** |
+| API terautentikasi (`/api/members`, `/api/chart-of-accounts`) | 1.4–4.0 s | **2.4 s (memburuk)** |
+
+Penyebabnya: **middleware berjalan di edge (region pengguna, `sin1`)** dan melakukan satu query auth di sana. Sebelum pindah, fungsi handler (`iad1`) yang jauh dari DB; sesudah pindah, justru middleware yang jauh. Route publik tidak lewat middleware auth, itulah sebabnya hanya route terautentikasi yang memburuk.
+
+### Keputusan akhir: semuanya di Singapore
+
+1. Region fungsi Vercel diubah `iad1` → **`sin1`** (via API: `serverlessFunctionRegion`).
+2. Database dikembalikan ke project Singapore semula, **data terbaru dibawa** (dump dari DB us-east-1 → restore ke Singapore; 80 tabel / 3.791 baris cocok, debit = kredit = Rp 823.334.577, 0 jurnal tidak seimbang).
+3. Environment variable Vercel dikembalikan ke URL Singapore, lalu redeploy.
+
+Project DB `bisnismu-use1` (us-east-1) tidak dipakai lagi dan bisa dihapus; sudah tidak menerima trafik.
+
+### Hasil akhir (median 5 sampel, diukur ulang)
+
+| Route | Baseline awal | Akhir | Perubahan |
+|---|---:|---:|---:|
+| `doc /dashboard` | 5.953 ms | **141 ms** | **−98%** |
+| `doc /accounting/journals` | 2.929 ms | **106 ms** | **−96%** |
+| `api /health` | 1.426 ms | **131 ms** | **−91%** |
+| `api /auth/me` | 4.032 ms | **139 ms** | **−97%** |
+| `api /auth/businesses` | 2.174 ms | **108 ms** | **−95%** |
+| `api /accounting/chart-of-accounts` | 3.110 ms | **113 ms** | **−96%** |
+| `api /members` | 3.993 ms | **104 ms** | **−97%** |
+| `doc /login` (statis) | 52 ms | 39–339 ms | ±0 (noise CDN) |
+
+Verifikasi produksi memakai DB yang benar: baris penanda dimasukkan ke DB Singapore → muncul di respons `/api/members` produksi, lalu dihapus.
+
+
 ---
 
 ## 6. Cara mengukur ulang
