@@ -10,6 +10,7 @@ import { ManagedForm, RhfDataSelect, RhfDatePicker, RhfMoneyField, RhfTextField,
 import { GlassDataSelect, GlassInput } from "@/components/forms/glass-form";
 import { WorkspaceHeader, SplitWorkspace, DetailPanel } from "@/components/layout/workspace";
 import { FormDrawer } from "@/components/layout/form-drawer";
+import { useSessionContext } from "@/components/layout/session-context";
 import { GlassSkeleton } from "@/components/feedback/glass-feedback";
 import { GlassTable } from "@/components/tables/glass-table";
 import { useListQuery } from "@/presentation/query/dashboard-hooks";
@@ -61,7 +62,8 @@ export default function Page() {
   const list = useListQuery<any[]>("/api/cash/transactions", ["list", "cash-transactions"]);
   const accounts = useListQuery<any[]>("/api/accounting/chart-of-accounts", ["list", "accounting-coa"]);
   const contacts = useListQuery<any[]>("/api/contacts", ["list", "contacts"]);
-  const me = useListQuery<{ role: Role }>("/api/auth/me", ["auth", "me"]);
+  // Role + hardMutation sudah dari SessionProvider — tidak ada request tambahan per halaman.
+  const { activeBusiness: sessionBusiness, hardMutation: sessionHardMutation } = useSessionContext();
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
@@ -73,8 +75,8 @@ export default function Page() {
   const [savingContact, setSavingContact] = useState(false);
   const [seedingCoa, setSeedingCoa] = useState(false);
 
-  const role = (me.data?.data as any)?.role as Role | undefined;
-  const hardMutation = Boolean((me.data?.data as any)?.hardMutation);
+  const role = sessionBusiness?.role as Role | undefined;
+  const hardMutation = sessionHardMutation;
   const flat = useMemo(() => flattenAccounts(accounts.data?.data ?? []), [accounts.data]);
   const cashOptions: SelectOption[] = flat.filter((a) => (String(a.subtype ?? "").toLowerCase() === "cash" || String(a.subtype ?? "").toLowerCase() === "bank" || String(a.code).startsWith("11")) && a.isPostingAllowed).map((a) => ({ value: a.id, label: `${a.name}`, code: a.code, name: a.name, groupLabel: "Kas/Bank" }));
   const categoryOptions: SelectOption[] = flat.filter((a) => (a.groupCode === 4 || a.groupCode === 5 || a.groupCode === 6 || a.groupCode === 7) && a.isPostingAllowed).map((a) => ({ value: a.id, label: `${a.name}`, code: a.code, name: a.name, groupLabel: a.groupCode === 4 ? "Pendapatan" : a.groupCode === 5 ? "HPP" : "Beban", normalBalance: a.normalBalance }));

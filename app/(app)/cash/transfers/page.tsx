@@ -9,6 +9,7 @@ import { ManagedForm, RhfDataSelect, RhfDatePicker, RhfMoneyField, RhfTextField,
 import { GlassErrorState, GlassSkeleton } from "@/components/feedback/glass-feedback";
 import { FormDrawer } from "@/components/layout/form-drawer";
 import { DetailPanel, SplitWorkspace, WorkspaceHeader } from "@/components/layout/workspace";
+import { useSessionContext } from "@/components/layout/session-context";
 import { GlassTable } from "@/components/tables/glass-table";
 import { apiRequest } from "@/presentation/api/client";
 import { useListQuery } from "@/presentation/query/dashboard-hooks";
@@ -61,12 +62,13 @@ export default function Page() {
   const queryClient = useQueryClient();
   const transfers = useListQuery<any[]>("/api/cash/transfers", ["list", "cash-transfers"]);
   const accounts = useListQuery<any[]>("/api/accounting/chart-of-accounts", ["list", "accounting-coa"]);
-  const me = useListQuery<{ role: Role }>("/api/auth/me", ["auth", "me"]);
+  // Role sudah dari SessionProvider — tidak ada request tambahan per halaman.
+  const { activeBusiness: sessionBusiness } = useSessionContext();
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const role = (me.data?.data as any)?.role as Role | undefined;
+  const role = sessionBusiness?.role as Role | undefined;
   const flatAccounts = useMemo(() => flattenAccounts(accounts.data?.data ?? []), [accounts.data]);
   const accountById = useMemo(() => new Map(flatAccounts.map((account) => [account.id, account])), [flatAccounts]);
   const cashBankOptions = useMemo<SelectOption[]>(() => flatAccounts

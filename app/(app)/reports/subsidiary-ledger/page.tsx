@@ -8,8 +8,9 @@ import { GlassSkeleton, GlassErrorState } from "@/components/feedback/glass-feed
 import { GlassTable } from "@/components/tables/glass-table";
 import { GlassDataSelect, GlassDatePicker } from "@/components/forms/glass-form";
 import { ReportFilterBar } from "@/components/charts/report-layout";
+import { useSessionContext } from "@/components/layout/session-context";
 import { apiRequest } from "@/presentation/api/client";
-import { useActiveBusiness, useReportRange } from "@/presentation/query/report-hooks";
+import { useReportRange } from "@/presentation/query/report-hooks";
 import { formatRupiah } from "@/presentation/format/number";
 
 type SubType = "kas" | "piutang" | "utang" | "kontak";
@@ -32,7 +33,7 @@ function status(s: string) {
 }
 
 export default function Page() {
-  const { data: biz } = useActiveBusiness();
+  const { activeBusiness: biz } = useSessionContext();
   const { startsOn, endsOn, setStartsOn, setEndsOn, activePreset, setActivePreset } = useReportRange();
   const [subType, setSubType] = useState<SubType>("kas");
   const [expandedAccount, setExpandedAccount] = useState<string | null>(null);

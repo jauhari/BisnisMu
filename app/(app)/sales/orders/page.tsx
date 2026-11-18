@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { WorkspaceHeader } from "@/components/layout/workspace";
+import { useSessionContext } from "@/components/layout/session-context";
 import { GlassTable } from "@/components/tables/glass-table";
 import { GlassPanel } from "@/components/glass/glass-primitives";
 import { GlassDataSelect, GlassDatePicker, GlassInput } from "@/components/forms/glass-form";
@@ -232,10 +233,8 @@ export default function Page() {
     queryKey: ["list", "formal-sales-orders"],
     queryFn: () => apiRequest<{ data: { rows: any[]; total: number } }>("/api/sales/orders/list"),
   });
-  const me = useQuery({
-    queryKey: ["auth", "me"],
-    queryFn: () => apiRequest<{ data: { role: Role; hardMutation: boolean } }>("/api/auth/me"),
-  });
+  // Role + hardMutation sudah dihitung di server (app/(app)/layout.tsx) — tanpa request tambahan.
+  const { activeBusiness: sessionBusiness, hardMutation: sessionHardMutation } = useSessionContext();
   const settings = useQuery({
     queryKey: ["settings", "business"],
     queryFn: () => apiRequest<{ data: any }>("/api/settings"),
@@ -255,8 +254,8 @@ export default function Page() {
     staleTime: 5 * 60_000,
   });
   const defaultContact = (defaultContactQuery.data?.data ?? []).find((c) => c.id === defaultCustId);
-  const role = me.data?.data?.role;
-  const hardMutation = Boolean(me.data?.data?.hardMutation);
+  const role = sessionBusiness?.role as Role | undefined;
+  const hardMutation = sessionHardMutation;
 
   const flat = flattenAccounts(accounts.data?.data ?? []);
   const revenueOptions = flat.filter((a) => a.groupCode === 4 && a.isPostingAllowed); // 4 = REVENUE

@@ -4,9 +4,10 @@ import dynamic from "next/dynamic";
 import { ReportWorkspace } from "@/components/charts/report-layout";
 import { GlassErrorState, GlassSkeleton } from "@/components/feedback/glass-feedback";
 import { GlassStatsCard } from "@/components/glass/glass-primitives";
+import { useSessionContext } from "@/components/layout/session-context";
 import { GlassTable } from "@/components/tables/glass-table";
 import { useProfitLossReport } from "@/presentation/query/dashboard-hooks";
-import { useActiveBusiness, useReportRange, buildRequest } from "@/presentation/query/report-hooks";
+import { useReportRange, buildRequest } from "@/presentation/query/report-hooks";
 import { formatRupiah } from "@/presentation/format/number";
 import { exportProfitLossPdf, exportProfitLossExcel } from "@/presentation/export/report-exports";
 
@@ -23,13 +24,13 @@ function pct(part: number, total: number): string {
 }
 
 export default function Page() {
-  const { data: biz, isLoading: bizLoading } = useActiveBusiness();
+  const { activeBusiness: biz } = useSessionContext();
   const { startsOn, endsOn, setStartsOn, setEndsOn, activePreset, setActivePreset } = useReportRange();
   const { data, isLoading, error } = useProfitLossReport(
     biz ? buildRequest(biz.id, startsOn, endsOn) : buildRequest("__placeholder__", startsOn, endsOn)
   );
 
-  if (bizLoading || isLoading) return <GlassSkeleton className="h-72" />;
+  if (isLoading) return <GlassSkeleton className="h-72" />;
   if (!biz || error || !data) return <GlassErrorState title="Laba Rugi tidak tersedia" description="Tidak dapat memuat laporan laba rugi." />;
 
   const report = data.data;

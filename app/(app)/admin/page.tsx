@@ -7,8 +7,8 @@ import { WorkspaceHeader } from "@/components/layout/workspace";
 import { GlassSkeleton, GlassErrorState } from "@/components/feedback/glass-feedback";
 import { GlassTable } from "@/components/tables/glass-table";
 import { GlassPanel } from "@/components/glass/glass-primitives";
+import { useSessionContext } from "@/components/layout/session-context";
 import { apiRequest } from "@/presentation/api/client";
-import { useActiveBusiness } from "@/presentation/query/report-hooks";
 import { GlassDataSelect, GlassInput, GlassPasswordInput } from "@/components/forms/glass-form";
 
 const PLATFORM_ROLES = ["USER", "SUPPORT_AGENT", "FINANCE_ADMIN", "DEVELOPER", "SUPER_ADMIN"];
@@ -22,7 +22,7 @@ async function patchRole(userId: string, platformRole: string) {
 
 export default function Page() {
   const qc = useQueryClient();
-  const { data: biz } = useActiveBusiness();
+  const { activeBusiness: biz } = useSessionContext();
   const users = useQuery({ queryKey: ["admin", "users"], queryFn: () => apiRequest<{ data: any[] }>("/api/admin/users") });
   const businesses = useQuery({ queryKey: ["admin", "businesses"], queryFn: () => apiRequest<{ data: any[] }>("/api/admin/businesses") });
 

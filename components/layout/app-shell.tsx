@@ -8,7 +8,7 @@ const GlassCommandPalette = dynamic(() => import("../glass/glass-primitives").th
 import { SidebarNav } from "./sidebar-nav";
 import Link from "next/link";
 import { Menu, X, PanelLeftClose, PanelLeftOpen, LogOut, ChevronDown, UserCircle, Pencil, Plus } from "lucide-react";
-import { useActiveBusiness, useCurrentUser } from "@/presentation/query/report-hooks";
+import { useSessionContext, type SessionBusiness } from "./session-context";
 import { useQueryClient } from "@tanstack/react-query";
 import { GlassInput, GlassPasswordInput } from "@/components/forms/glass-form";
 import { toast } from "sonner";
@@ -24,17 +24,20 @@ const ProfileModal = dynamic(() => import("./profile-modal").then((m) => ({ defa
 });
 
 // ─── Business Switcher (dropdown di header) ─────────────────────────────────────
-interface SwitchableBusiness { id: string; name: string; role: string; active: boolean; }
+type SwitchableBusiness = SessionBusiness;
 
-function BusinessSwitcher({ activeName }: { activeName: string }) {
+function BusinessSwitcher({ businesses }: { businesses: SessionBusiness[] }) {
   const router = useRouter();
   const qc = useQueryClient();
   const ref = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState<SwitchableBusiness[] | null>(null);
-  const [loading, setLoading] = useState(false);
+  // Daftar usaha sudah tersedia dari props server — tidak ada fetch saat dropdown dibuka.
+  const [items, setItems] = useState<SwitchableBusiness[]>(businesses);
   const [switching, setSwitching] = useState<string | null>(null);
   const [isRefreshing, startRefresh] = useTransition();
+
+  // Nama di header mengikuti state lokal agar langsung berubah setelah pilih usaha.
+  const activeName = items.find((business) => business.active)?.name ?? "—";
 
   useEffect(() => {
     function handler(e: MouseEvent) {
@@ -44,23 +47,11 @@ function BusinessSwitcher({ activeName }: { activeName: string }) {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  async function load() {
-    setLoading(true);
-    try {
-      const r = await fetch("/api/auth/businesses", { credentials: "include" });
-      const json = await r.json();
-      setItems(Array.isArray(json) ? json : (json.data ?? []));
-    } catch {
-      setItems([]);
-    } finally {
-      setLoading(false);
-    }
-  }
+  // Props server berubah setelah router.refresh() (mis. usai ganti usaha aktif).
+  useEffect(() => { setItems(businesses); }, [businesses]);
 
   function toggle() {
-    const next = !open;
-    setOpen(next);
-    if (next && items === null) void load();
+    setOpen((prev) => !prev);
   }
 
   async function select(id: string, isActive: boolean) {
@@ -83,7 +74,7 @@ function BusinessSwitcher({ activeName }: { activeName: string }) {
       }));
 
       // Update the header immediately after the server confirms the session change.
-      setItems((current) => current ? markActive(current) : current);
+      setItems(markActive);
       qc.setQueryData<{ data: SwitchableBusiness[] } | SwitchableBusiness[]>(["auth", "businesses"], (current) => {
         if (!current) return current;
         return Array.isArray(current)
@@ -124,11 +115,10 @@ function BusinessSwitcher({ activeName }: { activeName: string }) {
         <div className="absolute left-0 z-50 mt-2 w-72 rounded-xl border border-border bg-background p-1.5 shadow-xl">
           <p className="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-muted">Pilih Usaha</p>
           <div className="max-h-72 overflow-y-auto">
-            {loading && <p className="px-3 py-3 text-sm text-muted">Memuat…</p>}
-            {!loading && items && items.length === 0 && (
+            {items.length === 0 && (
               <p className="px-3 py-3 text-sm text-muted">Belum tergabung di usaha manapun.</p>
             )}
-            {!loading && items?.map((b) => (
+            {items.map((b) => (
               <button
                 key={b.id}
                 type="button"
@@ -167,8 +157,8 @@ function BusinessSwitcher({ activeName }: { activeName: string }) {
 
 // ─── AppShell ─────────────────────────────────────────────────────────────────
 export function AppShell({ children }: { children: ReactNode }) {
-  const { data: activeBusiness } = useActiveBusiness();
-  const { data: currentUser }    = useCurrentUser();
+  // Data sesi datang dari <SessionProvider> (props server), tanpa /api/auth/*.
+  const { user, businesses } = useSessionContext();
   const router = useRouter();
   const [sidebarOpen,  setSidebarOpen]  = useState(false);
   const [collapsed,    setCollapsed]    = useState(false);
@@ -192,11 +182,11 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   // Inisial dari nama untuk avatar
-  const initials = currentUser?.name
-    ? currentUser.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()
+  const initials = user.name
+    ? user.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()
     : "?";
 
-  const isGodMode = ["SUPER_ADMIN", "SUPPORT_AGENT", "DEVELOPER"].includes((currentUser?.platformRole ?? "USER") as any);
+  const isGodMode = ["SUPER_ADMIN", "SUPPORT_AGENT", "DEVELOPER"].includes((user.platformRole ?? "USER") as any);
 
   // Muat preferensi collapse dari sesi sebelumnya.
   useEffect(() => {
@@ -272,7 +262,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <button onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden" aria-label="Toggle sidebar">
             {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
-          <BusinessSwitcher activeName={activeBusiness?.name ?? "—"} />
+          <BusinessSwitcher businesses={businesses} />
         </div>
         <div className="flex items-center gap-3">
           <div className="hidden md:block"><GlassCommandPalette className="w-80 px-4 py-2 text-sm text-muted">Command palette / search</GlassCommandPalette></div>
@@ -288,8 +278,8 @@ export function AppShell({ children }: { children: ReactNode }) {
                 {initials}
               </span>
               <span className="hidden flex-col items-start md:flex">
-                <span className="text-sm font-medium leading-tight">{currentUser?.name ?? "—"}</span>
-                <span className="text-[11px] text-muted leading-tight">{currentUser?.email ?? ""}</span>
+                <span className="text-sm font-medium leading-tight">{user.name}</span>
+                <span className="text-[11px] text-muted leading-tight">{user.email}</span>
               </span>
               <ChevronDown className="h-3.5 w-3.5 text-muted" />
             </button>
@@ -297,8 +287,8 @@ export function AppShell({ children }: { children: ReactNode }) {
             {userMenuOpen && (
               <div className="absolute right-0 z-50 mt-2 w-56 rounded-xl border border-border bg-background p-1.5 shadow-xl">
                 <div className="px-3 py-2 border-b border-border/60 mb-1">
-                  <p className="text-sm font-medium truncate">{currentUser?.name}</p>
-                  <p className="text-xs text-muted truncate">{currentUser?.email}</p>
+                  <p className="text-sm font-medium truncate">{user.name}</p>
+                  <p className="text-xs text-muted truncate">{user.email}</p>
                 </div>
                 <button
                   type="button"
@@ -322,8 +312,10 @@ export function AppShell({ children }: { children: ReactNode }) {
       <main className="mx-auto max-w-[1680px] p-3 sm:p-4 xl:p-6 2xl:p-8">{children}</main>
     </div>
 
-    {editProfile && currentUser && (
-      <ProfileModal user={currentUser} onClose={() => setEditProfile(false)} />
+    {editProfile && (
+      // Nama/email di header berasal dari props server, jadi refresh ringan
+      // setelah modal ditutup agar perubahan profil ikut terlihat.
+      <ProfileModal user={user} onClose={() => { setEditProfile(false); router.refresh(); }} />
     )}
   </div>;
 }

@@ -4,9 +4,10 @@ import { useState } from "react";
 import { ReportWorkspace } from "@/components/charts/report-layout";
 import { GlassErrorState, GlassSkeleton } from "@/components/feedback/glass-feedback";
 import { GlassStatsCard } from "@/components/glass/glass-primitives";
+import { useSessionContext } from "@/components/layout/session-context";
 import { GlassTable } from "@/components/tables/glass-table";
 import { useTrialBalanceReport } from "@/presentation/query/dashboard-hooks";
-import { useActiveBusiness, useReportRange, buildRequest } from "@/presentation/query/report-hooks";
+import { useReportRange, buildRequest } from "@/presentation/query/report-hooks";
 import { formatRupiah } from "@/presentation/format/number";
 import { exportTrialBalancePdf, exportTrialBalanceExcel } from "@/presentation/export/report-exports";
 
@@ -14,7 +15,7 @@ const n = (v: any) => Number(v ?? 0);
 const hasActivity = (row: any) => n(row.debit) !== 0 || n(row.credit) !== 0;
 
 export default function Page() {
-  const { data: biz, isLoading: bizLoading } = useActiveBusiness();
+  const { activeBusiness: biz } = useSessionContext();
   const { startsOn, endsOn, setStartsOn, setEndsOn, activePreset, setActivePreset } = useReportRange();
   const [showEmpty, setShowEmpty] = useState(false);
 
@@ -22,7 +23,7 @@ export default function Page() {
     biz ? buildRequest(biz.id, startsOn, endsOn) : buildRequest("__placeholder__", startsOn, endsOn)
   );
 
-  if (bizLoading || isLoading) return <GlassSkeleton className="h-72" />;
+  if (isLoading) return <GlassSkeleton className="h-72" />;
   if (!biz || error || !data) return <GlassErrorState title="Neraca Saldo tidak tersedia" description="Tidak dapat memuat neraca saldo." />;
 
   const report = data.data;

@@ -5,9 +5,10 @@ import { X, ChevronRight } from "lucide-react";
 import { ReportWorkspace } from "@/components/charts/report-layout";
 import { GlassErrorState, GlassSkeleton } from "@/components/feedback/glass-feedback";
 import { GlassStatsCard } from "@/components/glass/glass-primitives";
+import { useSessionContext } from "@/components/layout/session-context";
 import { GlassTable } from "@/components/tables/glass-table";
 import { useGeneralLedgerReport } from "@/presentation/query/dashboard-hooks";
-import { useActiveBusiness, useReportRange, buildRequest } from "@/presentation/query/report-hooks";
+import { useReportRange, buildRequest } from "@/presentation/query/report-hooks";
 import { formatRupiah } from "@/presentation/format/number";
 import { exportGeneralLedgerPdf, exportGeneralLedgerExcel } from "@/presentation/export/report-exports";
 
@@ -119,7 +120,7 @@ function AccountDrilldown({ account, onClose }: { account: any; onClose: () => v
 }
 
 export default function Page() {
-  const { data: biz, isLoading: bizLoading } = useActiveBusiness();
+  const { activeBusiness: biz } = useSessionContext();
   const { startsOn, endsOn, setStartsOn, setEndsOn, activePreset, setActivePreset } = useReportRange();
   const [showEmpty, setShowEmpty] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<any | null>(null);
@@ -128,7 +129,7 @@ export default function Page() {
     biz ? buildRequest(biz.id, startsOn, endsOn) : buildRequest("__placeholder__", startsOn, endsOn)
   );
 
-  if (bizLoading || isLoading) return <GlassSkeleton className="h-72" />;
+  if (isLoading) return <GlassSkeleton className="h-72" />;
   if (!biz || error || !data) return <GlassErrorState title="Buku Besar tidak tersedia" description="Tidak dapat memuat laporan buku besar." />;
 
   const report = data.data;

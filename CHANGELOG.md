@@ -182,6 +182,20 @@ All notable changes to BisnisMu are documented in this file.
 - Bisnis `PKU Ponjong` dibuat dengan `barookahjaya@gmail.com` sebagai `OWNER`.
 - Terimpor 151 akun, 2 baris saldo awal seimbang, periode fiskal 2024-2026, 158 jurnal historis, dan 1 jurnal saldo awal.
 - Rekonsiliasi akhir: 159 jurnal, 318 baris jurnal, total debit dan kredit masing-masing Rp358.239.724, tanpa idempotency key ganda.
+## [0.13.1] - 2026-11-18
+
+### Performance — pemangkasan query auth & request per halaman
+Terukur di produksi sebelum perubahan: `/api/auth/me` 4.032 ms, `/api/auth/businesses` 2.174 ms, `/api/members` 3.993 ms, dokumen `/dashboard` 5.953 ms (median 3 sampel). Akar masalah utama: fungsi Vercel dieksekusi di `iad1` sementara database Neon di `ap-southeast-1`, sehingga tiap query menempuh ±250 ms.
+
+- **Autentikasi 4 query → 1 per request API.** Middleware meneruskan konteks tenant hasil validasi lewat header request tepercaya (`x-tenant-verified`, `x-tenant-business-id`, `x-actor-user-id`, `x-actor-role`, `x-platform-role`); handler tidak lagi mengulang query session+membership. Header kiriman client selalu dihapus lalu ditimpa, dan bila header tidak lengkap handler **fallback** ke DB (tidak pernah dianggap terautentikasi). Query session + membership digabung menjadi satu `findUnique` dengan nested include.
+- **Shell tidak lagi memanggil `/api/auth/me` dan `/api/auth/businesses`.** Data user + daftar usaha diambil sekali di layout (RSC) lalu dibagikan lewat `SessionProvider`/`useSessionContext()`.
+- **14 request auth per navigasi dihapus**: 10 halaman laporan + admin (dulu memanggil `/api/auth/businesses` hanya untuk `businessId`) dan 3 halaman kas/penjualan (dulu memanggil `/api/auth/me` untuk `role` + `hardMutation`, sekarang dari context).
+- **recharts (380 KB) keluar dari bundle awal.** Wrapper `next/dynamic` + skeleton di 7 halaman dashboard dan 2 halaman laporan.
+- Alat ukur: `scripts/bench-routes.mjs` (TTFB median per route). Analisis lengkap: `docs/PERF-OPTIMIZATION.md`.
+
+### Catatan
+- Perbaikan terbesar yang tersisa **bukan kode**: menyamakan region fungsi (`regions: ["sin1"]`, butuh plan Pro) atau memindahkan Neon ke `us-east-1`. Detail di `docs/PERF-OPTIMIZATION.md`.
+
 ## [0.13.0] - 2026-11-18
 
 ### Added — Modul Keanggotaan Koperasi (Anggota, Simpanan, Pinjaman)
