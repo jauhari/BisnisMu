@@ -108,9 +108,48 @@ Dashboard sudah RSC (dan itu yang tercepat). Halaman baca lain (jurnal, laporan,
 
 Kalau trafik masih jarang, fungsi tetap dingin. Pilihan: upgrade plan (instance lebih hangat), atau biarkan karena setelah 4.1+4.2 dampaknya mengecil.
 
+
 ---
 
-## 5. Cara mengukur ulang
+## 5. Hasil akhir (sesudah, diukur ulang di produksi)
+
+Deploy: `228f3cd` lalu `b94f845`. Benchmark sama, 3 sampel, sesi yang sama tipenya.
+
+| Route | Sebelum | Sesudah | Perubahan |
+|---|---:|---:|---:|
+| `doc /dashboard` | 5.953 ms | **3.980 ms** | **−33%** |
+| `doc /accounting/journals` | 2.929 ms | **2.344 ms** | **−20%** |
+| `api /accounting/chart-of-accounts` | 3.110 ms | **349 ms** | **−89%** |
+| `api /members` | 3.993 ms | **1.394 ms** | **−65%** |
+| `api /auth/businesses` | 2.174 ms | 1.930 ms | −11% |
+| `api /auth/me` | 4.032 ms | 3.549 ms | −12% |
+| `api /health` (kontrol) | 1.426 ms | 1.656 ms | ±0 (batas bawah infrastruktur) |
+
+`api /health` sengaja dipakai sebagai kontrol: isinya hanya `SELECT 1` dan tidak tersentuh optimasi. Angkanya **tetap ±1,5 detik**, yang membuktikan sisa kelambatan berasal dari cold start + jarak region, bukan dari kode aplikasi.
+
+### Request per halaman (diukur di browser, Performance API)
+
+| Halaman | Sebelum | Sesudah | Isi request sekarang |
+|---|---:|---:|---|
+| `/reports/profit-loss` | 4 (me + businesses + health + report) | **1** | hanya laporan |
+| `/accounting/journals` | 5 (me + businesses + health + list + COA) | **2** | list jurnal + COA |
+| `/dashboard` | 3 (me + businesses + health) | **0** | server-rendered (RSC) |
+
+Tidak ada lagi panggilan `/api/auth/me` dan `/api/auth/businesses` saat halaman dibuka.
+
+### Kenapa dokumen belum turun lebih banyak
+
+Dokumen tetap ±2,3–4 detik karena tiga hal yang **bukan kode aplikasi**:
+
+1. Cold start fungsi (±1,5 detik, sama dengan `SELECT 1` polos).
+2. Query lintas-benua: fungsi `iad1` → DB `ap-southeast-1` (±250 ms per query, dan dokumen butuh minimal 1–2 query auth).
+3. Neon compute merespons 150–500 ms bahkan dari mesin lokal.
+
+Artinya plafon perbaikan kode sudah dekat. Sisanya ada di keputusan infrastruktur (bagian 4.1).
+
+---
+
+## 6. Cara mengukur ulang
 
 ```bash
 # buat sesi uji (atau pakai cookie browser Anda)
