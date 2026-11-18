@@ -191,6 +191,21 @@ Project DB `bisnismu-use1` (us-east-1) tidak dipakai lagi dan bisa dihapus; suda
 Verifikasi produksi memakai DB yang benar: baris penanda dimasukkan ke DB Singapore → muncul di respons `/api/members` produksi, lalu dihapus.
 
 
+
+### Beres-beres pasca-cutover (19 Nov 2026)
+
+| Item | Status |
+|---|---|
+| Rotasi password Neon (`neondb_owner`) | ✅ via `ALTER ROLE`; koneksi baru diverifikasi |
+| Update `DATABASE_URL` + `DIRECT_URL` di Vercel & `.env` lokal | ✅ lalu redeploy |
+| Verifikasi produksi setelah rotasi | ✅ `/api/members` mengembalikan 12 anggota |
+| Hapus project Neon `bisnismu-use1` (us-east-1) | ✅ terhapus |
+| Hapus `.env.bak-*` (berisi kredensial lama) | ✅ terhapus |
+| Revoke token Vercel `OpenCode` | ✅ dihapus, verifikasi ulang → **403** |
+| Sesi uji & file sementara | ✅ dibersihkan |
+
+Benchmark akhir setelah rotasi: dokumen 129–132 ms, API 123–178 ms — performa tidak berubah, konfirmasi bahwa rotasi kredensial tidak menimbulkan regresi.
+
 ---
 
 ## 6. Cara mengukur ulang
