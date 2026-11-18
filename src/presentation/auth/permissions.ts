@@ -87,6 +87,10 @@ export const ROUTE_PERMISSION_RULES: readonly RoutePermissionRule[] = [
   { pattern: "/api/payroll", permission: "journal:write" },
   { pattern: "/api/settings/members", permission: "tenant:manage" },
   { pattern: "/api/contacts", permission: "ar:write" },
+  // Modul Keanggotaan Koperasi: baca boleh semua yang punya akses laporan,
+  // transaksi simpanan/pinjaman butuh izin kas.
+  { pattern: "/api/members", permission: "reports:read", methods: ["GET"] },
+  { pattern: "/api/members", permission: "cash:write" },
   { pattern: "/api/inventory", permission: "inventory:write" },
   { pattern: "/api/purchase", permission: "ap:write" },
   { pattern: "/api/transactions", permission: "dashboard:read", methods: ["GET"] },

@@ -25,6 +25,8 @@ import { PrismaPurchaseRepository } from "@/features/purchase/infrastructure/pri
 import { PosService } from "@/features/pos/application/pos-service";
 import { PrismaPosRepository } from "@/features/pos/infrastructure/prisma-pos-repository";
 import { FloatManagementService } from "@/features/float/application/float-service";
+import { MemberService } from "@/features/membership/application/member-service";
+import { PrismaMemberRepository } from "@/features/membership/infrastructure/prisma-member-repository";
 import { PrismaFloatRepository } from "@/features/float/infrastructure/prisma-float-repository";
 import { RevenueService } from "@/features/revenue/application/revenue-service";
 import { PrismaRevenueRepository } from "@/features/revenue/infrastructure/prisma-revenue-repository";
@@ -82,6 +84,7 @@ export const serverServices = {
   tourism,
   installments: new InstallmentService(prisma, journal),
   payroll,
+  member: new MemberService(new PrismaMemberRepository(prisma), journal),
   paymentRepository
 };
 

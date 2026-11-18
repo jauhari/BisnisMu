@@ -182,6 +182,28 @@ All notable changes to BisnisMu are documented in this file.
 - Bisnis `PKU Ponjong` dibuat dengan `barookahjaya@gmail.com` sebagai `OWNER`.
 - Terimpor 151 akun, 2 baris saldo awal seimbang, periode fiskal 2024-2026, 158 jurnal historis, dan 1 jurnal saldo awal.
 - Rekonsiliasi akhir: 159 jurnal, 318 baris jurnal, total debit dan kredit masing-masing Rp358.239.724, tanpa idempotency key ganda.
+## [0.13.0] - 2026-11-18
+
+### Added — Modul Keanggotaan Koperasi (Anggota, Simpanan, Pinjaman)
+- Modul baru `src/features/membership/` (domain engine, service, repository Prisma) — additive, tidak mengubah modul existing.
+- Tabel baru: `members`, `member_savings`, `member_loans`, `member_loan_installments` (migration `20261118090000_add_member_koperasi_module`).
+- Setiap setoran/penarikan simpanan, pencairan pinjaman, dan pembayaran angsuran **otomatis posting jurnal** lewat `JournalPostingService`, sehingga kartu anggota dan laporan keuangan tidak bisa berbeda angka.
+- Saldo simpanan dihitung dari ledger (sum setoran − penarikan) per jenis (POKOK/WAJIB/SUKARELA).
+- Pinjaman memakai bunga **flat** dari pokok awal; sisa pembulatan pokok ditumpuk ke angsuran terakhir agar total pokok selalu sama persis.
+- Bunga & tenor default dibaca dari `Business.settings.memberLoan` lalu **disalin sebagai snapshot** ke pinjaman saat pencairan — perubahan setting tidak mengubah pinjaman berjalan.
+- API: `GET/POST /api/members`, `GET/PATCH /api/members/[id]`, `GET/POST /api/members/[id]/savings`, `GET/POST /api/members/[id]/loans`, `GET/POST /api/members/[id]/loans/[loanId]/installments`.
+- UI: `/members` (rekap simpanan & sisa pinjaman per anggota) dan `/members/[id]` (kartu anggota: ringkasan, riwayat simpanan, daftar pinjaman + pembayaran angsuran). Menu baru "Anggota Koperasi" di grup Keuangan.
+- RBAC: baca via `reports:read`, transaksi via `cash:write`.
+- Setting baru di halaman Pengaturan: bunga flat (%/bulan) dan tenor default pinjaman anggota.
+- 18 unit test baru (`tests/membership/`), total suite 231 test.
+
+### Added — Impor data contoh pelatihan KDKMP
+- Script `scripts/import-kdkmp-pelatihan.mjs` mengimpor workbook pelatihan (66 akun COA + 41 jurnal) ke business baru; hasilnya identik dengan workbook: total mutasi Rp 410.711.853 dan SHU Rp 21.573.147.
+- Script `scripts/backfill-members-kdkmp.mjs` mengisi 12 anggota + ledger simpanan dari jurnal yang sudah bertanda anggota.
+- Analisis banding workbook vs aplikasi: `docs/ANALISIS-BANDING-SHEETS-KDKMP.md`.
+
+### Notes
+- Migration dibuat manual (hanya `CREATE`) lalu `prisma migrate resolve --applied`, karena `prisma migrate diff` ikut menghasilkan DROP untuk tabel yang ada di database tetapi tidak ada di schema lokal (payroll). Tidak ada objek database yang dihapus.
 
 ## [0.12.0] - 2026-06-25
 

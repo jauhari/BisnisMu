@@ -341,6 +341,11 @@ enum AuditAction {
   SALES_ORDER_CONFIRMED
   SALES_PAYMENT_ALLOCATED
   SALES_ORDER_VOIDED
+  MEMBER_CREATED
+  MEMBER_UPDATED
+  MEMBER_SAVING_POSTED
+  MEMBER_LOAN_CREATED
+  MEMBER_INSTALLMENT_PAID
 }
 
 enum PurchaseOrderStatus {
@@ -455,6 +460,12 @@ model Business {
   dailySales                 DailySale[]
   employees                  Employee[]
   payrollRuns                PayrollRun[]
+
+  // Koperasi / anggota (additive) — modul keanggotaan & simpanan.
+  koperasiMembers        Member[]
+  memberSavings          MemberSaving[]
+  memberLoans            MemberLoan[]
+  memberLoanInstallments MemberLoanInstallment[]
 
   // Multi-Unit Organization (additive, opsional) — satu Business hanya milik satu Organization.
   organizationId String?       @map("organization_id")
@@ -604,6 +615,8 @@ model Account {
   children                             Account[]            @relation("AccountHierarchy")
   lines                                JournalLine[]
   beginningBalances                    BeginningBalance[]
+  memberSavings                        MemberSaving[]       @relation("MemberSavingAccount")
+  memberLoans                          MemberLoan[]         @relation("MemberLoanAccount")
   cashAsPrimary                        CashTransaction[]    @relation("CashPrimaryAccount")
   cashAsDestination                    CashTransaction[]    @relation("CashDestinationAccount")
   cashAsCategory                       CashTransaction[]    @relation("CashCategoryAccount")
@@ -2311,4 +2324,137 @@ model OrgMember {
   @@id([organizationId, userId])
   @@index([userId])
   @@map("org_members")
+}
+
+// ── Modul Keanggotaan Koperasi (additive) ────────────────────────────────────
+// Layer di atas Business: anggota sebagai subjek, dengan simpanan dan pinjaman.
+// Tidak mengubah tabel existing. Semua transaksi keuangan tetap lewat jurnal.
+
+enum MemberStatus {
+  ACTIVE
+  INACTIVE
+  RESIGNED
+}
+
+enum MemberSavingType {
+  POKOK
+  WAJIB
+  SUKARELA
+}
+
+enum MemberSavingDirection {
+  DEPOSIT
+  WITHDRAWAL
+}
+
+enum MemberLoanStatus {
+  ACTIVE
+  PAID
+  WRITTEN_OFF
+}
+
+enum MemberLoanInterestMethod {
+  FLAT
+}
+
+enum MemberInstallmentStatus {
+  PENDING
+  PAID
+}
+
+model Member {
+  id           String       @id @default(cuid())
+  businessId   String       @map("business_id")
+  memberNumber String       @map("member_number")
+  name         String
+  address      String?
+  phone        String?
+  joinedOn     DateTime?    @map("joined_on") @db.Date
+  status       MemberStatus @default(ACTIVE)
+  notes        String?
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  business Business       @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  savings  MemberSaving[]
+  loans    MemberLoan[]
+
+  @@unique([businessId, memberNumber])
+  @@index([businessId, status])
+  @@map("members")
+}
+
+model MemberSaving {
+  id              String                @id @default(cuid())
+  businessId      String                @map("business_id")
+  memberId        String                @map("member_id")
+  type            MemberSavingType
+  direction       MemberSavingDirection
+  accountId       String                @map("account_id")
+  transactionDate DateTime              @map("transaction_date") @db.Date
+  amount          BigInt
+  journalId       String?               @map("journal_id")
+  referenceNumber String?               @map("reference_number")
+  note            String?
+  createdByUserId String                @map("created_by_user_id")
+  createdAt       DateTime              @default(now()) @map("created_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  member   Member   @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  account  Account  @relation("MemberSavingAccount", fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([businessId, memberId, type])
+  @@index([businessId, transactionDate])
+  @@map("member_savings")
+}
+
+model MemberLoan {
+  id              String                   @id @default(cuid())
+  businessId      String                   @map("business_id")
+  memberId        String                   @map("member_id")
+  loanNumber      String                   @map("loan_number")
+  accountId       String                   @map("account_id")
+  principal       BigInt
+  interestRateBps Int                      @default(0) @map("interest_rate_bps")
+  interestMethod  MemberLoanInterestMethod @default(FLAT) @map("interest_method")
+  termMonths      Int                      @map("term_months")
+  disbursedOn     DateTime                 @map("disbursed_on") @db.Date
+  status          MemberLoanStatus         @default(ACTIVE)
+  journalId       String?                  @map("journal_id")
+  note            String?
+  createdByUserId String                   @map("created_by_user_id")
+  createdAt       DateTime                 @default(now()) @map("created_at")
+  updatedAt       DateTime                 @updatedAt @map("updated_at")
+
+  business     Business                @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  member       Member                  @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  account      Account                 @relation("MemberLoanAccount", fields: [accountId], references: [id], onDelete: Restrict)
+  installments MemberLoanInstallment[]
+
+  @@unique([businessId, loanNumber])
+  @@index([businessId, memberId, status])
+  @@map("member_loans")
+}
+
+model MemberLoanInstallment {
+  id            String                  @id @default(cuid())
+  businessId    String                  @map("business_id")
+  loanId        String                  @map("loan_id")
+  installmentNo Int                     @map("installment_no")
+  dueDate       DateTime                @map("due_date") @db.Date
+  principalDue  BigInt                  @map("principal_due")
+  interestDue   BigInt                  @map("interest_due")
+  paidAmount    BigInt                  @default(0) @map("paid_amount")
+  paidOn        DateTime?               @map("paid_on") @db.Date
+  status        MemberInstallmentStatus @default(PENDING)
+  journalId     String?                 @map("journal_id")
+  createdAt     DateTime                @default(now()) @map("created_at")
+  updatedAt     DateTime                @updatedAt @map("updated_at")
+
+  business Business   @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  loan     MemberLoan @relation(fields: [loanId], references: [id], onDelete: Cascade)
+
+  @@unique([loanId, installmentNo])
+  @@index([businessId, status, dueDate])
+  @@map("member_loan_installments")
 }

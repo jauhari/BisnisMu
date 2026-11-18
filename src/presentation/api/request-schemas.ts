@@ -368,3 +368,51 @@ export const payrollRunSchema = z.object({
 export const payrollApproveSchema = z.object({ approvedAt: dateSchema.optional() });
 export const payrollPaySchema = z.object({ paymentAccountId: payrollIdSchema, paidAt: dateSchema.optional() });
 export const payrollItemPaySchema = payrollPaySchema.extend({ amount: positiveMoneySchema });
+// ── Modul Keanggotaan Koperasi ───────────────────────────────────────────────
+export const memberSchema = z.object({
+  memberNumber: z.string().min(1).max(20),
+  name: stringRequired,
+  address: optionalString,
+  phone: optionalString,
+  joinedOn: dateSchema.optional(),
+  status: z.enum(["ACTIVE", "INACTIVE", "RESIGNED"]).optional(),
+  notes: optionalString,
+});
+
+export const memberUpdateSchema = z.object({
+  memberNumber: z.string().min(1).max(20).optional(),
+  name: stringRequired.optional(),
+  address: optionalString,
+  phone: optionalString,
+  joinedOn: dateSchema.optional(),
+  status: z.enum(["ACTIVE", "INACTIVE", "RESIGNED"]).optional(),
+  notes: optionalString,
+});
+
+export const memberSavingSchema = z.object({
+  type: z.enum(["POKOK", "WAJIB", "SUKARELA"]),
+  direction: z.enum(["DEPOSIT", "WITHDRAWAL"]),
+  savingsAccountId: uuidSchema,
+  cashAccountId: uuidSchema,
+  transactionDate: dateSchema,
+  amount: positiveMoneySchema,
+  referenceNumber: optionalString,
+  note: optionalString,
+});
+
+export const memberLoanSchema = z.object({
+  loanAccountId: uuidSchema,
+  cashAccountId: uuidSchema,
+  principal: positiveMoneySchema,
+  disbursedOn: dateSchema,
+  interestRateBps: z.number().int().min(0).max(10000).optional(),
+  termMonths: z.number().int().min(1).max(120).optional(),
+  note: optionalString,
+});
+
+export const memberInstallmentPaymentSchema = z.object({
+  installmentNo: z.number().int().min(1),
+  cashAccountId: uuidSchema,
+  interestIncomeAccountId: uuidSchema.optional(),
+  paidOn: dateSchema,
+});

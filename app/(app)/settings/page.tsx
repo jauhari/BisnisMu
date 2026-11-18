@@ -7,7 +7,7 @@ import { ManagedForm, RhfDataSelect, RhfTextField, type SelectOption } from "@/c
 import { usePostMutation, useListQuery } from "@/presentation/query/dashboard-hooks";
 import { WorkspaceHeader, SplitWorkspace, DetailPanel } from "@/components/layout/workspace";
 import { GlassSkeleton } from "@/components/feedback/glass-feedback";
-import { GlassDataSelect } from "@/components/forms/glass-form";
+import { GlassDataSelect, GlassInput } from "@/components/forms/glass-form";
 import { apiRequest } from "@/presentation/api/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -106,6 +106,86 @@ function DefaultContactSection({ currentSettings }: { currentSettings: any }) {
   );
 }
 
+/**
+ * Default pinjaman anggota. Nilai di sini dipakai saat pencairan baru;
+ * pinjaman yang sudah berjalan menyimpan snapshot-nya sendiri sehingga
+ * perubahan setting tidak mengubah kontrak lama.
+ */
+function MemberLoanSection({ currentSettings }: { currentSettings: any }) {
+  const qc = useQueryClient();
+  const existing = currentSettings?.memberLoan ?? {};
+  const [rate, setRate] = useState(
+    existing.defaultInterestRateBps != null ? String(Number(existing.defaultInterestRateBps) / 100) : "0",
+  );
+  const [term, setTerm] = useState(existing.defaultTermMonths != null ? String(existing.defaultTermMonths) : "12");
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    try {
+      const ratePercent = Number(String(rate).replace(",", "."));
+      const bps = Math.max(0, Math.min(10000, Math.round((Number.isFinite(ratePercent) ? ratePercent : 0) * 100)));
+      const months = Math.max(1, Math.min(120, Math.trunc(Number(term) || 12)));
+
+      await apiRequest("/api/settings", {
+        method: "POST",
+        body: JSON.stringify({
+          settings: {
+            ...currentSettings,
+            memberLoan: { ...existing, defaultInterestRateBps: bps, defaultTermMonths: months },
+          },
+        }),
+      });
+      toast.success("Setting pinjaman anggota disimpan.");
+      void qc.invalidateQueries({ queryKey: ["settings", "business"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gagal menyimpan setting pinjaman.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="grid gap-3 rounded-lg border border-border p-4">
+      <div>
+        <p className="text-sm font-medium">Pinjaman Anggota</p>
+        <p className="mt-1 text-xs text-muted">
+          Bunga flat per bulan dan tenor default. Hanya berlaku untuk pencairan baru — pinjaman yang sudah berjalan
+          tetap memakai bunga saat dicairkan.
+        </p>
+      </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        <label className="grid gap-2">
+          <span className="text-xs font-medium uppercase tracking-wide text-muted">Bunga flat (% per bulan)</span>
+          <GlassInput
+            value={rate}
+            onChange={(e) => setRate(e.target.value.replace(/[^0-9.,]/g, ""))}
+            placeholder="0"
+            inputMode="decimal"
+          />
+        </label>
+        <label className="grid gap-2">
+          <span className="text-xs font-medium uppercase tracking-wide text-muted">Tenor default (bulan)</span>
+          <GlassInput
+            value={term}
+            onChange={(e) => setTerm(e.target.value.replace(/[^0-9]/g, ""))}
+            placeholder="12"
+            inputMode="numeric"
+          />
+        </label>
+      </div>
+      <button
+        type="button"
+        onClick={save}
+        disabled={saving}
+        className="h-9 w-fit rounded-md bg-foreground px-4 text-sm font-medium text-background disabled:opacity-50"
+      >
+        {saving ? "Menyimpan…" : "Simpan setting pinjaman"}
+      </button>
+    </div>
+  );
+}
+
 function SessionRevokeSection() {
   const [loading, setLoading] = useState(false);
 
@@ -184,6 +264,7 @@ export default function Page() {
               )}
             </ManagedForm>
             <DefaultContactSection currentSettings={biz?.settings ?? {}} />
+            <MemberLoanSection currentSettings={biz?.settings ?? {}} />
             <SessionRevokeSection />
           </div>
         }
