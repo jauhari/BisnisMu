@@ -13,7 +13,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { GlassInput, GlassPasswordInput } from "@/components/forms/glass-form";
 import { toast } from "sonner";
 import { apiRequest } from "@/presentation/api/client";
-import { ServerWarmup } from "@/components/shared/server-warmup";
 import packageJson from "../../package.json";
 
 const COLLAPSE_KEY = "bisnismu:sidebar-collapsed";
@@ -203,7 +202,6 @@ export function AppShell({ children }: { children: ReactNode }) {
   const mainPad = collapsed ? "lg:pl-[76px]" : "lg:pl-72";
 
   return <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,hsl(var(--accent)/0.10),transparent_32rem),hsl(var(--background))]">
-    <ServerWarmup />
     {/* Mobile overlay */}
     {sidebarOpen && (
       <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} />

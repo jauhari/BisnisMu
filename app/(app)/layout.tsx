@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 
@@ -12,6 +13,21 @@ import { getAuthenticatedUserContextByToken, getServerSessionToken } from "@/pre
  * <SessionProvider>. Sebelumnya AppShell memanggil endpoint sesi dan
  * endpoint daftar usaha dari client pada setiap pemuatan halaman.
  */
+const getCachedMemberships = unstable_cache(
+  async (userId: string) =>
+    prisma.businessMember.findMany({
+      where: { userId, isActive: true },
+      include: {
+        business: {
+          select: { id: true, name: true, organization: { select: { settings: true } } },
+        },
+      },
+      orderBy: { joinedAt: "asc" },
+    }),
+  ["shell-memberships"],
+  { revalidate: 60, tags: ["shell-memberships"] },
+);
+
 async function loadShellData() {
   const token = await getServerSessionToken();
   if (!token) redirect("/login");
@@ -20,18 +36,11 @@ async function loadShellData() {
   const context = await getAuthenticatedUserContextByToken(token);
   if (!context.businessId) redirect("/select-business");
 
-  // Satu query ringan untuk header: daftar usaha tempat user masih aktif.
-  // Sekalian bawa `organization.settings` supaya `hardMutation` bisa dihitung
-  // di sini tanpa query tambahan (dulu halaman memanggil endpoint sesi).
-  const memberships = await prisma.businessMember.findMany({
-    where: { userId: context.actorUserId, isActive: true },
-    include: {
-      business: {
-        select: { id: true, name: true, organization: { select: { settings: true } } },
-      },
-    },
-    orderBy: { joinedAt: "asc" },
-  });
+  // Daftar usaha jarang berubah, jadi di-cache 60 detik per user. Tanpa ini
+  // setiap render layout membayar satu query lintas-region (~0,5 detik).
+  // Hanya data statis yang di-cache; status `active` dihitung di luar cache
+  // dari session aktif, sehingga ganti usaha tetap langsung terlihat.
+  const memberships = await getCachedMemberships(context.actorUserId);
 
   const user = {
     id: context.user.id,
