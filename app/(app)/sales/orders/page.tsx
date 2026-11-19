@@ -414,17 +414,17 @@ export default function Page() {
       }
       if (kind === "sales-confirm") {
         await apiRequest("/api/sales/orders/confirm", { method: "POST", body: JSON.stringify({ salesOrderId: row.id }) });
-        toast.success("Sales order dikonfirmasi.");
+        toast.success("Pesanan penjualan dikonfirmasi.");
         await salesOrders.refetch();
       }
       if (kind === "sales-delete") {
         await apiRequest(`/api/sales/orders/${row.id}`, { method: "DELETE" });
-        toast.success("Draft sales order dihapus.");
+        toast.success("Draf pesanan penjualan dihapus.");
         await salesOrders.refetch();
       }
       if (kind === "sales-void") {
         await apiRequest(`/api/sales/orders/${row.id}/void`, { method: "POST", body: JSON.stringify({ reason: `Void sales order ${row.salesNumber}` }) });
-        toast.success("Sales order dibatalkan.");
+        toast.success("Pesanan penjualan dibatalkan.");
         await salesOrders.refetch();
       }
     } catch (error) {
@@ -443,7 +443,7 @@ export default function Page() {
       kas:      `${sale.cashAccount?.code} | ${sale.cashAccount?.name}`,
       akun:     `${item.revenueAccount?.code} | ${item.revenueAccount?.name}`,
       keterangan: item.description ?? sale.description ?? "-",
-      nominal:  Number(item.amount).toLocaleString("id-ID"),
+      nominal:  formatRupiah(item.amount),
       kontak:   item.contacts?.map((c: any) => c.contact?.name).filter(Boolean).join(", ") || "-",
       rawSale: sale,
     }))
@@ -451,15 +451,15 @@ export default function Page() {
   const orderRows = (salesOrders.data?.data?.rows ?? []).map((order: any) => ({
     ...order,
     tanggal: order.saleDate,
-    total: String(order.totalAmount),
-    paid: String(order.paidAmount),
+    total: formatRupiah(order.totalAmount),
+    paid: formatRupiah(order.paidAmount),
     itemCount: order.items?.length ?? 0,
   }));
 
   return (
     <div className="grid gap-6">
       <WorkspaceHeader
-        eyebrow="Sales"
+        eyebrow="Penjualan"
         title="Penjualan Harian"
         description="Catat pendapatan harian. Jurnal dibuat otomatis — Debit Kas, Kredit Pendapatan."
         action={
@@ -639,7 +639,7 @@ export default function Page() {
           { key: "actions", header: "Aksi", render: (r: any) => <div className="flex flex-wrap gap-1.5"><button type="button" className="rounded border border-border px-2 py-1 text-xs" onClick={() => toast.info(`${r.salesNumber}: ${r.description}`)}><FileText className="inline h-3 w-3" /> Detail</button>{r.status === "DRAFT" && canMutate(role) ? <button type="button" className="rounded bg-foreground px-2 py-1 text-xs text-background" onClick={() => void rowAction("sales-confirm", r)}><Send className="inline h-3 w-3" /> Confirm</button> : null}{r.status === "DRAFT" && canDelete(role) ? <button type="button" className="rounded border border-danger/40 px-2 py-1 text-xs text-danger" onClick={() => void rowAction("sales-delete", r)}><Trash2 className="inline h-3 w-3" /> Delete</button> : null}{r.status !== "DRAFT" && r.status !== "VOID" && canVoid(role) ? <button type="button" className="rounded border border-danger/40 px-2 py-1 text-xs text-danger" onClick={() => void rowAction("sales-void", r)}><Undo2 className="inline h-3 w-3" /> Void</button> : null}</div> },
         ]}
         rows={orderRows}
-        empty="Belum ada sales order resmi."
+        empty="Belum ada pesanan penjualan."
       />
     </div>
   );

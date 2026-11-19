@@ -7,6 +7,7 @@ import { GlassTable } from "@/components/tables/glass-table";
 import { GlassPanel } from "@/components/glass/glass-primitives";
 import { usePostMutation, useListQuery } from "@/presentation/query/dashboard-hooks";
 import { GlassDataSelect, GlassInput } from "@/components/forms/glass-form";
+import { formatNumber, formatRupiah } from "@/presentation/format/number";
 
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
@@ -33,7 +34,7 @@ export default function Page() {
   const orderItems = selectedOrder?.items ?? [];
 
   if (list.isLoading || orders.isLoading || products.isLoading || balances.isLoading) return <GlassSkeleton className="h-72" />;
-  if (list.error) return <GlassErrorState title="Purchase receipts unavailable" description="Unable to load receipts." />;
+  if (list.error) return <GlassErrorState title="Penerimaan barang belum bisa dimuat" description="Coba muat ulang halaman." />;
 
   function pickOrder(id: string) {
     setOrderId(id);
@@ -45,7 +46,7 @@ export default function Page() {
 
   async function submit() {
     setError(null); setOkMsg(null);
-    if (!orderId) { setError("Pilih purchase order."); return; }
+    if (!orderId) { setError("Pilih pesanan pembelian."); return; }
     if (!location.trim()) { setError("Isi lokasi gudang."); return; }
     const items = orderItems.map((it: any) => ({ productId: it.productId, quantity: qty[it.productId] ?? "0", locationId: location.trim() })).filter((it: any) => Number(it.quantity) > 0);
     if (items.length < 1) { setError("Isi minimal 1 item dengan qty diterima > 0."); return; }
@@ -55,7 +56,7 @@ export default function Page() {
     } catch (e) { setError(e instanceof Error ? e.message : "Gagal menyimpan penerimaan."); }
   }
 
-  const rows = ((list.data as any)?.data ?? []).map((r: any) => ({ receipt: r.receiptNumber ?? r.id, po: r.purchaseOrderId, date: String(r.receiptDate).slice(0, 10), cost: String(r.totalCost ?? ""), journal: r.journalId ?? "-" }));
+  const rows = ((list.data as any)?.data ?? []).map((r: any) => ({ receipt: r.receiptNumber ?? r.id, po: r.purchaseOrderId, date: String(r.receiptDate).slice(0, 10), cost: formatRupiah(r.totalCost), journal: r.journalId ?? "-" }));
 
-  return <div className="grid gap-6"><WorkspaceHeader eyebrow="Purchase" title="Purchase Receipts" description="Receive purchase orders and post inventory/GRNI impact through PurchaseService and InventoryService." /><SplitWorkspace main={<GlassTable columns={[{ key: "receipt", header: "Receipt" }, { key: "po", header: "PO" }, { key: "date", header: "Date" }, { key: "cost", header: "Total cost" }, { key: "journal", header: "Journal" }]} rows={rows} empty="No receipts loaded" />} side={<><GlassPanel><div className="grid gap-4"><label className="grid gap-1"><span className="text-xs text-muted">Purchase order</span><GlassDataSelect value={orderId} onChange={pickOrder} placeholder={receivable.length ? "Pilih PO" : "Tidak ada PO yang bisa diterima"} options={receivable.map((o: any) => ({ value: o.id, label: `${o.orderNumber ?? o.id} · ${o.status}` }))} className="h-10" /></label><label className="grid gap-1"><span className="text-xs text-muted">Receipt date</span><GlassInput value={receiptDate} onChange={(e) => setReceiptDate(e.target.value)} className="h-10" /></label><label className="grid gap-1"><span className="text-xs text-muted">Location (gudang)</span><GlassInput value={location} onChange={(e) => setLocation(e.target.value)} className="h-10" placeholder="main" /></label>{orderItems.length > 0 ? <div className="grid gap-2">{orderItems.map((it: any) => <div key={it.productId} className="grid items-end gap-2 md:grid-cols-[2fr_1fr]"><label className="grid gap-1"><span className="text-xs text-muted">{productName(it.productId)}</span><span className="text-xs text-muted">Ordered {String(it.quantity)} · received {String(it.receivedQuantity ?? 0)}</span></label><GlassInput value={qty[it.productId] ?? ""} onChange={(e) => setQty((p) => ({ ...p, [it.productId]: e.target.value }))} className="h-10" placeholder="0" /></div>)}</div> : null}<button type="button" onClick={() => void submit()} className="h-10 rounded-md bg-foreground px-4 text-sm font-medium text-background">Receive order</button>{error ? <p role="alert" className="text-sm text-danger">{error}</p> : null}{okMsg ? <p role="status" className="text-sm text-success">{okMsg}</p> : null}</div></GlassPanel><DetailPanel title="Inventory impact">Receipt lines update stock balances and average cost through existing inventory flows.</DetailPanel></>} /></div>;
+  return <div className="grid gap-6"><WorkspaceHeader eyebrow="Pembelian" title="Penerimaan Barang" description="Catat barang yang sudah datang dari pesanan pembelian agar stok bertambah." /><SplitWorkspace main={<GlassTable columns={[{ key: "receipt", header: "No. penerimaan" }, { key: "po", header: "No. pesanan" }, { key: "date", header: "Tanggal" }, { key: "cost", header: "Total biaya" }, { key: "journal", header: "Jurnal" }]} rows={rows} empty="Belum ada penerimaan barang. Pilih pesanan di panel samping untuk mencatatnya." />} side={<><GlassPanel><div className="grid gap-4"><label className="grid gap-1"><span className="text-xs text-muted">Pesanan pembelian</span><GlassDataSelect value={orderId} onChange={pickOrder} placeholder={receivable.length ? "Pilih pesanan" : "Belum ada pesanan yang menunggu barang"} options={receivable.map((o: any) => ({ value: o.id, label: `${o.orderNumber ?? o.id} · ${o.status}` }))} className="h-10" /></label><label className="grid gap-1"><span className="text-xs text-muted">Tanggal diterima</span><GlassInput value={receiptDate} onChange={(e) => setReceiptDate(e.target.value)} className="h-10" /></label><label className="grid gap-1"><span className="text-xs text-muted">Lokasi gudang</span><GlassInput value={location} onChange={(e) => setLocation(e.target.value)} className="h-10" placeholder="main" /></label>{orderItems.length > 0 ? <div className="grid gap-2">{orderItems.map((it: any) => <div key={it.productId} className="grid items-end gap-2 md:grid-cols-[2fr_1fr]"><label className="grid gap-1"><span className="text-xs text-muted">{productName(it.productId)}</span><span className="text-xs text-muted">Dipesan {formatNumber(it.quantity)} · sudah diterima {formatNumber(it.receivedQuantity ?? 0)}</span></label><GlassInput value={qty[it.productId] ?? ""} onChange={(e) => setQty((p) => ({ ...p, [it.productId]: e.target.value }))} className="h-10" placeholder="0" /></div>)}</div> : null}<button type="button" onClick={() => void submit()} className="h-10 rounded-md bg-foreground px-4 text-sm font-medium text-background">Simpan penerimaan</button>{error ? <p role="alert" className="text-sm text-danger">{error}</p> : null}{okMsg ? <p role="status" className="text-sm text-success">{okMsg}</p> : null}</div></GlassPanel><DetailPanel title="Dampak ke stok">Barang yang diterima menambah saldo stok dan memperbarui biaya rata-rata produk.</DetailPanel></>} /></div>;
 }

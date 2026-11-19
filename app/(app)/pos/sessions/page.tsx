@@ -36,7 +36,7 @@ export default function Page() {
   const [busy, setBusy] = useState(false);
 
   if (sessions.isLoading || terminals.isLoading) return <GlassSkeleton className="h-72" />;
-  if (sessions.error) return <GlassErrorState title="POS sessions tidak tersedia" description="Tidak dapat memuat sesi POS." />;
+  if (sessions.error) return <GlassErrorState title="Sesi kasir belum bisa dimuat" description="Coba muat ulang halaman." />;
 
   const allSessions: any[] = (sessions.data as any)?.data ?? [];
   const terminalList: any[] = (terminals.data as any)?.data ?? [];
@@ -59,7 +59,7 @@ export default function Page() {
         openedAt: new Date(openedAt).toISOString(),
         ...(openingAmount ? { openingCashAmount: Number(openingAmount) } : {}),
       });
-      toast.success("Sesi POS dibuka.");
+      toast.success("Sesi kasir dibuka.");
       setOpeningAmount("");
       void qc.invalidateQueries({ queryKey: ["list", "pos-sessions"] });
     } catch (e) {
@@ -85,9 +85,9 @@ export default function Page() {
 
   return (
     <div className="grid gap-6">
-      <WorkspaceHeader eyebrow="POS" title="POS Sessions" description="Buka dan pantau sesi kasir. Setiap sesi terhubung ke terminal POS." />
+      <WorkspaceHeader eyebrow="Kasir" title="Sesi Kasir" description="Buka sesi kasir baru dan pantau sesi yang sedang berjalan di setiap terminal." />
       <SplitWorkspace
-        main={<GlassTable columns={[{ key: "id", header: "ID" }, { key: "terminal", header: "Terminal" }, { key: "opened", header: "Dibuka" }, { key: "expected", header: "Ekspektasi Kas" }, { key: "status", header: "Status" }]} rows={rows} empty="Belum ada sesi POS." />}
+        main={<GlassTable columns={[{ key: "id", header: "ID" }, { key: "terminal", header: "Terminal" }, { key: "opened", header: "Dibuka" }, { key: "expected", header: "Ekspektasi Kas" }, { key: "status", header: "Status" }]} rows={rows} empty="Belum ada sesi kasir. Buka sesi baru lewat panel di samping." />}
         side={
           <div className="grid gap-4">
             <GlassPanel className="grid gap-4">
@@ -122,7 +122,7 @@ export default function Page() {
                   {terminalList.map((t: any) => (
                     <li key={t.id} className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2 text-sm">
                       <span>{t.name}</span>
-                      {t.cashDrawerId ? <span className="text-xs text-muted">+ drawer</span> : null}
+                      {t.cashDrawerId ? <span className="text-xs text-muted">+ laci kas</span> : null}
                     </li>
                   ))}
                 </ul>
@@ -133,11 +133,11 @@ export default function Page() {
               </label>
               {drawerList.length > 0 ? (
                 <label className="grid gap-1 text-xs">
-                  Cash drawer (opsional)
+                  Laci kas (opsional)
                   <GlassDataSelect
                     value={drawerId}
                     onChange={setDrawerId}
-                    placeholder="Tanpa drawer"
+                    placeholder="Tanpa laci kas"
                     options={drawerList.map((d: any) => ({ value: d.id, label: d.name ?? d.id.slice(-6) }))}
                     className="h-9"
                   />
@@ -148,7 +148,7 @@ export default function Page() {
               </button>
             </GlassPanel>
 
-            <DetailPanel title="Cash drawer link">Membuka sesi POS mendelegasikan ke CashService jika terminal punya cash drawer terhubung.</DetailPanel>
+            <DetailPanel title="Laci kas">Jika terminal terhubung ke laci kas, membuka sesi kasir juga membuka pencatatan laci kas tersebut.</DetailPanel>
           </div>
         }
       />

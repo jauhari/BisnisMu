@@ -8,7 +8,7 @@ import { WorkspaceHeader } from "@/components/layout/workspace";
 import { GlassTable } from "@/components/tables/glass-table";
 import { GlassSkeleton } from "@/components/feedback/glass-feedback";
 import { useListQuery, usePostMutation } from "@/presentation/query/dashboard-hooks";
-import { formatRupiah } from "@/presentation/format/number";
+import { formatNumber, formatRupiah } from "@/presentation/format/number";
 
 const schema = z.object({
   vendorId: z.string().min(10),
@@ -63,8 +63,8 @@ export default function Page() {
 
   return (
     <div className="grid gap-6">
-      <WorkspaceHeader eyebrow="Accounts Payable" title="Bills" description="Draft, posting, dan bayar tagihan vendor melalui ArApService. PPN dan PPh dihitung otomatis." />
-      <DocumentWorkspace summary={<DocumentSummary title="Payable" lines={[{ label: "Bills", value: String(rows.length) }]} />}>
+      <WorkspaceHeader eyebrow="Piutang & Utang" title="Tagihan Pemasok" description="Catat tagihan dari pemasok yang dibayar belakangan. PPN dan PPh dihitung otomatis." />
+      <DocumentWorkspace summary={<DocumentSummary title="Utang" lines={[{ label: "Jumlah tagihan", value: formatNumber(rows.length) }]} />}>
         <ManagedForm<BillForm>
           schema={schema}
           defaultValues={{ vendorId: "", apAccountId: "", expenseAccountId: "", issueDate: new Date().toLocaleDateString("en-CA"), dueDate: new Date(Date.now() + 10 * 86400000).toLocaleDateString("en-CA"), subtotal: "", ppnPercent: "0", pphPercent: "0", description: "" }}
@@ -84,8 +84,8 @@ export default function Page() {
             const pphPercent = form.watch("pphPercent");
             return (
               <div className="grid gap-4 rounded-lg border border-border p-4 md:grid-cols-3">
-                <RhfDataSelect<BillForm> name="vendorId" label="Vendor" options={vendorOptions} placeholder="Pilih vendor" />
-                <RhfDataSelect<BillForm> name="apAccountId" label="Akun utang (AP)" options={apOptions} placeholder="Pilih akun utang" />
+                <RhfDataSelect<BillForm> name="vendorId" label="Pemasok" options={vendorOptions} placeholder="Pilih pemasok" />
+                <RhfDataSelect<BillForm> name="apAccountId" label="Akun utang" options={apOptions} placeholder="Pilih akun utang" />
                 <RhfDataSelect<BillForm> name="expenseAccountId" label="Akun beban" options={expenseOptions} placeholder="Pilih akun beban" />
                 <RhfTextField<BillForm> name="issueDate" label="Tanggal terbit" />
                 <RhfTextField<BillForm> name="dueDate" label="Jatuh tempo" />
@@ -94,12 +94,12 @@ export default function Page() {
                 <RhfTextField<BillForm> name="ppnPercent" label="PPN % (cth: 11)" placeholder="0" type="number" />
                 <RhfTextField<BillForm> name="pphPercent" label="PPh % potong (cth: 2)" placeholder="0" type="number" />
                 <TaxBreakdown subtotal={subtotal} ppn={ppnPercent ?? "0"} pph={pphPercent ?? "0"} />
-                <button type="submit" className="h-10 rounded-md bg-foreground px-4 text-sm font-medium text-background md:col-span-3">Simpan bill draft</button>
+                <button type="submit" className="h-10 rounded-md bg-foreground px-4 text-sm font-medium text-background md:col-span-3">Simpan tagihan sebagai draf</button>
               </div>
             );
           }}
         </ManagedForm>
-        <GlassTable columns={[{ key: "number", header: "Bill" }, { key: "vendor", header: "Vendor" }, { key: "due", header: "Jatuh Tempo" }, { key: "status", header: "Status" }, { key: "amount", header: "Net" }]} rows={rows} empty="Belum ada bill." />
+        <GlassTable columns={[{ key: "number", header: "No. tagihan" }, { key: "vendor", header: "Pemasok" }, { key: "due", header: "Jatuh Tempo" }, { key: "status", header: "Status" }, { key: "amount", header: "Nilai bersih" }]} rows={rows} empty="Belum ada tagihan. Isi formulir di atas untuk mencatat tagihan pertama." />
       </DocumentWorkspace>
     </div>
   );

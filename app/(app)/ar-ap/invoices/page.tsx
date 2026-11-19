@@ -8,7 +8,7 @@ import { WorkspaceHeader } from "@/components/layout/workspace";
 import { GlassTable } from "@/components/tables/glass-table";
 import { GlassSkeleton } from "@/components/feedback/glass-feedback";
 import { useListQuery, usePostMutation } from "@/presentation/query/dashboard-hooks";
-import { formatRupiah } from "@/presentation/format/number";
+import { formatNumber, formatRupiah } from "@/presentation/format/number";
 
 const schema = z.object({
   customerId: z.string().min(10),
@@ -59,8 +59,8 @@ export default function Page() {
 
   return (
     <div className="grid gap-6">
-      <WorkspaceHeader eyebrow="Accounts Receivable" title="Invoices" description="Draft, posting, dan penyelesaian invoice melalui ArApService. PPN dihitung otomatis." />
-      <DocumentWorkspace summary={<DocumentSummary title="Receivable" lines={[{ label: "Invoices", value: String(rows.length) }]} />}>
+      <WorkspaceHeader eyebrow="Piutang & Utang" title="Faktur" description="Buat faktur untuk pelanggan yang membayar belakangan. PPN dihitung otomatis." />
+      <DocumentWorkspace summary={<DocumentSummary title="Piutang" lines={[{ label: "Jumlah faktur", value: formatNumber(rows.length) }]} />}>
         <ManagedForm<InvoiceForm>
           schema={schema}
           defaultValues={{ customerId: "", arAccountId: "", revenueAccountId: "", issueDate: new Date().toLocaleDateString("en-CA"), dueDate: new Date(Date.now() + 14 * 86400000).toLocaleDateString("en-CA"), subtotal: "", ppnPercent: "0", description: "" }}
@@ -77,8 +77,8 @@ export default function Page() {
             const ppnPercent = form.watch("ppnPercent");
             return (
               <div className="grid gap-4 rounded-lg border border-border p-4 md:grid-cols-3">
-                <RhfDataSelect<InvoiceForm> name="customerId" label="Customer" options={customerOptions} placeholder="Pilih customer" />
-                <RhfDataSelect<InvoiceForm> name="arAccountId" label="Akun piutang (AR)" options={arOptions} placeholder="Pilih akun piutang" />
+                <RhfDataSelect<InvoiceForm> name="customerId" label="Pelanggan" options={customerOptions} placeholder="Pilih pelanggan" />
+                <RhfDataSelect<InvoiceForm> name="arAccountId" label="Akun piutang" options={arOptions} placeholder="Pilih akun piutang" />
                 <RhfDataSelect<InvoiceForm> name="revenueAccountId" label="Akun pendapatan" options={revenueOptions} placeholder="Pilih akun pendapatan" />
                 <RhfTextField<InvoiceForm> name="issueDate" label="Tanggal terbit" />
                 <RhfTextField<InvoiceForm> name="dueDate" label="Jatuh tempo" />
@@ -86,12 +86,12 @@ export default function Page() {
                 <RhfMoneyField<InvoiceForm> name="subtotal" label="Subtotal (sebelum pajak)" placeholder="0" />
                 <RhfTextField<InvoiceForm> name="ppnPercent" label="PPN % (opsional, cth: 11)" placeholder="0" type="number" />
                 <TaxBreakdown subtotal={subtotal} ppn={ppnPercent ?? "0"} />
-                <button type="submit" className="h-10 rounded-md bg-foreground px-4 text-sm font-medium text-background md:col-span-3">Simpan invoice draft</button>
+                <button type="submit" className="h-10 rounded-md bg-foreground px-4 text-sm font-medium text-background md:col-span-3">Simpan faktur sebagai draf</button>
               </div>
             );
           }}
         </ManagedForm>
-        <GlassTable columns={[{ key: "number", header: "Invoice" }, { key: "customer", header: "Customer" }, { key: "due", header: "Jatuh Tempo" }, { key: "status", header: "Status" }, { key: "amount", header: "Total" }]} rows={rows} empty="Belum ada invoice." />
+        <GlassTable columns={[{ key: "number", header: "No. faktur" }, { key: "customer", header: "Pelanggan" }, { key: "due", header: "Jatuh Tempo" }, { key: "status", header: "Status" }, { key: "amount", header: "Total" }]} rows={rows} empty="Belum ada faktur. Isi formulir di atas untuk membuat faktur pertama." />
       </DocumentWorkspace>
     </div>
   );

@@ -28,7 +28,7 @@ export default function Page() {
   const [busy, setBusy] = useState(false);
 
   if (sessions.isLoading) return <GlassSkeleton className="h-72" />;
-  if (sessions.error) return <GlassErrorState title="POS sessions tidak tersedia" description="Tidak dapat memuat sesi POS." />;
+  if (sessions.error) return <GlassErrorState title="Sesi kasir belum bisa dimuat" description="Coba muat ulang halaman." />;
 
   const allSessions: any[] = (sessions.data as any)?.data ?? [];
   const openSessions = allSessions.filter((s) => s.status === "OPEN");
@@ -52,7 +52,7 @@ export default function Page() {
         closedAt: new Date(closedAt).toISOString(),
         ...(closingAmount ? { closingCashAmount: Number(closingAmount) } : {}),
       });
-      toast.success("Sesi POS berhasil ditutup.");
+      toast.success("Sesi kasir berhasil ditutup.");
       setSessionId(""); setClosingAmount("");
       void qc.invalidateQueries({ queryKey: ["list", "pos-sessions"] });
     } catch (e) {
@@ -62,7 +62,7 @@ export default function Page() {
 
   return (
     <div className="grid gap-6">
-      <WorkspaceHeader eyebrow="POS" title="Tutup Kasir" description="Tutup sesi POS aktif, catat jumlah kas terhitung, dan posting selisih melalui CashService." />
+      <WorkspaceHeader eyebrow="Kasir" title="Tutup Kasir" description="Tutup sesi kasir yang masih aktif dan catat jumlah uang tunai yang dihitung di laci." />
       <SplitWorkspace
         main={<GlassTable columns={[{ key: "id", header: "ID" }, { key: "terminal", header: "Terminal" }, { key: "opened", header: "Dibuka" }, { key: "closed", header: "Ditutup" }, { key: "opening", header: "Modal Awal" }, { key: "closing", header: "Kas Akhir" }]} rows={rows} empty="Belum ada sesi yang ditutup." />}
         side={
@@ -89,7 +89,7 @@ export default function Page() {
             <button type="button" onClick={handleClose} disabled={busy || !sessionId} className="h-10 rounded-md bg-foreground text-sm font-medium text-background disabled:opacity-40">
               {busy ? "Menutup…" : "Tutup sesi"}
             </button>
-            <DetailPanel title="Selisih kas">Jika jumlah kas terhitung berbeda dari ekspektasi, CashService akan posting jurnal selisih secara otomatis.</DetailPanel>
+            <DetailPanel title="Selisih kas">Jika uang tunai yang dihitung berbeda dari perkiraan, selisihnya otomatis dicatat ke jurnal.</DetailPanel>
           </GlassPanel>
         }
       />
