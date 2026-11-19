@@ -21,8 +21,7 @@ export class PaymentService {
     const validation = await this.walletContext(ctx, command, [command.cashAccountId]);
     const preview = this.engine.previewWalletTopup(command, validation);
     const posted = await this.post(ctx, command.transactionDate, "WALLET_TOPUP", command.walletId, command.description, preview.lines, "wallet-topup:" + ctx.businessId + ":" + command.walletId + ":" + command.transactionDate.toISOString() + ":" + command.amount.toString() + ":" + command.description);
-    const balanceAfter = this.engine.balanceAfterDebit(validation.wallet!, command.amount);
-    await this.repo.updateWalletBalance(ctx, command.walletId, balanceAfter);
+    const balanceAfter = await this.repo.incrementWalletBalance(ctx, command.walletId, command.amount);
     const tx = await this.repo.createWalletTransaction(ctx, { ...command, type: "TOPUP", customerId: validation.wallet!.customerId, balanceAfter, postedJournalId: posted.journalId });
     await this.audit(ctx, "WALLET_TOPUP_POSTED", "wallet_transaction", tx.id, { journalId: posted.journalId, balanceAfter: balanceAfter.toString() });
     return { transaction: tx, journal: posted, preview };
@@ -33,8 +32,7 @@ export class PaymentService {
     const validation = await this.walletContext(ctx, command, [command.revenueSettlementAccountId]);
     const preview = this.engine.previewWalletSpend(command, validation);
     const posted = await this.post(ctx, command.transactionDate, "WALLET_SPEND", command.walletId, command.description, preview.lines, "wallet-spend:" + ctx.businessId + ":" + command.walletId + ":" + command.transactionDate.toISOString() + ":" + command.amount.toString() + ":" + command.description);
-    const balanceAfter = this.engine.balanceAfterCredit(validation.wallet!, command.amount);
-    await this.repo.updateWalletBalance(ctx, command.walletId, balanceAfter);
+    const balanceAfter = await this.repo.incrementWalletBalance(ctx, command.walletId, -command.amount);
     const tx = await this.repo.createWalletTransaction(ctx, { ...command, type: "SPEND", customerId: validation.wallet!.customerId, balanceAfter, postedJournalId: posted.journalId });
     await this.audit(ctx, "WALLET_SPEND_POSTED", "wallet_transaction", tx.id, { journalId: posted.journalId, balanceAfter: balanceAfter.toString() });
     return { transaction: tx, journal: posted, preview };
@@ -45,8 +43,7 @@ export class PaymentService {
     const validation = await this.walletContext(ctx, command, [command.cashAccountId]);
     const preview = this.engine.previewWalletRefund(command, validation);
     const posted = await this.post(ctx, command.transactionDate, "WALLET_REFUND", command.walletId, command.description, preview.lines, "wallet-refund:" + ctx.businessId + ":" + command.walletId + ":" + command.transactionDate.toISOString() + ":" + command.amount.toString() + ":" + command.description);
-    const balanceAfter = this.engine.balanceAfterCredit(validation.wallet!, command.amount);
-    await this.repo.updateWalletBalance(ctx, command.walletId, balanceAfter);
+    const balanceAfter = await this.repo.incrementWalletBalance(ctx, command.walletId, -command.amount);
     const tx = await this.repo.createWalletTransaction(ctx, { ...command, type: "REFUND", customerId: validation.wallet!.customerId, balanceAfter, postedJournalId: posted.journalId });
     await this.audit(ctx, "WALLET_REFUND_POSTED", "wallet_transaction", tx.id, { journalId: posted.journalId, balanceAfter: balanceAfter.toString() });
     return { transaction: tx, journal: posted, preview };
@@ -57,8 +54,7 @@ export class PaymentService {
     const validation = await this.walletContext(ctx, command, [command.adjustmentAccountId]);
     const preview = this.engine.previewWalletAdjustment(command, validation);
     const posted = await this.post(ctx, command.transactionDate, "WALLET_ADJUSTMENT", command.walletId, command.description, preview.lines, "wallet-adjustment:" + ctx.businessId + ":" + command.walletId + ":" + command.direction + ":" + command.transactionDate.toISOString() + ":" + command.amount.toString());
-    const balanceAfter = command.direction === "INCREASE" ? this.engine.balanceAfterDebit(validation.wallet!, command.amount) : this.engine.balanceAfterCredit(validation.wallet!, command.amount);
-    await this.repo.updateWalletBalance(ctx, command.walletId, balanceAfter);
+    const balanceAfter = await this.repo.incrementWalletBalance(ctx, command.walletId, command.direction === "INCREASE" ? command.amount : -command.amount);
     const tx = await this.repo.createWalletTransaction(ctx, { ...command, type: "ADJUSTMENT", customerId: validation.wallet!.customerId, balanceAfter, postedJournalId: posted.journalId });
     await this.audit(ctx, "WALLET_ADJUSTMENT_POSTED", "wallet_transaction", tx.id, { journalId: posted.journalId, balanceAfter: balanceAfter.toString(), direction: command.direction });
     return { transaction: tx, journal: posted, preview };
@@ -150,8 +146,7 @@ export class PaymentService {
   private async applyWalletSpendForAllocation(ctx: TenantContext, allocation: PaymentAllocationInput, payment: PaymentTransactionEntity, postedJournalId: string): Promise<void> {
     const wallet = await this.repo.findCustomerWallet(ctx, allocation.walletId ?? "");
     if (!wallet) throw new PaymentError("WALLET_NOT_FOUND", "Customer wallet was not found in this business.");
-    const balanceAfter = this.engine.balanceAfterCredit(wallet, allocation.amount);
-    await this.repo.updateWalletBalance(ctx, wallet.id, balanceAfter);
+    const balanceAfter = await this.repo.incrementWalletBalance(ctx, wallet.id, -allocation.amount);
     await this.repo.createWalletTransaction(ctx, { businessId: ctx.businessId, walletId: wallet.id, transactionDate: payment.transactionDate, amount: allocation.amount, description: "Payment " + payment.paymentNumber, type: "SPEND", customerId: wallet.customerId, balanceAfter, postedJournalId });
   }
 

@@ -1,5 +1,5 @@
 # Product Requirements Document (PRD)
-## AkuntansiMu — Aplikasi Akuntansi untuk UMKM & Badan Usaha Desa
+## BisnisMu — Aplikasi Akuntansi untuk UMKM & Badan Usaha Desa
 
 **Versi:** 1.0  
 **Tanggal:** 30 Mei 2026  
@@ -35,7 +35,7 @@
 
 ## 1. Executive Summary
 
-**AkuntansiMu** adalah aplikasi akuntansi berbasis web yang dirancang khusus untuk:
+**BisnisMu** adalah aplikasi akuntansi berbasis web yang dirancang khusus untuk:
 - UMKM (Usaha Mikro, Kecil, Menengah)
 - Usaha rumahan / skala kecil
 - Badan Usaha Desa (BUMDes) / Badan Usaha Daerah
@@ -293,7 +293,7 @@ Option C: NestJS (jika tim butuh struktur enterprise-style)
 
 ### 7.2 Multi-Tenant Architecture
 
-AkuntansiMu menggunakan **Row-Level Multi-Tenancy** dengan kolom `business_id` pada setiap tabel. Setiap user dapat memiliki dan beralih antar beberapa usaha (business entities).
+BisnisMu menggunakan **Row-Level Multi-Tenancy** dengan kolom `business_id` pada setiap tabel. Setiap user dapat memiliki dan beralih antar beberapa usaha (business entities).
 
 ```
 User (1) ──── UserBusinessMember (many) ──── Business (many)
@@ -721,7 +721,7 @@ Satu akun pengguna dapat memiliki atau menjadi anggota dari beberapa usaha. Seti
 
 ### 10.3 Business Switcher
 
-- Selector usaha di sidebar kiri atas (seperti yang sudah ada di AkuntansiMu)
+- Selector usaha di sidebar kiri atas (seperti yang sudah ada di BisnisMu)
 - Tunjukkan nama usaha aktif + badge role pengguna
 - Dropdown untuk beralih usaha atau tambah usaha baru
 - Context switching menjaga route yang sama jika memungkinkan
@@ -1105,4 +1105,4 @@ Sistem menyediakan template CALK yang bisa dikustomisasi.
 
 ---
 
-**AkuntansiMu** — Keuangan Bersih, Usaha Maju.
+**BisnisMu** — Keuangan Bersih, Usaha Maju.

@@ -117,7 +117,7 @@ export class PrismaPurchaseRepository implements PurchaseRepository {
 
   async updatePurchaseOrderStatus(ctx: TenantContext, purchaseOrderId: string, status: PurchaseOrderEntity["status"]): Promise<PurchaseOrderEntity> {
     const row = await this.prisma.purchaseOrder.update({
-      where: { id: purchaseOrderId },
+      where: { id: purchaseOrderId, businessId: ctx.businessId },
       data: { status },
       include: { items: true }
     });
@@ -126,7 +126,7 @@ export class PrismaPurchaseRepository implements PurchaseRepository {
 
   async updateItemReceived(ctx: TenantContext, itemId: string, receivedQuantity: bigint): Promise<PurchaseOrderItemEntity> {
     const row = await this.prisma.purchaseOrderItem.update({
-      where: { id: itemId },
+      where: { id: itemId, businessId: ctx.businessId },
       data: { receivedQuantity }
     });
     return this.toItem(row);

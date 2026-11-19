@@ -13,7 +13,16 @@ out/
 # build
 dist/
 
+# test coverage
+coverage/
+
 # misc
 .DS_Store
 *.tsbuildinfo
 next-env.d.ts
+
+# local agent/runtime artifacts
+.codex/
+.kirograph/
+.warp-dev-*.log
+AGENTS.md

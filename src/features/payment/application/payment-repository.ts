@@ -21,7 +21,11 @@ export interface PaymentRepository {
   createCustomerWallet(ctx: TenantContext, input: CreateWalletRecord): Promise<CustomerWalletEntity>;
   findCustomerWallet(ctx: TenantContext, walletId: string): Promise<CustomerWalletEntity | null>;
   findWalletByCustomer(ctx: TenantContext, customerId: string): Promise<CustomerWalletEntity | null>;
-  updateWalletBalance(ctx: TenantContext, walletId: string, balance: bigint): Promise<CustomerWalletEntity>;
+  /**
+   * Atomically applies a signed delta to the wallet balance and returns the
+   * resulting balance, preventing lost updates under concurrent movements.
+   */
+  incrementWalletBalance(ctx: TenantContext, walletId: string, delta: bigint): Promise<bigint>;
   createWalletTransaction(ctx: TenantContext, input: CreateWalletTransactionRecord): Promise<CustomerWalletTransactionEntity>;
   listWalletTransactions(ctx: TenantContext, walletId: string): Promise<CustomerWalletTransactionEntity[]>;
   nextPaymentNumber(ctx: TenantContext, date: Date): Promise<string>;

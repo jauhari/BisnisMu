@@ -2,6 +2,7 @@ import { Prisma, PrismaClient } from "@prisma/client";
 import { AccountGroupCode, AccountSnapshot } from "../../accounting/domain/accounting-types";
 import { CashAuditEvent, CashRepository } from "../application/cash-repository";
 import { CashTransactionDraftInput, CashTransactionEntity, ContactEntity, CreateContactInput, TenantContext } from "../domain/cash-types";
+import type { TxClient } from "../../shared/tx";
 
 const domainGroupByPrisma = { ASSET: 1, LIABILITY: 2, EQUITY: 3, REVENUE: 4, COGS: 5, EXPENSE: 6, OTHER_EXPENSE: 7 } as const;
 
@@ -47,14 +48,26 @@ export class PrismaCashRepository implements CashRepository {
     return tx ? this.toCashTransaction(tx) : null;
   }
 
-  async markPosted(ctx: TenantContext, transactionId: string, journalId: string): Promise<CashTransactionEntity> {
-    const tx = await this.prisma.cashTransaction.update({ where: { id: transactionId, businessId: ctx.businessId }, data: { status: "POSTED", postedJournalId: journalId, postedByUserId: ctx.actorUserId, postedAt: new Date() } });
+  async markPosted(ctx: TenantContext, transactionId: string, journalId: string, dbTx?: TxClient): Promise<CashTransactionEntity> {
+    const client = (dbTx as Prisma.TransactionClient) ?? this.prisma;
+    const tx = await client.cashTransaction.update({ where: { id: transactionId, businessId: ctx.businessId }, data: { status: "POSTED", postedJournalId: journalId, postedByUserId: ctx.actorUserId, postedAt: new Date() } });
     return this.toCashTransaction(tx);
   }
 
-  async markVoided(ctx: TenantContext, transactionId: string, journalId: string, reason: string): Promise<CashTransactionEntity> {
-    const tx = await this.prisma.cashTransaction.update({ where: { id: transactionId, businessId: ctx.businessId }, data: { status: "VOID", voidJournalId: journalId, voidReason: reason, voidedByUserId: ctx.actorUserId, voidedAt: new Date() } });
+  async markVoided(ctx: TenantContext, transactionId: string, journalId: string, reason: string, dbTx?: TxClient): Promise<CashTransactionEntity> {
+    const client = (dbTx as Prisma.TransactionClient) ?? this.prisma;
+    const tx = await client.cashTransaction.update({ where: { id: transactionId, businessId: ctx.businessId }, data: { status: "VOID", voidJournalId: journalId, voidReason: reason, voidedByUserId: ctx.actorUserId, voidedAt: new Date() } });
     return this.toCashTransaction(tx);
+  }
+
+  async deleteDraft(ctx: TenantContext, transactionId: string): Promise<boolean> {
+    const result = await this.prisma.cashTransaction.deleteMany({ where: { id: transactionId, businessId: ctx.businessId, status: "DRAFT" } });
+    return result.count > 0;
+  }
+
+  async deleteAny(ctx: TenantContext, transactionId: string): Promise<boolean> {
+    const result = await this.prisma.cashTransaction.deleteMany({ where: { id: transactionId, businessId: ctx.businessId } });
+    return result.count > 0;
   }
 
   async createAuditLog(ctx: TenantContext, event: CashAuditEvent): Promise<void> {

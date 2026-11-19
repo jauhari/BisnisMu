@@ -34,6 +34,8 @@ export class InventoryService {
     const byId = new Map(accounts.map((a) => [a.id, a]));
     this.engine.validateUpdateProduct(command, existing, { category, inventoryAccount: command.inventoryAccountId ? byId.get(command.inventoryAccountId) ?? null : null, cogsAccount: command.cogsAccountId ? byId.get(command.cogsAccountId) ?? null : null, revenueAccount: byId.get(command.revenueAccountId) ?? null });
     const product = await this.repo.updateProduct(ctx, command.productId, command);
+    if (command.buyPrice !== undefined) await this.repo.createPrice(ctx, { businessId: ctx.businessId, productId: product.id, priceType: "BUY", amount: command.buyPrice, effectiveDate: new Date() });
+    if (command.sellPrice !== undefined) await this.repo.createPrice(ctx, { businessId: ctx.businessId, productId: product.id, priceType: "SELL", amount: command.sellPrice, effectiveDate: new Date() });
     await this.audit(ctx, "PRODUCT_UPDATED", "product", product.id, { sku: product.sku, type: product.type });
     return product;
   }

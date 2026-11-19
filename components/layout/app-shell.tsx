@@ -1,47 +1,457 @@
 "use client";
 
-import Link from "next/link";
 import type { ReactNode } from "react";
-import { useState } from "react";
-import { navigation } from "@/presentation/navigation/navigation";
-import { GlassCommandPalette } from "../glass/glass-primitives";
-import { Menu, X } from "lucide-react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
+const GlassCommandPalette = dynamic(
+  () =>
+    import("../glass/glass-primitives").then((m) => ({
+      default: m.GlassCommandPalette,
+    })),
+  { ssr: false },
+);
+import { SidebarNav } from "./sidebar-nav";
+import Link from "next/link";
+import {
+  Menu,
+  X,
+  PanelLeftClose,
+  PanelLeftOpen,
+  LogOut,
+  ChevronDown,
+  UserCircle,
+  Pencil,
+  Plus,
+} from "lucide-react";
+import { useSessionContext, type SessionBusiness } from "./session-context";
+import { useQueryClient } from "@tanstack/react-query";
+import { GlassInput, GlassPasswordInput } from "@/components/forms/glass-form";
+import { toast } from "sonner";
+import { apiRequest } from "@/presentation/api/client";
+import packageJson from "../../package.json";
 
-export function AppShell({ children }: { children: ReactNode }) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+const COLLAPSE_KEY = "bisnismu:sidebar-collapsed";
 
-  return <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,hsl(var(--accent)/0.10),transparent_32rem),hsl(var(--background))]">
-    {/* Mobile overlay */}
-    {sidebarOpen && (
-      <div
-        className="fixed inset-0 z-40 bg-black/50 lg:hidden"
-        onClick={() => setSidebarOpen(false)}
-      />
-    )}
+// Lazy load heavy profile modal to reduce initial bundle size of AppShell
+const ProfileModal = dynamic(
+  () => import("./profile-modal").then((m) => ({ default: m.ProfileModal })),
+  {
+    ssr: false,
+  },
+);
 
-    {/* Sidebar */}
-    <aside className={`fixed inset-y-0 left-0 z-50 w-72 border-r border-border/70 bg-white/55 p-4 backdrop-blur-glass transition-transform duration-200 dark:bg-white/6 lg:z-0 lg:translate-x-0 ${
-      sidebarOpen ? "translate-x-0" : "-translate-x-full"
-    } lg:block lg:translate-x-0`}>
-      <div className="px-3 py-2 text-lg font-semibold">AkuntansiMu</div>
-      <nav className="mt-5 grid gap-1" aria-label="Primary navigation">{navigation.map((item) => <Link key={item.href} href={item.href} className="rounded-md px-3 py-2 text-sm text-muted transition hover:bg-white/70 hover:text-foreground dark:hover:bg-white/10" onClick={() => setSidebarOpen(false)}>{item.title}</Link>)}</nav>
-    </aside>
+// ─── Business Switcher (dropdown di header) ─────────────────────────────────────
+type SwitchableBusiness = SessionBusiness;
 
-    <div className="lg:pl-72">
-      <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border/70 bg-background/70 px-4 backdrop-blur-glass lg:px-8">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="lg:hidden"
-            aria-label="Toggle sidebar"
-          >
-            {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
-          </button>
-          <div><p className="text-sm text-muted">Current business</p><p className="font-medium">Demo UMKM</p></div>
+function BusinessSwitcher({ businesses }: { businesses: SessionBusiness[] }) {
+  const router = useRouter();
+  const qc = useQueryClient();
+  const ref = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  // Daftar usaha sudah tersedia dari props server — tidak ada fetch saat dropdown dibuka.
+  const [items, setItems] = useState<SwitchableBusiness[]>(businesses);
+  const [switching, setSwitching] = useState<string | null>(null);
+  const [isRefreshing, startRefresh] = useTransition();
+
+  // Nama di header mengikuti state lokal agar langsung berubah setelah pilih usaha.
+  const activeName = items.find((business) => business.active)?.name ?? "—";
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node))
+        setOpen(false);
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  // Props server berubah setelah router.refresh() (mis. usai ganti usaha aktif).
+  useEffect(() => {
+    setItems(businesses);
+  }, [businesses]);
+
+  function toggle() {
+    setOpen((prev) => !prev);
+  }
+
+  async function select(id: string, isActive: boolean) {
+    if (isActive) {
+      setOpen(false);
+      return;
+    }
+    setSwitching(id);
+    try {
+      const res = await fetch("/api/auth/select-business", {
+        method: "POST",
+        credentials: "include",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ businessId: id }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(
+          j?.error?.message || j?.message || "Gagal mengganti usaha.",
+        );
+      }
+      const markActive = (businesses: SwitchableBusiness[]) =>
+        businesses.map((business) => ({
+          ...business,
+          active: business.id === id,
+        }));
+
+      // Update the header immediately after the server confirms the session change.
+      setItems(markActive);
+      qc.setQueryData<{ data: SwitchableBusiness[] } | SwitchableBusiness[]>(
+        ["auth", "businesses"],
+        (current) => {
+          if (!current) return current;
+          return Array.isArray(current)
+            ? markActive(current)
+            : { ...current, data: markActive(current.data ?? []) };
+        },
+      );
+
+      setOpen(false);
+      toast.success("Usaha aktif diganti.");
+
+      // Tenant-scoped query data belongs to the previously active business.
+      // Removing it avoids a full synchronous refetch before rendering the new one.
+      qc.removeQueries({ predicate: (query) => query.queryKey[0] !== "auth" });
+      startRefresh(() => router.refresh());
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gagal mengganti usaha.");
+    } finally {
+      setSwitching(null);
+    }
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={toggle}
+        title="Ganti usaha"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 transition hover:bg-white/60 dark:hover:bg-white/10"
+      >
+        <div className="min-w-0 text-left">
+          <p className="text-xs text-muted">Usaha aktif</p>
+          <p className="max-w-[10rem] truncate text-sm font-medium sm:max-w-[16rem]">{activeName}</p>
         </div>
-        <div className="hidden md:block"><GlassCommandPalette className="w-80 px-4 py-2 text-sm text-muted">Command palette / search</GlassCommandPalette></div>
-      </header>
-      <main className="mx-auto max-w-[1600px] p-4 lg:p-8">{children}</main>
+        <ChevronDown
+          className={`h-3.5 w-3.5 text-muted transition-transform ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+
+      {open && (
+        <div className="absolute left-0 z-50 mt-2 w-72 rounded-xl border border-border bg-background p-1.5 shadow-xl">
+          <p className="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-muted">
+            Pilih Usaha
+          </p>
+          <div className="max-h-72 overflow-y-auto">
+            {items.length === 0 && (
+              <p className="px-3 py-3 text-sm text-muted">
+                Belum tergabung di usaha manapun.
+              </p>
+            )}
+            {items.map((b) => (
+              <button
+                key={b.id}
+                type="button"
+                disabled={switching !== null || isRefreshing}
+                onClick={() => void select(b.id, b.active)}
+                className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left transition disabled:opacity-50 ${
+                  b.active
+                    ? "bg-accent/8"
+                    : "hover:bg-white/60 dark:hover:bg-white/8"
+                }`}
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{b.name}</p>
+                  <p className="text-[11px] text-muted">{b.role}</p>
+                </div>
+                {switching === b.id ? (
+                  <span className="shrink-0 text-[11px] text-muted">
+                    Memuat…
+                  </span>
+                ) : b.active ? (
+                  <span className="shrink-0 rounded-full bg-accent/15 px-2 py-0.5 text-[11px] font-medium text-accent">
+                    Aktif
+                  </span>
+                ) : null}
+              </button>
+            ))}
+          </div>
+          <div className="mt-1 border-t border-border/60 pt-1">
+            <Link
+              href="/register"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-accent hover:bg-white/60 dark:hover:bg-white/8"
+            >
+              <Plus className="h-4 w-4" /> Buat usaha baru
+            </Link>
+          </div>
+        </div>
+      )}
     </div>
-  </div>;
+  );
+}
+
+// ─── AppShell ─────────────────────────────────────────────────────────────────
+export function AppShell({ children }: { children: ReactNode }) {
+  // Data sesi datang dari <SessionProvider> (props server), tanpa /api/auth/*.
+  const { user, businesses } = useSessionContext();
+  const router = useRouter();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [editProfile, setEditProfile] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+
+  // Tutup dropdown kalau klik di luar
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (
+        userMenuRef.current &&
+        !userMenuRef.current.contains(e.target as Node)
+      )
+        setUserMenuOpen(false);
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  async function handleLogout() {
+    await fetch("/api/auth/logout", {
+      method: "POST",
+      credentials: "include",
+    }).catch(() => {});
+    router.push("/login");
+    router.refresh();
+  }
+
+  // Inisial dari nama untuk avatar
+  const initials = user.name
+    ? user.name
+        .split(" ")
+        .map((w) => w[0])
+        .slice(0, 2)
+        .join("")
+        .toUpperCase()
+    : "?";
+
+  const isGodMode = ["SUPER_ADMIN", "SUPPORT_AGENT", "DEVELOPER"].includes(
+    (user.platformRole ?? "USER") as any,
+  );
+
+  // Muat preferensi collapse dari sesi sebelumnya.
+  useEffect(() => {
+    try {
+      setCollapsed(localStorage.getItem(COLLAPSE_KEY) === "1");
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  const toggleCollapsed = () =>
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(COLLAPSE_KEY, next ? "1" : "0");
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+
+  // Rail desktop baru aktif di 2xl (1536px). Pada 1280-1535px rail 256px
+  // membuat area konten menyusut drastis — terukur area tabel jatuh dari
+  // 1197px (viewport 1279) ke 670px (viewport 1280) — sehingga tabel lebar
+  // seperti Bagan Akun justru rusak tepat setelah melewati breakpoint xl.
+  // Di bawah 2xl sidebar jadi overlay agar konten memakai lebar penuh.
+  const railWidth = collapsed ? "2xl:w-[76px]" : "2xl:w-64";
+  const mainPad = collapsed ? "2xl:pl-[76px]" : "2xl:pl-64";
+
+  return (
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,hsl(var(--accent)/0.10),transparent_32rem),hsl(var(--background))]">
+      <a
+        href="#konten"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-lg focus:bg-background focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:shadow-lg"
+      >
+        Lewati ke konten
+      </a>
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 2xl:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar (mobile selalu lebar penuh; desktop bisa di-collapse jadi rail ikon) */}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-border/70 bg-white/60 backdrop-blur-glass transition-[transform,width] duration-200 dark:bg-white/6 2xl:z-0 2xl:translate-x-0 ${railWidth} ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        } 2xl:translate-x-0`}
+      >
+        <div
+          className={`flex h-16 items-center gap-3 border-b border-border/60 ${collapsed ? "2xl:justify-center 2xl:px-0 px-5" : "px-5"}`}
+        >
+          <img
+            src="/logo.png"
+            alt="Logo BisnisMu"
+            className="h-9 w-9 shrink-0 object-contain"
+          />
+          <div className={`leading-tight ${collapsed ? "2xl:hidden" : ""}`}>
+            <p className="text-base font-semibold">BisnisMu</p>
+            <p className="text-[11px] text-muted">Akuntansi UMKM</p>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4">
+          <SidebarNav
+            collapsed={collapsed}
+            onNavigate={() => setSidebarOpen(false)}
+          />
+        </div>
+
+        {/* Tautan Changelog yang tidak terlalu mencolok (khusus God Mode) */}
+        {isGodMode && (
+          <div
+            className={`p-2 border-t border-border/40 text-center ${collapsed ? "px-1" : "px-4"}`}
+          >
+            <Link
+              href="/admin/changelog"
+              className={`block rounded-lg py-1.5 text-[11px] text-muted hover:text-foreground hover:bg-white/50 dark:hover:bg-white/5 transition duration-150 truncate`}
+              title="Lihat riwayat perubahan"
+            >
+              {collapsed
+                ? `v${packageJson.version}`
+                : `Riwayat versi v${packageJson.version}`}
+            </Link>
+          </div>
+        )}
+
+        {/* Tombol Collapse/Expand (hanya desktop) */}
+        <div className="hidden border-t border-border/60 p-2 2xl:block">
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            aria-label={collapsed ? "Lebarkan menu" : "Ciutkan menu"}
+            title={collapsed ? "Lebarkan menu" : "Ciutkan menu"}
+            className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted transition hover:bg-white/70 hover:text-foreground dark:hover:bg-white/10 ${collapsed ? "justify-center" : ""}`}
+          >
+            {collapsed ? (
+              <PanelLeftOpen className="h-[18px] w-[18px]" />
+            ) : (
+              <>
+                <PanelLeftClose className="h-[18px] w-[18px]" />
+                <span>Ciutkan menu</span>
+              </>
+            )}
+          </button>
+        </div>
+      </aside>
+
+      <div className={`${mainPad} transition-[padding] duration-200`}>
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border/70 bg-background/70 px-4 backdrop-blur-glass 2xl:px-8">
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="rounded-lg p-1 2xl:hidden"
+              aria-label={sidebarOpen ? "Tutup menu" : "Buka menu"}
+              aria-expanded={sidebarOpen}
+            >
+              {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
+            <BusinessSwitcher businesses={businesses} />
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="hidden md:block">
+              <GlassCommandPalette
+                aria-label="Pencarian cepat"
+                className="w-80 px-4 py-2 text-sm text-muted"
+              >
+                Cari menu atau halaman…
+              </GlassCommandPalette>
+            </div>
+
+            {/* User chip + dropdown */}
+            <div ref={userMenuRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setUserMenuOpen((o) => !o)}
+                aria-label="Menu akun"
+                aria-haspopup="menu"
+                aria-expanded={userMenuOpen}
+                className="flex items-center gap-2 rounded-lg px-2 py-1.5 transition hover:bg-white/60 dark:hover:bg-white/10"
+              >
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent text-xs font-bold text-background">
+                  {initials}
+                </span>
+                <span className="hidden flex-col items-start md:flex">
+                  <span className="text-sm font-medium leading-tight">
+                    {user.name}
+                  </span>
+                  <span className="text-[11px] text-muted leading-tight">
+                    {user.email}
+                  </span>
+                </span>
+                <ChevronDown className="h-3.5 w-3.5 text-muted" />
+              </button>
+
+              {userMenuOpen && (
+                <div className="absolute right-0 z-50 mt-2 w-56 rounded-xl border border-border bg-background p-1.5 shadow-xl">
+                  <div className="px-3 py-2 border-b border-border/60 mb-1">
+                    <p className="text-sm font-medium truncate">{user.name}</p>
+                    <p className="text-xs text-muted truncate">{user.email}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditProfile(true);
+                      setUserMenuOpen(false);
+                    }}
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-white/60 dark:hover:bg-white/8"
+                  >
+                    <Pencil className="h-4 w-4 text-muted" /> Ubah Profil
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleLogout()}
+                    className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-danger hover:bg-danger/8"
+                  >
+                    <LogOut className="h-4 w-4" /> Keluar
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </header>
+        {/* Padding rail sudah dipasang di wrapper header+main di atas. Jangan
+          ulangi di <main>: padding ganda menggeser konten 256px dari sidebar
+          di ≥2xl (terlihat sebagai ruang kosong besar di kiri dashboard). */}
+        <main id="konten" tabIndex={-1} className="outline-none">
+          <div className="w-full p-3 sm:p-4 2xl:p-8">
+            {children}
+          </div>
+        </main>
+      </div>
+
+      {editProfile && (
+        // Nama/email di header berasal dari props server, jadi refresh ringan
+        // setelah modal ditutup agar perubahan profil ikut terlihat.
+        <ProfileModal
+          user={user}
+          onClose={() => {
+            setEditProfile(false);
+            router.refresh();
+          }}
+        />
+      )}
+    </div>
+  );
 }

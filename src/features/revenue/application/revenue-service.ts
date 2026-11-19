@@ -3,9 +3,10 @@ import { JournalPostingService } from "../../accounting/application/journal-post
 import { RevenueEngine } from "../domain/revenue-engine";
 import { RevenueDraftInput, RevenueError, RevenueValidationContext, TenantContext } from "../domain/revenue-types";
 import { CreateRevenueCategoryCommand, CreateRevenueDraftCommand, CreateRevenueItemCommand, CreateRevenuePackageCommand, CreateRevenuePricingCommand, PostRevenueCommand, RevenueRepository, VoidRevenueCommand } from "./revenue-repository";
+import { inlineTransactionRunner, type TransactionRunner } from "../../shared/transaction-runner";
 
 export class RevenueService {
-  constructor(private readonly repository: RevenueRepository, private readonly journalPostingService: JournalPostingService, private readonly engine = new RevenueEngine()) {}
+  constructor(private readonly repository: RevenueRepository, private readonly journalPostingService: JournalPostingService, private readonly engine = new RevenueEngine(), private readonly txRunner: TransactionRunner = inlineTransactionRunner) {}
 
   async createCategory(command: CreateRevenueCategoryCommand) {
     const ctx = this.contextFrom(command);
@@ -66,9 +67,14 @@ export class RevenueService {
     if (!category) throw new RevenueError("CATEGORY_NOT_AVAILABLE", "Revenue category is not available.");
     const postCommand: PostJournalCommand = { businessId: ctx.businessId, actorUserId: ctx.actorUserId, transactionDate: tx.transactionDate, source: "REVENUE_" + tx.type, sourceId: tx.id, description: tx.description, idempotencyKey: "revenue:" + ctx.businessId + ":" + tx.id, lines: [{ accountId: tx.cashAccountId, side: "DEBIT", amount: tx.amount }, { accountId: category.revenueAccountId, side: "CREDIT", amount: tx.amount }] };
     this.copyMeta(ctx, postCommand);
-    const journal = await this.journalPostingService.post(postCommand);
-    const posted = await this.repository.markPosted(ctx, tx.id, journal.journalId);
-    await this.repository.createAuditLog(ctx, { action: "REVENUE_TRANSACTION_POSTED", businessId: ctx.businessId, actorUserId: ctx.actorUserId, entityType: "revenue_transaction", entityId: posted.id, metadata: { journalId: journal.journalId, transactionNumber: posted.transactionNumber } });
+    // Journal + status flip commit atomically; a failure after posting must not
+    // leave a posted journal with the transaction still in DRAFT.
+    const { journal, posted } = await this.txRunner.run(async (dbTx) => {
+      const journal = await this.journalPostingService.post(postCommand, dbTx);
+      const posted = await this.repository.markPosted(ctx, tx.id, journal.journalId, dbTx);
+      return { journal, posted };
+    });
+    await this.auditSafe(ctx, { action: "REVENUE_TRANSACTION_POSTED", businessId: ctx.businessId, actorUserId: ctx.actorUserId, entityType: "revenue_transaction", entityId: posted.id, metadata: { journalId: journal.journalId, transactionNumber: posted.transactionNumber } });
     return { transaction: posted, journal };
   }
 
@@ -81,9 +87,12 @@ export class RevenueService {
     if (!category) throw new RevenueError("CATEGORY_NOT_AVAILABLE", "Revenue category is not available.");
     const postCommand: PostJournalCommand = { businessId: ctx.businessId, actorUserId: ctx.actorUserId, transactionDate: tx.transactionDate, source: "VOID_REVENUE_TRANSACTION", sourceId: tx.id, description: "Void " + tx.transactionNumber + ": " + command.reason.trim(), idempotencyKey: "void-revenue:" + ctx.businessId + ":" + tx.id, lines: this.engine.buildVoidLines(tx, category.revenueAccountId) };
     this.copyMeta(ctx, postCommand);
-    const journal = await this.journalPostingService.post(postCommand);
-    const voided = await this.repository.markVoided(ctx, tx.id, journal.journalId, command.reason.trim());
-    await this.repository.createAuditLog(ctx, { action: "REVENUE_TRANSACTION_VOIDED", businessId: ctx.businessId, actorUserId: ctx.actorUserId, entityType: "revenue_transaction", entityId: voided.id, metadata: { voidJournalId: journal.journalId, reason: command.reason.trim() } });
+    const { journal, voided } = await this.txRunner.run(async (dbTx) => {
+      const journal = await this.journalPostingService.post(postCommand, dbTx);
+      const voided = await this.repository.markVoided(ctx, tx.id, journal.journalId, command.reason.trim(), dbTx);
+      return { journal, voided };
+    });
+    await this.auditSafe(ctx, { action: "REVENUE_TRANSACTION_VOIDED", businessId: ctx.businessId, actorUserId: ctx.actorUserId, entityType: "revenue_transaction", entityId: voided.id, metadata: { voidJournalId: journal.journalId, reason: command.reason.trim() } });
     return { transaction: voided, journal };
   }
 
@@ -117,6 +126,15 @@ export class RevenueService {
     if (ctx.requestId !== undefined) command.requestId = ctx.requestId;
     if (ctx.ipAddress !== undefined) command.ipAddress = ctx.ipAddress;
     if (ctx.userAgent !== undefined) command.userAgent = ctx.userAgent;
+  }
+
+  /** Audit logging is best-effort: it must never roll back or mask a committed posting. */
+  private async auditSafe(ctx: TenantContext, event: Parameters<RevenueRepository["createAuditLog"]>[1]): Promise<void> {
+    try {
+      await this.repository.createAuditLog(ctx, event);
+    } catch (error) {
+      console.error("[revenue] failed to write audit log", error);
+    }
   }
 
   private contextFrom(command: { businessId: string; actorUserId: string; requestId?: string; ipAddress?: string; userAgent?: string }): TenantContext {

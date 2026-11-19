@@ -1,9 +1,8 @@
 import { handleApi } from "@/presentation/api/route-handler";
+import { prisma } from "@/presentation/api/prisma";
 import { PrismaPurchaseRepository } from "@/features/purchase/infrastructure/prisma-purchase-repository";
 import { requireTenantContext } from "@/presentation/auth/session";
-import { PrismaClient } from "@prisma/client";
 
-const prisma = new PrismaClient();
 const repo = new PrismaPurchaseRepository(prisma);
 
 export async function GET(request: Request) {

@@ -1,5 +1,6 @@
 import { prisma } from "./prisma";
 import { JournalPostingService } from "@/features/accounting/application/journal-posting-service";
+import { InstallmentService } from "@/features/installments/application/installment-service";
 import { PrismaJournalRepository } from "@/features/accounting/infrastructure/prisma-journal-repository";
 import { ArApService } from "@/features/ar-ap/application/ar-ap-service";
 import { PrismaArApRepository } from "@/features/ar-ap/infrastructure/prisma-ar-ap-repository";
@@ -24,11 +25,19 @@ import { PrismaPurchaseRepository } from "@/features/purchase/infrastructure/pri
 import { PosService } from "@/features/pos/application/pos-service";
 import { PrismaPosRepository } from "@/features/pos/infrastructure/prisma-pos-repository";
 import { FloatManagementService } from "@/features/float/application/float-service";
+import { MemberService } from "@/features/membership/application/member-service";
+import { PrismaMemberRepository } from "@/features/membership/infrastructure/prisma-member-repository";
 import { PrismaFloatRepository } from "@/features/float/infrastructure/prisma-float-repository";
 import { RevenueService } from "@/features/revenue/application/revenue-service";
 import { PrismaRevenueRepository } from "@/features/revenue/infrastructure/prisma-revenue-repository";
 import { TourismService } from "@/features/tourism/application/tourism-service";
 import { PrismaTourismRepository } from "@/features/tourism/infrastructure/prisma-tourism-repository";
+import { OrganizationService } from "@/features/organization/application/organization-service";
+import { ConsolidationService } from "@/features/organization/application/consolidation-service";
+import { PrismaOrganizationRepository } from "@/features/organization/infrastructure/prisma-organization-repository";
+import { PayrollService } from "@/features/payroll/application/payroll-service";
+import { PrismaPayrollRepository } from "@/features/payroll/infrastructure/prisma-payroll-repository";
+import { prismaTransactionRunner } from "./transaction-runner";
 
 const journalRepository = new PrismaJournalRepository(prisma);
 const journal = new JournalPostingService(journalRepository);
@@ -44,23 +53,24 @@ const inventoryRepository = new PrismaInventoryRepository(prisma);
 const purchaseRepository = new PrismaPurchaseRepository(prisma);
 const floatRepository = new PrismaFloatRepository(prisma);
 const payment = new PaymentService(paymentRepository, journal);
-const inventory = new InventoryService(inventoryRepository, journal);
-const arAp = new ArApService(arApRepository, journal);
-const cashSession = new CashService(cashSessionRepository, journal);
 const float = new FloatManagementService(floatRepository, journal);
+const inventory = new InventoryService(inventoryRepository, journal, float);
+const arAp = new ArApService(arApRepository, journal, undefined, prismaTransactionRunner);
+const cashSession = new CashService(cashSessionRepository, journal);
 const sales = new SalesService(salesRepository, journal, inventory, payment);
 const posRepository = new PrismaPosRepository(prisma);
 const pos = new PosService(posRepository, sales, payment, cashSession);
 const revenueRepository = new PrismaRevenueRepository(prisma);
-const revenue = new RevenueService(revenueRepository, journal);
+const revenue = new RevenueService(revenueRepository, journal, undefined, prismaTransactionRunner);
 const tourismRepository = new PrismaTourismRepository(prisma);
 const tourism = new TourismService(tourismRepository, revenue);
+const payroll = new PayrollService(new PrismaPayrollRepository(prisma), journal);
 
 export const serverServices = {
   journal,
   business: new BusinessService(businessRepository, journal),
   chartOfAccounts: new ChartOfAccountsService(chartRepository),
-  cashManagement: new CashManagementService(cashRepository, journal),
+  cashManagement: new CashManagementService(cashRepository, journal, undefined, prismaTransactionRunner),
   cashSession,
   arAp,
   payment,
@@ -72,5 +82,15 @@ export const serverServices = {
   pos,
   revenue,
   tourism,
+  installments: new InstallmentService(prisma, journal),
+  payroll,
+  member: new MemberService(new PrismaMemberRepository(prisma), journal),
   paymentRepository
+};
+
+// ─── Multi-Unit Organization (additive — tidak mengubah service existing) ──────
+const organizationRepository = new PrismaOrganizationRepository(prisma);
+export const orgServices = {
+  organization: new OrganizationService(organizationRepository),
+  consolidation: new ConsolidationService(organizationRepository, serverServices.reporting),
 };

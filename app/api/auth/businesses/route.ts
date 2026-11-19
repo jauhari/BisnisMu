@@ -1,17 +1,13 @@
+import { unstable_cache } from "next/cache";
+
 import { handleApi } from "@/presentation/api/route-handler";
 import { prisma } from "@/presentation/api/prisma";
 import { getRequestSessionToken } from "@/presentation/auth/session";
 
-export async function GET(request: Request) {
-  return handleApi(async () => {
-    const token = getRequestSessionToken(request);
-    if (!token) throw new Error("Unauthorized");
-
-    const session = await prisma.session.findUnique({ where: { token } });
-    if (!session || session.expiresAt <= new Date()) throw new Error("Unauthorized");
-
+const getCachedUserBusinesses = unstable_cache(
+  async (userId: string, activeBusinessId: string | null, defaultBusinessId: string | null) => {
     const memberships = await prisma.businessMember.findMany({
-      where: { userId: session.userId, isActive: true },
+      where: { userId, isActive: true },
       include: { business: true },
       orderBy: { joinedAt: "asc" },
     });
@@ -20,7 +16,25 @@ export async function GET(request: Request) {
       id: membership.business.id,
       name: membership.business.name,
       role: membership.role,
-      active: membership.business.id === session.activeBusinessId,
+      active: membership.business.id === activeBusinessId,
+      isDefault: membership.business.id === defaultBusinessId,
     }));
+  },
+  ["user-businesses"],
+  { revalidate: 300, tags: ["businesses"] } // 5 minutes cache for businesses list
+);
+
+export async function GET(request: Request) {
+  return handleApi(async () => {
+    const token = getRequestSessionToken(request);
+    if (!token) throw new Error("Unauthorized");
+
+    const session = await prisma.session.findUnique({
+      where: { token },
+      include: { user: { select: { defaultBusinessId: true } } },
+    });
+    if (!session || session.expiresAt <= new Date()) throw new Error("Unauthorized");
+
+    return getCachedUserBusinesses(session.userId, session.activeBusinessId, session.user.defaultBusinessId);
   });
 }

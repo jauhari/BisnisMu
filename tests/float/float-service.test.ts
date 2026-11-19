@@ -28,7 +28,7 @@ class InMemoryFloatRepository implements FloatRepository {
   async findFloatAccount(ctx: TenantContext, id: string) { const fa = this.floats.get(id); return fa?.businessId === ctx.businessId ? fa : null; }
   async nextTransactionNumber() { return "FLOAT-202605-" + String(this.seq++).padStart(5, "0"); }
   async createTransaction(ctx: TenantContext, input: CreateFloatTransactionRecord) { const tx: FloatTransactionEntity = { id: "float-tx-" + this.seq++, businessId: ctx.businessId, transactionNumber: input.transactionNumber, type: input.type, floatAccountId: input.floatAccountId, destinationFloatAccountId: input.destinationFloatAccountId ?? null, cashAccountId: input.cashAccountId ?? null, transactionDate: input.transactionDate, amount: input.amount, balanceAfter: input.balanceAfter, description: input.description, postedJournalId: input.postedJournalId, createdByUserId: ctx.actorUserId }; this.transactions.set(tx.id, tx); return tx; }
-  async updateFloatBalance(ctx: TenantContext, id: string, balance: bigint) { const fa = (await this.findFloatAccount(ctx, id))!; const updated = { ...fa, currentBalance: balance }; this.floats.set(id, updated); return updated; }
+  async incrementFloatBalance(ctx: TenantContext, id: string, delta: bigint) { const fa = (await this.findFloatAccount(ctx, id))!; const updated = { ...fa, currentBalance: fa.currentBalance + delta }; this.floats.set(id, updated); return updated.currentBalance; }
   async createBalanceSnapshot(ctx: TenantContext, input: FloatBalanceSnapshotInput, balance: bigint) { const snapshot: FloatBalanceSnapshotEntity = { id: "snapshot-" + this.seq++, businessId: ctx.businessId, floatAccountId: input.floatAccountId, snapshotDate: input.snapshotDate, balance }; this.snapshots.set(snapshot.id, snapshot); return snapshot; }
   async createAuditLog(_ctx: TenantContext, event: FloatAuditEvent) { this.auditEvents.push(event); }
 }
@@ -64,6 +64,17 @@ describe("FloatManagementService", () => {
     const result = await service.consumeFloat({ ...base, floatAccountId: float.id, expenseAccountId: "expense", amount: 40000n, description: "Token PLN" });
     expect(result.transaction.balanceAfter).toBe(60000n);
     expect(postingRepo.posted[0]?.lines.map((l) => [l.accountId, l.side])).toEqual([["expense", "DEBIT"], ["float-asset", "CREDIT"]]);
+  });
+
+  it("accumulates balance via atomic increment across multiple topups", async () => {
+    const { service } = setup();
+    const float = await createFloat(service, { openingBalance: 0n });
+    const a = await service.topupFloat({ ...base, floatAccountId: float.id, cashAccountId: "cash", amount: 100000n, description: "Topup 1" });
+    const b = await service.topupFloat({ ...base, floatAccountId: float.id, cashAccountId: "cash", amount: 50000n, description: "Topup 2" });
+    // Each topup applies a delta to the persisted balance rather than overwriting
+    // with a value computed from a stale read, so balances accumulate exactly.
+    expect(a.transaction.balanceAfter).toBe(100000n);
+    expect(b.transaction.balanceAfter).toBe(150000n);
   });
 
   it("transfers between float accounts", async () => {

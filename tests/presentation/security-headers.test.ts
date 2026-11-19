@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { applySecurityHeaders, contentSecurityPolicy, securityHeaders, withSecurityHeaders } from "../../src/presentation/security/security-headers";
+import { applySecurityHeaders, contentSecurityPolicy, contentSecurityPolicyWithNonce, securityHeaders, withSecurityHeaders } from "../../src/presentation/security/security-headers";
 
 describe("security headers", () => {
   it("defines required headers", () => {
@@ -30,5 +30,11 @@ describe("security headers", () => {
     const response = withSecurityHeaders(new Response(null));
     expect(response.headers.get("x-frame-options")).toBe("DENY");
     expect(response.headers.get("content-security-policy")).toContain("frame-ancestors 'none'");
+  });
+
+  it("nonce CSP includes the script nonce and strict-dynamic", () => {
+    const csp = contentSecurityPolicyWithNonce("abc123");
+    expect(csp).toContain("'nonce-abc123'");
+    expect(csp).toContain("'strict-dynamic'");
   });
 });

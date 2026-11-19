@@ -57,7 +57,9 @@ export class CashManagementEngine {
 
   private assertCashAccount(accountId: string, account: AccountSnapshot | null, businessId: string, field: string): void {
     this.assertPostingAccount(accountId, account, businessId, field);
-    if (!account || account.groupCode !== 1 || (account.subtype !== undefined && account.subtype !== "cash" && account.subtype !== "bank")) {
+    const subtype = account?.subtype?.trim().toLowerCase();
+    const isCashOrBank = subtype === "cash" || subtype === "bank" || (account?.groupCode === 1 && account.code.startsWith("11"));
+    if (!account || account.groupCode !== 1 || !isCashOrBank) {
       throw new CashManagementError("ACCOUNT_NOT_CASH_OR_BANK", "Account must be an active cash or bank account.", { accountId, field });
     }
   }
@@ -75,4 +77,3 @@ export class CashManagementEngine {
     return [];
   }
 }
-

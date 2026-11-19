@@ -1,22 +1,29 @@
-import { PrismaClient } from "@prisma/client";
+import { unstable_cache } from "next/cache";
+
 import { DashboardEngine } from "@/features/dashboard";
+import { prisma } from "@/presentation/api/prisma";
 import { serverServices } from "@/presentation/api/server-services";
 import { handleApi } from "@/presentation/api/route-handler";
 import { dashboardRequestSchema } from "@/presentation/api/request-schemas";
 import { parseAndValidate } from "@/presentation/api/validation";
 import { requireTenantContext } from "@/presentation/auth/session";
 
-const prisma = new PrismaClient();
 const engine = new DashboardEngine();
 
-export async function POST(request: Request) {
-  return handleApi(async () => {
-    const body = await parseAndValidate(request, dashboardRequestSchema);
-    const { businessId, actorUserId } = await requireTenantContext(request);
-    const startsOn = body.startsOn;
-    const endsOn = body.endsOn;
-    const lowStockThreshold = body.lowStockThreshold ?? 5n;
-    const lowFloatThreshold = body.lowFloatThreshold ?? 100n;
+// Cache the heavy dashboard computation for 30s to make repeated views (and same filter) instant.
+// Keyed by business + time range + thresholds. This dramatically improves perceived speed for the cockpit.
+const getCachedDashboardOverview = unstable_cache(
+  async (input: any) => {
+    // The original heavy logic (many finds + reporting + engine)
+    const {
+      businessId, actorUserId, startsOn, endsOn,
+      lowStockThreshold = "5",
+      lowFloatThreshold = "100",
+    } = input;
+    // `unstable_cache` serializes its arguments to build a cache key. Keep
+    // bigint values out of that boundary, then restore the domain type here.
+    const lowStockThresholdBigInt = BigInt(lowStockThreshold);
+    const lowFloatThresholdBigInt = BigInt(lowFloatThreshold);
 
     const [
       salesOrders,
@@ -53,10 +60,23 @@ export async function POST(request: Request) {
       prisma.payment.findMany({ where: { businessId } }),
       prisma.paymentTransaction.findMany({ where: { businessId, transactionDate: { gte: startsOn, lte: endsOn } } }),
       prisma.customerWallet.findMany({ where: { businessId } }),
-      prisma.account.findMany({ where: { businessId, subtype: { in: ["cash", "bank"] }, isActive: true } })
+      prisma.account.findMany({
+        where: {
+          businessId,
+          groupCode: "ASSET",
+          isActive: true,
+          OR: [
+            { subtype: { equals: "cash", mode: "insensitive" } },
+            { subtype: { equals: "bank", mode: "insensitive" } },
+            // Legacy PKU accounts use codes 111xxx (cash) and 112xxx (bank)
+            // and store subtype as "Kas"/"Bank" rather than cash/bank.
+            { code: { startsWith: "111" } },
+            { code: { startsWith: "112" } },
+          ],
+        },
+      })
     ]);
 
-    // Generate P&L from reporting service
     let profitAndLoss;
     try {
       profitAndLoss = await serverServices.reporting.generateProfitLoss({
@@ -66,19 +86,42 @@ export async function POST(request: Request) {
       profitAndLoss = undefined;
     }
 
-    // Compute cash balances from journal lines
     const cashBalanceRows = await prisma.journalLine.groupBy({
-      by: ["accountId"],
-      where: { businessId, account: { subtype: { in: ["cash", "bank"] } } },
+      by: ["accountId", "side"],
+      where: {
+        businessId,
+        journal: { businessId, status: "POSTED" },
+        account: {
+          businessId,
+          groupCode: "ASSET",
+          OR: [
+            { subtype: { equals: "cash", mode: "insensitive" } },
+            { subtype: { equals: "bank", mode: "insensitive" } },
+            { code: { startsWith: "111" } },
+            { code: { startsWith: "112" } },
+          ],
+        },
+      },
       _sum: { amount: true }
     });
     const cashBalances = cashAccounts.map((acc) => {
-      const row = cashBalanceRows.find((r) => r.accountId === acc.id);
-      return { businessId, accountId: acc.id, subtype: acc.subtype as "cash" | "bank", balance: row?._sum?.amount ?? 0n };
+      const debit = cashBalanceRows.find((row) => row.accountId === acc.id && row.side === "DEBIT")?._sum.amount ?? 0n;
+      const credit = cashBalanceRows.find((row) => row.accountId === acc.id && row.side === "CREDIT")?._sum.amount ?? 0n;
+      const balance = debit - credit;
+      const subtype = String(acc.subtype ?? "").toLowerCase();
+      const normalizedSubtype = subtype === "bank" || acc.code.startsWith("112") ? "bank" : "cash";
+      return { businessId, accountId: acc.id, code: acc.code, name: acc.name, subtype: normalizedSubtype as "cash" | "bank", balance, debit, credit };
     });
 
-    const range = { businessId, startsOn, endsOn, asOf: new Date(), lowStockThreshold, lowFloatThreshold };
-    const input = {
+    const range = {
+      businessId,
+      startsOn,
+      endsOn,
+      asOf: new Date(),
+      lowStockThreshold: lowStockThresholdBigInt,
+      lowFloatThreshold: lowFloatThresholdBigInt,
+    };
+    const engineInput = {
       salesOrders: salesOrders as any,
       purchaseOrders: purchaseOrders as any,
       products: products as any,
@@ -99,6 +142,30 @@ export async function POST(request: Request) {
       cashBalances
     };
 
-    return engine.getDashboardOverview(range, input);
+    return engine.getDashboardOverview(range, engineInput);
+  },
+  ["dashboard-overview"],
+  { revalidate: 30, tags: ["dashboard"] }
+);
+
+export async function POST(request: Request) {
+  return handleApi(async () => {
+    const body = await parseAndValidate(request, dashboardRequestSchema);
+    const { businessId, actorUserId } = await requireTenantContext(request);
+    const startsOn = body.startsOn;
+    const endsOn = body.endsOn;
+    const lowStockThreshold = body.lowStockThreshold ?? 5n;
+    const lowFloatThreshold = body.lowFloatThreshold ?? 100n;
+
+    // Use the cached version — this is the big win for "sat set".
+    // Subsequent loads with same params within 30s are nearly instant (no 15+ queries).
+    return getCachedDashboardOverview({
+      businessId,
+      actorUserId,
+      startsOn,
+      endsOn,
+      lowStockThreshold: lowStockThreshold.toString(),
+      lowFloatThreshold: lowFloatThreshold.toString(),
+    });
   });
 }

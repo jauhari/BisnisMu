@@ -3,8 +3,17 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum PlatformRole {
+  USER
+  SUPER_ADMIN
+  SUPPORT_AGENT
+  FINANCE_ADMIN
+  DEVELOPER
 }
 
 enum AccountGroupCode {
@@ -28,6 +37,7 @@ enum JournalSide {
 }
 
 enum JournalStatus {
+  DRAFT
   POSTED
   REVERSED
 }
@@ -71,6 +81,11 @@ enum ContactType {
   OTHER
 }
 
+enum ContactCategory {
+  INDIVIDUAL
+  INSTANSI
+}
+
 enum CashTransactionType {
   CASH_IN
   CASH_OUT
@@ -81,6 +96,25 @@ enum CashTransactionStatus {
   DRAFT
   POSTED
   VOID
+}
+
+enum EmployeeRole {
+  DOCTOR
+  NURSE
+  STAFF
+  OTHER
+}
+
+enum PayrollStatus {
+  DRAFT
+  APPROVED
+  PAID
+}
+
+enum PayrollItemPaymentStatus {
+  UNPAID
+  PARTIAL
+  PAID
 }
 
 enum RevenueType {
@@ -225,6 +259,7 @@ enum SalesOrderStatus {
 enum AuditAction {
   JOURNAL_POSTED
   JOURNAL_POST_REJECTED
+  JOURNAL_UPDATED
   ACCOUNT_CREATED
   ACCOUNT_UPDATED
   ACCOUNT_DEACTIVATED
@@ -302,8 +337,15 @@ enum AuditAction {
   POS_CHANGE_SAVED_TO_DEPOSIT
   POS_TRANSACTION_VOIDED
   SALES_ORDER_CREATED
+  SALES_ORDER_UPDATED
   SALES_ORDER_CONFIRMED
   SALES_PAYMENT_ALLOCATED
+  SALES_ORDER_VOIDED
+  MEMBER_CREATED
+  MEMBER_UPDATED
+  MEMBER_SAVING_POSTED
+  MEMBER_LOAN_CREATED
+  MEMBER_INSTALLMENT_PAID
 }
 
 enum PurchaseOrderStatus {
@@ -415,37 +457,80 @@ model Business {
   posCartItems               PosCartItem[]
   posReceipts                PosReceiptRecord[]
   members                    BusinessMember[]
+  dailySales                 DailySale[]
+  employees                  Employee[]
+  payrollRuns                PayrollRun[]
+
+  // Koperasi / anggota (additive) — modul keanggotaan & simpanan.
+  koperasiMembers        Member[]
+  memberSavings          MemberSaving[]
+  memberLoans            MemberLoan[]
+  memberLoanInstallments MemberLoanInstallment[]
+
+  // Multi-Unit Organization (additive, opsional) — satu Business hanya milik satu Organization.
+  organizationId String?       @map("organization_id")
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  // Business default per user saat login (additive, opsional).
+  defaultForUsers User[] @relation("UserDefaultBusiness")
 
   @@index([createdByUserId])
+  @@index([organizationId])
   @@map("businesses")
 }
 
 model User {
-  id            String   @id @default(cuid())
+  id            String       @id @default(cuid())
   name          String
-  email         String   @unique
-  emailVerified Boolean  @default(false) @map("email_verified")
+  email         String       @unique
+  emailVerified Boolean      @default(false) @map("email_verified")
   image         String?
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  platformRole  PlatformRole @default(USER) @map("platform_role")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
 
-  sessions          Session[]
-  accounts          AuthAccount[]
-  memberships       BusinessMember[]
+  sessions         Session[]
+  accounts         AuthAccount[]
+  memberships      BusinessMember[]
+  godModeAuditLogs GodModeAuditLog[]
+  dailySales       DailySale[]
+  orgMemberships   OrgMember[]
 
+  // Usaha default yang dipakai saat login (additive, opsional).
+  defaultBusinessId String?   @map("default_business_id")
+  defaultBusiness   Business? @relation("UserDefaultBusiness", fields: [defaultBusinessId], references: [id], onDelete: SetNull)
+
+  @@index([defaultBusinessId])
   @@map("users")
 }
 
+model GodModeAuditLog {
+  id         String   @id @default(cuid())
+  actorId    String   @map("actor_id")
+  action     String
+  targetType String   @map("target_type")
+  targetId   String?  @map("target_id")
+  detail     Json?
+  ipAddress  String?  @map("ip_address")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  actor User @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([actorId])
+  @@index([createdAt])
+  @@map("god_mode_audit_logs")
+}
+
 model Session {
-  id        String   @id @default(cuid())
-  userId    String   @map("user_id")
-  activeBusinessId String? @map("active_business_id")
-  token     String   @unique
-  expiresAt DateTime @map("expires_at")
-  ipAddress String?  @map("ip_address")
-  userAgent String?  @map("user_agent")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id               String   @id @default(cuid())
+  userId           String   @map("user_id")
+  activeBusinessId String?  @map("active_business_id")
+  token            String   @unique
+  expiresAt        DateTime @map("expires_at")
+  ipAddress        String?  @map("ip_address")
+  userAgent        String?  @map("user_agent")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -491,8 +576,8 @@ model AuthAccount {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([userId])
   @@unique([providerId, accountId])
+  @@index([userId])
   @@map("auth_accounts")
 }
 
@@ -530,6 +615,8 @@ model Account {
   children                             Account[]            @relation("AccountHierarchy")
   lines                                JournalLine[]
   beginningBalances                    BeginningBalance[]
+  memberSavings                        MemberSaving[]       @relation("MemberSavingAccount")
+  memberLoans                          MemberLoan[]         @relation("MemberLoanAccount")
   cashAsPrimary                        CashTransaction[]    @relation("CashPrimaryAccount")
   cashAsDestination                    CashTransaction[]    @relation("CashDestinationAccount")
   cashAsCategory                       CashTransaction[]    @relation("CashCategoryAccount")
@@ -549,6 +636,8 @@ model Account {
   floatAssetAccounts                   FloatAccount[]       @relation("FloatAssetAccount")
   floatOffsetAccounts                  FloatAccount[]       @relation("FloatOffsetAccount")
   floatCashAccounts                    FloatTransaction[]   @relation("FloatCashAccount")
+  dailySalesAsCash                     DailySale[]          @relation("DailySaleCash")
+  dailySaleItemsAsRevenue              DailySaleItem[]      @relation("DailySaleRevenue")
   productInventoryAccounts             Product[]            @relation("ProductInventoryAccount")
   productCogsAccounts                  Product[]            @relation("ProductCogsAccount")
   productRevenueAccounts               Product[]            @relation("ProductRevenueAccount")
@@ -561,7 +650,99 @@ model Account {
   @@index([businessId, parentId])
   @@index([businessId, parentCode])
   @@index([businessId, groupCode])
+  @@index([businessId, subtype])
   @@map("accounts")
+}
+
+model Employee {
+  id        String       @id @default(cuid())
+  businessId String      @map("business_id")
+  name       String
+  role       EmployeeRole
+  isActive  Boolean      @default(true) @map("is_active")
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  business     Business      @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  payrollItems PayrollItem[]
+
+  @@index([businessId, isActive])
+  @@map("employees")
+}
+
+model PayrollRun {
+  id                        String        @id @default(cuid())
+  businessId                String        @map("business_id")
+  period                    DateTime      @map("period") @db.Date
+  status                    PayrollStatus @default(DRAFT)
+  expenseAccountId          String        @map("expense_account_id")
+  payableAccountId          String        @map("payable_account_id")
+  deductionPayableAccountId String?       @map("deduction_payable_account_id")
+  totalGrossAmount          BigInt        @map("total_gross_amount")
+  totalDeductionAmount      BigInt        @map("total_deduction_amount")
+  totalNetAmount            BigInt        @map("total_net_amount")
+  accruedJournalId          String?       @map("accrued_journal_id")
+  paymentJournalId          String?       @map("payment_journal_id")
+  createdByUserId           String        @map("created_by_user_id")
+  approvedAt                DateTime?     @map("approved_at")
+  paidAt                    DateTime?     @map("paid_at")
+  createdAt                 DateTime      @default(now()) @map("created_at")
+  updatedAt                 DateTime      @updatedAt @map("updated_at")
+
+  business Business      @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  items    PayrollItem[]
+  payments PayrollPayment[]
+
+  @@unique([businessId, period])
+  @@index([businessId, status])
+  @@map("payroll_runs")
+}
+
+model PayrollItem {
+  id              String       @id @default(cuid())
+  businessId      String       @map("business_id")
+  payrollRunId    String       @map("payroll_run_id")
+  employeeId      String       @map("employee_id")
+  employeeName    String       @map("employee_name")
+  employeeRole    EmployeeRole @map("employee_role")
+  salaryAmount    BigInt       @map("salary_amount")
+  incentiveAmount BigInt       @default(0) @map("incentive_amount")
+  deductionAmount BigInt       @default(0) @map("deduction_amount")
+  grossAmount     BigInt       @map("gross_amount")
+  netAmount       BigInt       @map("net_amount")
+  paidAmount      BigInt       @default(0) @map("paid_amount")
+  paymentStatus   PayrollItemPaymentStatus @default(UNPAID) @map("payment_status")
+  notes           String?
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  payrollRun PayrollRun @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  employee   Employee   @relation(fields: [employeeId], references: [id], onDelete: Restrict)
+  payments   PayrollPayment[]
+
+  @@unique([payrollRunId, employeeId])
+  @@index([businessId, employeeId])
+  @@map("payroll_items")
+}
+
+model PayrollPayment {
+  id               String   @id @default(cuid())
+  businessId       String   @map("business_id")
+  payrollRunId     String   @map("payroll_run_id")
+  payrollItemId    String   @map("payroll_item_id")
+  paymentAccountId String   @map("payment_account_id")
+  amount           BigInt
+  paidAt           DateTime @map("paid_at") @db.Date
+  journalId        String   @unique @map("journal_id")
+  createdByUserId  String   @map("created_by_user_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  payrollRun  PayrollRun  @relation(fields: [payrollRunId], references: [id], onDelete: Restrict)
+  payrollItem PayrollItem @relation(fields: [payrollItemId], references: [id], onDelete: Restrict)
+
+  @@index([businessId, payrollRunId])
+  @@index([payrollItemId, paidAt])
+  @@map("payroll_payments")
 }
 
 model FiscalPeriod {
@@ -617,6 +798,7 @@ model JournalEntry {
   @@unique([businessId, journalNumber])
   @@unique([businessId, idempotencyKey])
   @@index([businessId, transactionDate])
+  @@index([businessId, status, transactionDate])
   @@index([businessId, source, sourceId])
   @@map("journal_entries")
 }
@@ -642,22 +824,30 @@ model JournalLine {
 }
 
 model Contact {
-  id         String      @id @default(cuid())
-  businessId String      @map("business_id")
-  name       String
-  type       ContactType @default(OTHER)
-  email      String?
-  phone      String?
-  address    String?
-  isActive   Boolean     @default(true) @map("is_active")
-  createdAt  DateTime    @default(now()) @map("created_at")
-  updatedAt  DateTime    @updatedAt @map("updated_at")
+  id            String          @id @default(cuid())
+  businessId    String          @map("business_id")
+  name          String
+  type          ContactType     @default(OTHER)
+  category      ContactCategory @default(INDIVIDUAL)
+  picName       String?         @map("pic_name")
+  email         String?
+  phone         String?
+  address       String?
+  isActive      Boolean         @default(true) @map("is_active")
+  // Loyalty
+  totalVisits   Int             @default(0) @map("total_visits")
+  totalRevenue  BigInt          @default(0) @map("total_revenue")
+  loyaltyPoints Int             @default(0) @map("loyalty_points")
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
 
-  business         Business          @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  cashTransactions CashTransaction[]
+  business          Business           @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  cashTransactions  CashTransaction[]
+  dailySaleContacts DailySaleContact[]
 
   @@index([businessId, type])
   @@index([businessId, name])
+  @@index([businessId, phone])
   @@map("contacts")
 }
 
@@ -697,6 +887,7 @@ model CashTransaction {
 
   @@unique([businessId, transactionNumber])
   @@index([businessId, transactionDate])
+  @@index([businessId, transactionDate, createdAt, id])
   @@index([businessId, status])
   @@index([businessId, type])
   @@index([businessId, contactId])
@@ -1091,6 +1282,7 @@ model Invoice {
   @@unique([businessId, invoiceNumber])
   @@index([businessId, status])
   @@index([businessId, dueDate])
+  @@index([businessId, issueDate])
   @@map("invoices")
 }
 
@@ -1124,6 +1316,7 @@ model Bill {
   @@unique([businessId, billNumber])
   @@index([businessId, status])
   @@index([businessId, dueDate])
+  @@index([businessId, issueDate])
   @@map("bills")
 }
 
@@ -1375,6 +1568,7 @@ model InventoryMovement {
   product  Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   @@index([businessId, productId, movementDate])
+  @@index([businessId, movementDate])
   @@index([businessId, type])
   @@index([businessId, fromWarehouseId])
   @@index([businessId, toWarehouseId])
@@ -1494,6 +1688,7 @@ model SalesOrder {
 
   @@unique([businessId, salesNumber])
   @@index([businessId, saleDate])
+  @@index([businessId, saleDate, createdAt, id])
   @@index([businessId, customerId])
   @@index([businessId, status])
   @@map("sales_orders")
@@ -1683,7 +1878,7 @@ model PurchaseOrder {
   updatedAt       DateTime            @updatedAt @map("updated_at")
 
   business Business            @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  supplier Vendor               @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  supplier Vendor              @relation(fields: [supplierId], references: [id], onDelete: Restrict)
   items    PurchaseOrderItem[]
   receipts PurchaseReceipt[]
   returns  PurchaseReturn[]
@@ -1793,9 +1988,9 @@ model CashSessionRecord {
   createdAt             DateTime          @default(now()) @map("created_at")
   updatedAt             DateTime          @updatedAt @map("updated_at")
 
-  business        Business                 @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  drawer          CashDrawer               @relation(fields: [drawerId], references: [id], onDelete: Restrict)
-  cashAccount     Account                  @relation("CashSessionCashAccount", fields: [cashAccountId], references: [id], onDelete: Restrict)
+  business        Business                   @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  drawer          CashDrawer                 @relation(fields: [drawerId], references: [id], onDelete: Restrict)
+  cashAccount     Account                    @relation("CashSessionCashAccount", fields: [cashAccountId], references: [id], onDelete: Restrict)
   movements       CashMovementRecord[]
   reconciliations CashReconciliationRecord[]
 
@@ -1830,16 +2025,16 @@ model CashMovementRecord {
 }
 
 model CashReconciliationRecord {
-  id               String   @id @default(cuid())
-  businessId       String   @map("business_id")
-  sessionId        String   @map("session_id")
-  expectedAmount   BigInt   @map("expected_amount")
-  countedAmount    BigInt   @map("counted_amount")
-  differenceAmount BigInt   @map("difference_amount")
-  reconciledAt     DateTime @map("reconciled_at")
-  postedJournalId  String?  @map("posted_journal_id")
-  reconciledByUserId String @map("reconciled_by_user_id")
-  createdAt        DateTime @default(now()) @map("created_at")
+  id                 String   @id @default(cuid())
+  businessId         String   @map("business_id")
+  sessionId          String   @map("session_id")
+  expectedAmount     BigInt   @map("expected_amount")
+  countedAmount      BigInt   @map("counted_amount")
+  differenceAmount   BigInt   @map("difference_amount")
+  reconciledAt       DateTime @map("reconciled_at")
+  postedJournalId    String?  @map("posted_journal_id")
+  reconciledByUserId String   @map("reconciled_by_user_id")
+  createdAt          DateTime @default(now()) @map("created_at")
 
   business Business          @relation(fields: [businessId], references: [id], onDelete: Restrict)
   session  CashSessionRecord @relation(fields: [sessionId], references: [id], onDelete: Restrict)
@@ -1912,8 +2107,8 @@ model PosTransactionRecord {
   createdAt            DateTime             @default(now()) @map("created_at")
   updatedAt            DateTime             @updatedAt @map("updated_at")
 
-  business Business           @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  session  PosSessionRecord   @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+  business Business          @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  session  PosSessionRecord  @relation(fields: [sessionId], references: [id], onDelete: Restrict)
   items    PosCartItem[]
   receipt  PosReceiptRecord?
 
@@ -1925,20 +2120,20 @@ model PosTransactionRecord {
 }
 
 model PosCartItem {
-  id                String   @id @default(cuid())
-  businessId        String   @map("business_id")
-  transactionId     String   @map("transaction_id")
-  productId         String   @map("product_id")
-  quantity          BigInt
-  unitPrice         BigInt?  @map("unit_price")
-  priceId           String?  @map("price_id")
-  discountAmount    BigInt   @default(0) @map("discount_amount")
-  discountPercentBps BigInt  @default(0) @map("discount_percent_bps")
-  taxAmount         BigInt   @default(0) @map("tax_amount")
-  locationId        String?  @map("location_id")
-  providerProductId String?  @map("provider_product_id")
-  barcode           String?
-  createdAt         DateTime @default(now()) @map("created_at")
+  id                 String   @id @default(cuid())
+  businessId         String   @map("business_id")
+  transactionId      String   @map("transaction_id")
+  productId          String   @map("product_id")
+  quantity           BigInt
+  unitPrice          BigInt?  @map("unit_price")
+  priceId            String?  @map("price_id")
+  discountAmount     BigInt   @default(0) @map("discount_amount")
+  discountPercentBps BigInt   @default(0) @map("discount_percent_bps")
+  taxAmount          BigInt   @default(0) @map("tax_amount")
+  locationId         String?  @map("location_id")
+  providerProductId  String?  @map("provider_product_id")
+  barcode            String?
+  createdAt          DateTime @default(now()) @map("created_at")
 
   business    Business             @relation(fields: [businessId], references: [id], onDelete: Restrict)
   transaction PosTransactionRecord @relation(fields: [transactionId], references: [id], onDelete: Restrict)
@@ -1966,4 +2161,300 @@ model PosReceiptRecord {
   @@unique([businessId, receiptNumber])
   @@index([businessId, issuedAt])
   @@map("pos_receipts")
+}
+
+enum InstallmentPlanStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum InstallmentScheduleStatus {
+  UNPAID
+  PARTIAL
+  PAID
+}
+
+model InstallmentPlan {
+  id              String                @id @default(cuid())
+  businessId      String                @map("business_id")
+  planNumber      String                @map("plan_number")
+  customerId      String                @map("customer_id")
+  salesOrderId    String?               @map("sales_order_id")
+  description     String
+  totalAmount     BigInt                @map("total_amount")
+  downPayment     BigInt                @default(0) @map("down_payment")
+  financedAmount  BigInt                @map("financed_amount")
+  tenor           Int
+  startDate       DateTime              @map("start_date") @db.Date
+  arAccountId     String                @map("ar_account_id")
+  status          InstallmentPlanStatus @default(ACTIVE)
+  createdByUserId String                @map("created_by_user_id")
+  createdAt       DateTime              @default(now()) @map("created_at")
+  schedules       InstallmentSchedule[]
+
+  @@unique([businessId, planNumber])
+  @@index([businessId, customerId])
+  @@index([businessId, status])
+  @@map("installment_plans")
+}
+
+model InstallmentSchedule {
+  id              String                    @id @default(cuid())
+  businessId      String                    @map("business_id")
+  planId          String                    @map("plan_id")
+  sequence        Int
+  dueDate         DateTime                  @map("due_date") @db.Date
+  amount          BigInt
+  paidAmount      BigInt                    @default(0) @map("paid_amount")
+  status          InstallmentScheduleStatus @default(UNPAID)
+  paidAt          DateTime?                 @map("paid_at")
+  postedJournalId String?                   @map("posted_journal_id")
+  plan            InstallmentPlan           @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, planId, sequence])
+  @@index([businessId, planId])
+  @@map("installment_schedules")
+}
+
+// ─── Penjualan Harian ──────────────────────────────────────────────────────────
+
+model DailySale {
+  id              String    @id @default(cuid())
+  businessId      String    @map("business_id")
+  saleDate        DateTime  @map("sale_date") @db.Date
+  cashAccountId   String    @map("cash_account_id")
+  description     String?
+  status          String    @default("POSTED")
+  totalAmount     BigInt    @default(0) @map("total_amount")
+  journalId       String?   @map("journal_id")
+  voidJournalId   String?   @map("void_journal_id")
+  voidReason      String?   @map("void_reason")
+  voidedByUserId  String?   @map("voided_by_user_id")
+  voidedAt        DateTime? @map("voided_at")
+  createdByUserId String    @map("created_by_user_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  business    Business        @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  cashAccount Account         @relation("DailySaleCash", fields: [cashAccountId], references: [id], onDelete: Restrict)
+  createdBy   User            @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  items       DailySaleItem[]
+
+  @@index([businessId, saleDate])
+  @@index([businessId, saleDate, createdAt, id])
+  @@index([businessId, status])
+  @@map("daily_sales")
+}
+
+model DailySaleItem {
+  id               String  @id @default(cuid())
+  dailySaleId      String  @map("daily_sale_id")
+  revenueAccountId String  @map("revenue_account_id")
+  description      String?
+  amount           BigInt
+  lineNo           Int     @map("line_no")
+
+  dailySale      DailySale          @relation(fields: [dailySaleId], references: [id], onDelete: Cascade)
+  revenueAccount Account            @relation("DailySaleRevenue", fields: [revenueAccountId], references: [id], onDelete: Restrict)
+  contacts       DailySaleContact[]
+
+  @@index([dailySaleId])
+  @@map("daily_sale_items")
+}
+
+model DailySaleContact {
+  id              String  @id @default(cuid())
+  dailySaleItemId String  @map("daily_sale_item_id")
+  contactId       String  @map("contact_id")
+  amount          BigInt?
+  notes           String?
+
+  dailySaleItem DailySaleItem @relation(fields: [dailySaleItemId], references: [id], onDelete: Cascade)
+  contact       Contact       @relation(fields: [contactId], references: [id], onDelete: Restrict)
+
+  @@unique([dailySaleItemId, contactId])
+  @@index([contactId])
+  @@map("daily_sale_contacts")
+}
+
+// ─── Multi-Unit Organization ────────────────────────────────────────────────────
+
+enum OrgType {
+  BUMDES // Badan Usaha Milik Desa
+  KOPERASI // Koperasi
+  HOLDING // Holding UMKM
+  FRANCHISE // Jaringan waralaba
+}
+
+enum OrgRole {
+  ORG_OWNER // Ketua / Direktur — akses penuh semua unit
+  ORG_ADMIN // Sekretaris / Bendahara — kelola semua unit, tidak bisa hapus org
+  ORG_VIEWER // Pengawas / Auditor — read-only semua unit
+}
+
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  type        OrgType  @default(BUMDES)
+  description String?
+  address     String?
+  npwpNumber  String?  @map("npwp_number")
+  settings    Json?
+  createdById String   @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  businesses Business[]
+  members    OrgMember[]
+
+  @@index([createdById])
+  @@map("organizations")
+}
+
+model OrgMember {
+  organizationId String   @map("organization_id")
+  userId         String   @map("user_id")
+  role           OrgRole
+  joinedAt       DateTime @default(now()) @map("joined_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([organizationId, userId])
+  @@index([userId])
+  @@map("org_members")
+}
+
+// ── Modul Keanggotaan Koperasi (additive) ────────────────────────────────────
+// Layer di atas Business: anggota sebagai subjek, dengan simpanan dan pinjaman.
+// Tidak mengubah tabel existing. Semua transaksi keuangan tetap lewat jurnal.
+
+enum MemberStatus {
+  ACTIVE
+  INACTIVE
+  RESIGNED
+}
+
+enum MemberSavingType {
+  POKOK
+  WAJIB
+  SUKARELA
+}
+
+enum MemberSavingDirection {
+  DEPOSIT
+  WITHDRAWAL
+}
+
+enum MemberLoanStatus {
+  ACTIVE
+  PAID
+  WRITTEN_OFF
+}
+
+enum MemberLoanInterestMethod {
+  FLAT
+}
+
+enum MemberInstallmentStatus {
+  PENDING
+  PAID
+}
+
+model Member {
+  id           String       @id @default(cuid())
+  businessId   String       @map("business_id")
+  memberNumber String       @map("member_number")
+  name         String
+  address      String?
+  phone        String?
+  joinedOn     DateTime?    @map("joined_on") @db.Date
+  status       MemberStatus @default(ACTIVE)
+  notes        String?
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  business Business       @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  savings  MemberSaving[]
+  loans    MemberLoan[]
+
+  @@unique([businessId, memberNumber])
+  @@index([businessId, status])
+  @@map("members")
+}
+
+model MemberSaving {
+  id              String                @id @default(cuid())
+  businessId      String                @map("business_id")
+  memberId        String                @map("member_id")
+  type            MemberSavingType
+  direction       MemberSavingDirection
+  accountId       String                @map("account_id")
+  transactionDate DateTime              @map("transaction_date") @db.Date
+  amount          BigInt
+  journalId       String?               @map("journal_id")
+  referenceNumber String?               @map("reference_number")
+  note            String?
+  createdByUserId String                @map("created_by_user_id")
+  createdAt       DateTime              @default(now()) @map("created_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  member   Member   @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  account  Account  @relation("MemberSavingAccount", fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([businessId, memberId, type])
+  @@index([businessId, transactionDate])
+  @@map("member_savings")
+}
+
+model MemberLoan {
+  id              String                   @id @default(cuid())
+  businessId      String                   @map("business_id")
+  memberId        String                   @map("member_id")
+  loanNumber      String                   @map("loan_number")
+  accountId       String                   @map("account_id")
+  principal       BigInt
+  interestRateBps Int                      @default(0) @map("interest_rate_bps")
+  interestMethod  MemberLoanInterestMethod @default(FLAT) @map("interest_method")
+  termMonths      Int                      @map("term_months")
+  disbursedOn     DateTime                 @map("disbursed_on") @db.Date
+  status          MemberLoanStatus         @default(ACTIVE)
+  journalId       String?                  @map("journal_id")
+  note            String?
+  createdByUserId String                   @map("created_by_user_id")
+  createdAt       DateTime                 @default(now()) @map("created_at")
+  updatedAt       DateTime                 @updatedAt @map("updated_at")
+
+  business     Business                @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  member       Member                  @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  account      Account                 @relation("MemberLoanAccount", fields: [accountId], references: [id], onDelete: Restrict)
+  installments MemberLoanInstallment[]
+
+  @@unique([businessId, loanNumber])
+  @@index([businessId, memberId, status])
+  @@map("member_loans")
+}
+
+model MemberLoanInstallment {
+  id            String                  @id @default(cuid())
+  businessId    String                  @map("business_id")
+  loanId        String                  @map("loan_id")
+  installmentNo Int                     @map("installment_no")
+  dueDate       DateTime                @map("due_date") @db.Date
+  principalDue  BigInt                  @map("principal_due")
+  interestDue   BigInt                  @map("interest_due")
+  paidAmount    BigInt                  @default(0) @map("paid_amount")
+  paidOn        DateTime?               @map("paid_on") @db.Date
+  status        MemberInstallmentStatus @default(PENDING)
+  journalId     String?                 @map("journal_id")
+  createdAt     DateTime                @default(now()) @map("created_at")
+  updatedAt     DateTime                @updatedAt @map("updated_at")
+
+  business Business   @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  loan     MemberLoan @relation(fields: [loanId], references: [id], onDelete: Cascade)
+
+  @@unique([loanId, installmentNo])
+  @@index([businessId, status, dueDate])
+  @@map("member_loan_installments")
 }

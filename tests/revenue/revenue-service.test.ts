@@ -106,5 +106,36 @@ describe("RevenueService", () => {
     const { service, category, item } = await setup();
     await expect(service.preview({ businessId: "biz-1", actorUserId: "user-1", type: "TICKET", transactionDate: new Date("2026-05-30T00:00:00.000Z"), categoryId: category.id, itemId: item.id, cashAccountId: "tenant2cash", quantity: 1, unitPrice: 100n, description: "Leak" })).rejects.toThrow(/cash account/i);
   });
+
+  it("commits journal + status flip through one transaction runner unit", async () => {
+    const repo = new InMemoryRevenueRepository();
+    const postingRepo = new PostingRepo();
+    const calls: string[] = [];
+    // Records that the journal post and status update run inside the same runner unit.
+    const txRunner = { run: async <T,>(work: (tx: unknown) => Promise<T>) => { calls.push("begin"); const r = await work({ marker: true }); calls.push("commit"); return r; } };
+    const service = new RevenueService(repo, new JournalPostingService(postingRepo), undefined, txRunner);
+    const category = await service.createCategory({ businessId: "biz-1", actorUserId: "user-1", name: "Tiket", type: "TICKET", revenueAccountId: "ticketRevenue" });
+    const item = await service.createItem({ businessId: "biz-1", actorUserId: "user-1", categoryId: category.id, name: "Tiket Masuk" });
+    await service.createPricing({ businessId: "biz-1", actorUserId: "user-1", itemId: item.id, type: "STANDARD", amount: 100n });
+    const draft = await service.createDraft({ businessId: "biz-1", actorUserId: "user-1", type: "TICKET", transactionDate: new Date("2026-05-30T00:00:00.000Z"), categoryId: category.id, itemId: item.id, cashAccountId: "cash", quantity: 1, description: "Jual tiket" });
+    const result = await service.post({ businessId: "biz-1", actorUserId: "user-1", transactionId: draft.id });
+    expect(result.transaction.status).toBe("POSTED");
+    expect(calls).toEqual(["begin", "commit"]);
+  });
+
+  it("does not flip status to POSTED when the transaction unit fails (atomic rollback)", async () => {
+    const repo = new InMemoryRevenueRepository();
+    const postingRepo = new PostingRepo();
+    // Simulate a DB failure inside the unit of work: the runner rejects, so no commit.
+    const txRunner = { run: async <T,>(_work: (tx: unknown) => Promise<T>): Promise<T> => { throw new Error("db write failed"); } };
+    const service = new RevenueService(repo, new JournalPostingService(postingRepo), undefined, txRunner);
+    const category = await service.createCategory({ businessId: "biz-1", actorUserId: "user-1", name: "Tiket", type: "TICKET", revenueAccountId: "ticketRevenue" });
+    const item = await service.createItem({ businessId: "biz-1", actorUserId: "user-1", categoryId: category.id, name: "Tiket Masuk" });
+    await service.createPricing({ businessId: "biz-1", actorUserId: "user-1", itemId: item.id, type: "STANDARD", amount: 100n });
+    const draft = await service.createDraft({ businessId: "biz-1", actorUserId: "user-1", type: "TICKET", transactionDate: new Date("2026-05-30T00:00:00.000Z"), categoryId: category.id, itemId: item.id, cashAccountId: "cash", quantity: 1, description: "Jual tiket" });
+    await expect(service.post({ businessId: "biz-1", actorUserId: "user-1", transactionId: draft.id })).rejects.toThrow(/db write failed/);
+    const after = await repo.findTransaction({ businessId: "biz-1", actorUserId: "user-1" } as TenantContext, draft.id);
+    expect(after?.status).toBe("DRAFT");
+  });
 });
 

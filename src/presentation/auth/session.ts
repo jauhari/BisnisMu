@@ -1,8 +1,10 @@
 import { getSessionCookie } from "better-auth/cookies";
+import { cache } from "react";
 
 import { prisma } from "@/presentation/api/prisma";
 import { AuthError } from "./auth-error";
 import { isPublicApiPath as isPublicTenantApiPath } from "./public-paths";
+import { contextFromTrustedHeaders } from "./request-context";
 
 interface SessionRecord {
   id: string;
@@ -16,25 +18,73 @@ interface SessionRecord {
     email: string;
     emailVerified: boolean;
     image: string | null;
+    platformRole: string;
   };
 }
+
+export type PlatformRole = "USER" | "SUPER_ADMIN" | "SUPPORT_AGENT" | "FINANCE_ADMIN" | "DEVELOPER";
 
 export interface AuthenticatedUserContext {
   actorUserId: string;
   businessId: string;
   role: "OWNER" | "ADMIN" | "ACCOUNTANT" | "CASHIER" | "VIEWER";
+  platformRole: PlatformRole;
   user: SessionRecord["user"];
   session: Omit<SessionRecord, "user">;
 }
 
+export function requireGodMode(context: Pick<AuthenticatedUserContext, "platformRole">, allowed: PlatformRole[] = ["SUPER_ADMIN"]): void {
+  if (!allowed.includes(context.platformRole)) throw new AuthError("FORBIDDEN", "God mode access required");
+}
+
+export const requireGodModeContext = cache(async (request: Request): Promise<AuthenticatedUserContext> => {
+  const token = getRequestSessionToken(request);
+  if (!token) throw new AuthError("UNAUTHENTICATED", "Unauthorized");
+  const session = await prisma.session.findUnique({ where: { token }, include: { user: true } });
+  if (!session?.user?.id || session.expiresAt <= new Date()) throw new AuthError("UNAUTHENTICATED", "Unauthorized");
+  const { user, ...sessionRecord } = session;
+  const ctx: AuthenticatedUserContext = {
+    actorUserId: user.id,
+    businessId: session.activeBusinessId ?? "",
+    role: "VIEWER",
+    platformRole: (user.platformRole ?? "USER") as PlatformRole,
+    user,
+    session: sessionRecord,
+  };
+  requireGodMode(ctx);
+  return ctx;
+});
+
+/** better-auth signs session cookies as `<token>.<signature>`; DB stores the raw token. */
+export function normalizeSessionToken(token: string): string {
+  const trimmed = decodeURIComponent(token.trim());
+  if (!trimmed) return trimmed;
+  const dot = trimmed.indexOf(".");
+  return dot > 0 ? trimmed.slice(0, dot) : trimmed;
+}
+
+export function getSessionTokenFromCookieValue(raw: string | undefined | null): string | null {
+  if (!raw) return null;
+  return normalizeSessionToken(raw);
+}
+
+export async function getServerSessionToken(): Promise<string | null> {
+  const { cookies } = await import("next/headers");
+  const cookieStore = await cookies();
+  const raw =
+    cookieStore.get("better-auth.session_token")?.value ??
+    cookieStore.get("__Secure-better-auth.session_token")?.value;
+  return getSessionTokenFromCookieValue(raw);
+}
+
 export function getRequestSessionToken(request: Request): string | null {
   const cookieToken = getSessionCookie(request);
-  if (cookieToken) return cookieToken;
+  if (cookieToken) return normalizeSessionToken(cookieToken);
   const rawCookie = request.headers.get("cookie") ?? "";
   const directCookie = rawCookie.split(/;\s*/).find((part) => part.startsWith("better-auth.session_token=") || part.startsWith("__Secure-better-auth.session_token="));
-  if (directCookie) return decodeURIComponent(directCookie.slice(directCookie.indexOf("=") + 1));
+  if (directCookie) return normalizeSessionToken(directCookie.slice(directCookie.indexOf("=") + 1));
   const authorization = request.headers.get("authorization");
-  if (authorization?.toLowerCase().startsWith("bearer ")) return authorization.slice(7).trim();
+  if (authorization?.toLowerCase().startsWith("bearer ")) return normalizeSessionToken(authorization.slice(7).trim());
   return null;
 }
 
@@ -42,39 +92,79 @@ export async function getAuthenticatedUserContext(request: Request): Promise<Aut
   return getAuthenticatedUserContextByToken(getRequestSessionToken(request));
 }
 
-export async function getAuthenticatedUserContextByToken(token: string | null | undefined): Promise<AuthenticatedUserContext> {
+// Cached per-request (React cache) so multiple calls to requireTenantContext / layout / handler
+// within the same server render only hit the DB once. Huge win for nested layouts + API handlers.
+//
+// Jalur DB ini sekarang jadi FALLBACK: dipakai RSC/layout (butuh record user lengkap) dan
+// request yang tidak lewat middleware. Route /api/* memakai konteks dari header middleware
+// (lihat requireTenantContext) sehingga tidak menyentuh DB sama sekali.
+export const getAuthenticatedUserContextByToken = cache(async (token: string | null | undefined): Promise<AuthenticatedUserContext> => {
   if (!token) throw new AuthError("UNAUTHENTICATED", "Unauthorized");
 
+  // Satu query gabungan: session + user + membership aktif. Query businessMember terpisah
+  // dihapus karena tiap round-trip ke DB (fungsi iad1, DB Singapore) ~250ms.
   const session = await prisma.session.findUnique({
     where: { token },
-    include: { user: true },
+    include: {
+      user: {
+        include: {
+          memberships: { where: { isActive: true } },
+        },
+      },
+    },
   });
   if (!session?.user?.id || session.expiresAt <= new Date()) throw new AuthError("UNAUTHENTICATED", "Unauthorized");
   if (!session.activeBusinessId) throw new AuthError("NO_ACTIVE_BUSINESS", "Active business required");
 
-  const membership = await prisma.businessMember.findUnique({
-    where: { businessId_userId: { businessId: session.activeBusinessId, userId: session.user.id } },
-  });
+  // Cocokkan membership dengan business aktif di JS — bukan query kedua.
+  const membership = session.user.memberships.find((candidate) => candidate.businessId === session.activeBusinessId);
   if (!membership?.isActive) throw new AuthError("FORBIDDEN", "Forbidden");
 
   const { user, ...sessionRecord } = session;
+  // Bentuk context harus sama seperti sebelumnya (tanpa daftar membership).
+  const sessionUser: SessionRecord["user"] = {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    emailVerified: user.emailVerified,
+    image: user.image,
+    platformRole: user.platformRole,
+  };
   return {
     actorUserId: user.id,
     businessId: session.activeBusinessId,
     role: membership.role,
-    user,
+    platformRole: (user.platformRole ?? "USER") as PlatformRole,
+    user: sessionUser,
     session: sessionRecord,
   };
+});
+
+/**
+ * Konteks tenant untuk satu request.
+ *
+ * Fast path: header yang sudah divalidasi middleware — nol query DB.
+ * Fallback: sesi dari cookie/authorization header — satu query gabungan.
+ * Header tidak lengkap selalu jatuh ke fallback, tidak pernah dianggap terautentikasi.
+ */
+export async function getRequestTenantContext(request: Request): Promise<{ businessId: string; actorUserId: string; role: AuthenticatedUserContext["role"] }> {
+  const trusted = contextFromTrustedHeaders(request.headers);
+  if (trusted) return { businessId: trusted.businessId, actorUserId: trusted.actorUserId, role: trusted.role };
+
+  const context = await getAuthenticatedUserContext(request);
+  return { businessId: context.businessId, actorUserId: context.actorUserId, role: context.role };
 }
 
 export async function requireActorUserId(request: Request): Promise<string> {
+  const trusted = contextFromTrustedHeaders(request.headers);
+  if (trusted) return trusted.actorUserId;
+
   const context = await getAuthenticatedUserContext(request);
   return context.actorUserId;
 }
 
 export async function requireTenantContext(request: Request): Promise<{ businessId: string; actorUserId: string; role: AuthenticatedUserContext["role"] }> {
-  const context = await getAuthenticatedUserContext(request);
-  return { businessId: context.businessId, actorUserId: context.actorUserId, role: context.role };
+  return getRequestTenantContext(request);
 }
 
 export async function authenticatedBody<T extends Record<string, unknown>>(request: Request): Promise<T & { businessId: string; actorUserId: string }> {
@@ -103,6 +193,21 @@ export async function selectActiveBusiness(request: Request, businessId: string)
   if (!membership?.isActive) throw new AuthError("FORBIDDEN", "Forbidden");
 
   await prisma.session.update({ where: { token }, data: { activeBusinessId: businessId } });
+}
+
+export async function setDefaultBusiness(request: Request, businessId: string): Promise<void> {
+  const token = getRequestSessionToken(request);
+  if (!token) throw new AuthError("UNAUTHENTICATED", "Unauthorized");
+
+  const session = await prisma.session.findUnique({ where: { token } });
+  if (!session || session.expiresAt <= new Date()) throw new AuthError("UNAUTHENTICATED", "Unauthorized");
+
+  const membership = await prisma.businessMember.findUnique({
+    where: { businessId_userId: { businessId, userId: session.userId } },
+  });
+  if (!membership?.isActive) throw new AuthError("FORBIDDEN", "Forbidden");
+
+  await prisma.user.update({ where: { id: session.userId }, data: { defaultBusinessId: businessId } });
 }
 
 export function isPublicApiPath(pathname: string): boolean {

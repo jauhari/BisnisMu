@@ -42,7 +42,19 @@ export class PrismaReportingRepository implements ReportingRepository, LedgerRep
           transactionDate: dateFilter
         }
       },
-      include: { journal: true, account: true },
+      // Select only the columns the report mapping consumes instead of pulling
+      // the entire parent journal + account rows for every line.
+      select: {
+        id: true,
+        businessId: true,
+        journalId: true,
+        accountId: true,
+        side: true,
+        amount: true,
+        lineNo: true,
+        journal: { select: { journalNumber: true, transactionDate: true, description: true, source: true, sourceId: true } },
+        account: { select: { code: true, name: true, groupCode: true, normalBalance: true } }
+      },
       orderBy: [{ journal: { transactionDate: "asc" } }, { journal: { journalNumber: "asc" } }, { lineNo: "asc" }]
     });
 

@@ -14,7 +14,10 @@ export class ValidationError extends Error {
 
 // IDs in this app are Prisma cuid()s, not UUIDs. Accept cuid or uuid so route
 // validation doesn't reject valid entity IDs (e.g. customerId, accountId).
-const ID_PATTERN = /^(c[a-z0-9]{20,}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$/;
+// IDs from imported PKU businesses are opaque strings (for example
+// `pkuacct_...`, `pku_employee_...`, and the seeded `c-cash` IDs), not only
+// Prisma CUIDs or UUIDs. Tenant ownership is checked by the service layer.
+const ID_PATTERN = /^(c[a-z0-9]{20,}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|pku[a-z0-9_-]+|c-[a-z0-9_-]+)$/i;
 export const uuidSchema = z.string().regex(ID_PATTERN, "Invalid id");
 export const dateSchema = z.coerce.date().refine((value) => !Number.isNaN(value.getTime()), "Invalid date");
 export const bigintSchema = z.union([z.string(), z.number(), z.bigint()]).pipe(z.coerce.bigint());

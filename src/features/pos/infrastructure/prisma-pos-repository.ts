@@ -53,7 +53,7 @@ export class PrismaPosRepository implements PosRepository {
 
   async closeSession(ctx: TenantContext, sessionId: string, closedAt: Date, countedAmount: bigint, differenceAmount: bigint): Promise<PosSessionEntity> {
     const row = await this.prisma.posSessionRecord.update({
-      where: { id: sessionId },
+      where: { id: sessionId, businessId: ctx.businessId },
       data: {
         status: "CLOSED",
         closedAt,
@@ -143,7 +143,7 @@ export class PrismaPosRepository implements PosRepository {
 
   async updateTransactionTotals(ctx: TenantContext, transactionId: string, totals: { subtotal: bigint; discountTotal: bigint; taxTotal: bigint; totalAmount: bigint }): Promise<PosTransactionEntity> {
     const row = await this.prisma.posTransactionRecord.update({
-      where: { id: transactionId },
+      where: { id: transactionId, businessId: ctx.businessId },
       data: { subtotal: totals.subtotal, discountTotal: totals.discountTotal, taxTotal: totals.taxTotal, totalAmount: totals.totalAmount },
       include: { items: true }
     });
@@ -167,7 +167,7 @@ export class PrismaPosRepository implements PosRepository {
     if (paymentTransactionId !== undefined) data.paymentTransactionId = paymentTransactionId;
     if (receiptId !== undefined) data.receiptId = receiptId;
     const row = await this.prisma.posTransactionRecord.update({
-      where: { id: transactionId },
+      where: { id: transactionId, businessId: ctx.businessId },
       data,
       include: { items: true }
     });

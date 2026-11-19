@@ -77,7 +77,11 @@ describe("DashboardEngine module functions", () => {
   it("calculates cash, receivable, payable, and profitability dashboard overview KPIs", () => {
     const overview = getDashboardOverview(range, input);
     expect(overview.profitability).toEqual({ grossProfit: 800n, netProfit: 500n, profitMargin: 35.71 });
-    expect(overview.cash).toEqual({ cashOnHand: 300n, bankBalance: 1200n, cashFlowToday: 150n });
+    expect(overview.cash).toMatchObject({ cashOnHand: 300n, bankBalance: 1200n, cashFlowToday: 150n });
+    expect(overview.cash.accounts).toEqual([
+      { accountId: "cash", code: "cash", name: "cash", subtype: "cash", balance: 300n, debit: 0n, credit: 0n },
+      { accountId: "bank", code: "bank", name: "bank", subtype: "bank", balance: 1200n, debit: 0n, credit: 0n },
+    ]);
     expect(overview.receivable).toEqual({ totalReceivable: 800n, overdueReceivable: 800n });
     expect(overview.payable).toEqual({ totalPayable: 900n, overduePayable: 600n });
   });

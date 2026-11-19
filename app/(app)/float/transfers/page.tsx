@@ -1,13 +1,20 @@
 "use client";
 import { z } from "zod";
-import { ManagedForm, RhfTextField, RhfDataSelect, type SelectOption } from "@/components/forms/rhf-form";
+import { ManagedForm, RhfTextField, RhfDataSelect, RhfDatePicker, RhfMoneyField, type SelectOption } from "@/components/forms/rhf-form";
 import { WorkspaceHeader, SplitWorkspace, DetailPanel } from "@/components/layout/workspace";
 import { GlassErrorState, GlassSkeleton } from "@/components/feedback/glass-feedback";
 import { GlassTable } from "@/components/tables/glass-table";
 import { GlassPanel } from "@/components/glass/glass-primitives";
 import { useListQuery, usePostMutation } from "@/presentation/query/dashboard-hooks";
+import { LOAD_ERROR_DESCRIPTION, TRANSACTION_COLUMNS, buildTransactionRows, floatAccountLabel } from "../float-labels";
 
-const schema = z.object({ floatAccountId: z.string().min(10), destinationFloatAccountId: z.string().min(10), transactionDate: z.string().min(1), amount: z.string().min(1), description: z.string().min(3) });
+const schema = z.object({
+  floatAccountId: z.string().min(10, "Pilih akun rekanan asal."),
+  destinationFloatAccountId: z.string().min(10, "Pilih akun rekanan tujuan."),
+  transactionDate: z.string().min(1, "Pilih tanggal."),
+  amount: z.string().min(1, "Isi nominal."),
+  description: z.string().min(3, "Keterangan minimal 3 karakter."),
+});
 type TransferForm = z.infer<typeof schema>;
 
 export default function Page() {
@@ -15,8 +22,9 @@ export default function Page() {
   const floats = useListQuery<any[]>("/api/float/accounts", ["list", "float-accounts"]);
   const workflows = useListQuery<any[]>("/api/float/workflows", ["list", "float-workflows"]);
   if (floats.isLoading) return <GlassSkeleton className="h-72" />;
-  if (floats.error) return <GlassErrorState title="Float unavailable" description="Unable to load float accounts." />;
-  const floatOptions: SelectOption[] = (floats.data?.data ?? []).map((f: any) => ({ value: f.id, label: `${f.provider} ${f.name}` }));
-  const rows = (workflows.data?.data ?? []).map((t: any) => ({ number: t.transactionNumber, provider: t.provider ?? t.floatAccountId, date: t.transactionDate?.slice?.(0, 10) ?? t.transactionDate, amount: String(t.amount), balance: String(t.balanceAfter ?? "") }));
-  return <div className="grid gap-6"><WorkspaceHeader eyebrow="Float" title="Float Transfer" description="Move float balance between two provider accounts through FloatManagementService." /><SplitWorkspace main={<><GlassPanel><ManagedForm<TransferForm> schema={schema} defaultValues={{ floatAccountId: "", destinationFloatAccountId: "", transactionDate: "2026-05-31", amount: "", description: "Float transfer" }} onSubmit={async (values) => { await mutation.mutateAsync({ type: "TRANSFER", floatAccountId: values.floatAccountId, destinationFloatAccountId: values.destinationFloatAccountId, transactionDate: values.transactionDate, amount: values.amount, description: values.description }); }}>{() => <div className="grid gap-4 md:grid-cols-2"><RhfDataSelect<TransferForm> name="floatAccountId" label="Source float account" options={floatOptions} placeholder="Pilih sumber" /><RhfDataSelect<TransferForm> name="destinationFloatAccountId" label="Destination float account" options={floatOptions} placeholder="Pilih tujuan" /><RhfTextField<TransferForm> name="transactionDate" label="Date" placeholder="2026-05-31" /><RhfTextField<TransferForm> name="amount" label="Amount" placeholder="300000" /><RhfTextField<TransferForm> name="description" label="Description" placeholder="Float transfer" /><button type="submit" className="h-10 self-end rounded-md bg-foreground px-4 text-sm font-medium text-background">Save transfer</button></div>}</ManagedForm></GlassPanel><GlassTable columns={[{ key: "number", header: "Number" }, { key: "provider", header: "Provider" }, { key: "date", header: "Date" }, { key: "amount", header: "Amount" }, { key: "balance", header: "Balance after" }]} rows={rows} empty="No float transactions loaded" /></>} side={<DetailPanel title="Journal preview">Transfer debits destination float asset, credits source float asset.</DetailPanel>} /></div>;
+  if (floats.error) return <GlassErrorState title="Saldo rekanan tidak bisa dimuat" description={LOAD_ERROR_DESCRIPTION} />;
+  const floatList = floats.data?.data ?? [];
+  const floatOptions: SelectOption[] = floatList.map((f: any) => ({ value: f.id, label: floatAccountLabel(f) }));
+  const rows = buildTransactionRows(workflows.data?.data ?? [], floatList, "TRANSFER");
+  return <div className="grid gap-6"><WorkspaceHeader eyebrow="Saldo Rekanan" title="Transfer Saldo Rekanan" description="Pindahkan saldo dari satu akun rekanan ke akun rekanan lain." /><SplitWorkspace main={<><GlassPanel><ManagedForm<TransferForm> schema={schema} defaultValues={{ floatAccountId: "", destinationFloatAccountId: "", transactionDate: new Date().toLocaleDateString("en-CA"), amount: "", description: "Transfer saldo rekanan" }} onSubmit={async (values) => { await mutation.mutateAsync({ type: "TRANSFER", floatAccountId: values.floatAccountId, destinationFloatAccountId: values.destinationFloatAccountId, transactionDate: values.transactionDate, amount: values.amount, description: values.description }); }}>{() => <div className="grid gap-4 md:grid-cols-2"><RhfDataSelect<TransferForm> name="floatAccountId" label="Dari akun rekanan" options={floatOptions} placeholder="Pilih akun asal" /><RhfDataSelect<TransferForm> name="destinationFloatAccountId" label="Ke akun rekanan" options={floatOptions} placeholder="Pilih akun tujuan" /><RhfDatePicker<TransferForm> name="transactionDate" label="Tanggal" /><RhfMoneyField<TransferForm> name="amount" label="Nominal" prefix placeholder="300.000" /><RhfTextField<TransferForm> name="description" label="Keterangan" placeholder="Contoh: Pindah saldo BukuWarung ke ShopeePay" /><button type="submit" className="h-10 self-end rounded-md bg-foreground px-4 text-sm font-medium text-background">Simpan transfer</button></div>}</ManagedForm></GlassPanel><GlassTable columns={TRANSACTION_COLUMNS} rows={rows} empty="Belum ada transfer saldo rekanan. Catat lewat form di atas." /></>} side={<DetailPanel title="Contoh jurnal">Saldo di akun rekanan tujuan bertambah (debit), saldo di akun rekanan asal berkurang (kredit). Total saldo rekanan tidak berubah.</DetailPanel>} /></div>;
 }

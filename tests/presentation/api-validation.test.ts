@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { journalSchema, cashTransactionSchema, inventoryStockInSchema, purchaseOrderSchema } from "../../src/presentation/api/request-schemas";
+import { journalSchema, cashTransactionSchema, inventoryStockInSchema, payrollRunSchema, purchaseOrderSchema } from "../../src/presentation/api/request-schemas";
 import { parseAndValidate, ValidationError } from "../../src/presentation/api/validation";
 
 function jsonRequest(body: unknown) {
@@ -76,5 +76,45 @@ describe("API input validation", () => {
       expect((error as ValidationError).fields).toHaveProperty("type");
       expect((error as ValidationError).fields).toHaveProperty("amount");
     }
+  });
+
+  it("accepts opaque legacy identifiers for payroll accounts and employees", async () => {
+    await expect(parseAndValidate(jsonRequest({
+      period: "2026-06-03",
+      expenseAccountId: "pku_account_610001",
+      payableAccountId: "pku_account_210001",
+      items: [{ employeeId: "pku_employee_dokter", salaryAmount: "3120000" }],
+    }), payrollRunSchema)).resolves.toMatchObject({
+      expenseAccountId: "pku_account_610001",
+      payableAccountId: "pku_account_210001",
+      items: [{ employeeId: "pku_employee_dokter" }],
+    });
+  });
+
+  it("accepts opaque legacy identifiers for cash accounts and contacts", async () => {
+    await expect(parseAndValidate(jsonRequest({
+      type: "CASH_IN",
+      transactionDate: "2026-08-12",
+      cashAccountId: "pkuacct_870fd01615aa40d58306e003f0823b9c",
+      categoryAccountId: "pkuacct_319fe08eb045460493e1276999d839a2",
+      contactId: "cmspln2m9001bu05ufx1ufp34",
+      amount: "5800000",
+      description: "Klaim MuCare Juni",
+    }), cashTransactionSchema)).resolves.toMatchObject({
+      cashAccountId: "pkuacct_870fd01615aa40d58306e003f0823b9c",
+      categoryAccountId: "pkuacct_319fe08eb045460493e1276999d839a2",
+      contactId: "cmspln2m9001bu05ufx1ufp34",
+    });
+  });
+
+  it("treats blank payroll amounts as zero for a draft", async () => {
+    await expect(parseAndValidate(jsonRequest({
+      period: "2026-06-03",
+      expenseAccountId: "pku_account_610001",
+      payableAccountId: "pku_account_210001",
+      items: [{ employeeId: "pku_employee_fisioterapi", salaryAmount: "", incentiveAmount: "", deductionAmount: "" }],
+    }), payrollRunSchema)).resolves.toMatchObject({
+      items: [{ employeeId: "pku_employee_fisioterapi", salaryAmount: 0n, incentiveAmount: 0n, deductionAmount: 0n }],
+    });
   });
 });

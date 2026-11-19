@@ -1,11 +1,10 @@
 import { handleApi } from "@/presentation/api/route-handler";
+import { prisma } from "@/presentation/api/prisma";
 import { reportRequestSchema } from "@/presentation/api/request-schemas";
 import { parseAndValidate } from "@/presentation/api/validation";
-import { PrismaClient } from "@prisma/client";
 import { ReportingEngine } from "@/features/reporting";
 import { requireTenantContext } from "@/presentation/auth/session";
 
-const prisma = new PrismaClient();
 const engine = new ReportingEngine();
 
 export async function POST(request: Request) {

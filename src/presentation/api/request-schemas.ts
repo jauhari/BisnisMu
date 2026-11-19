@@ -105,6 +105,11 @@ export const inventoryProductSchema = z.object({
   cogsAccountId: optionalUuidSchema,
   revenueAccountId: uuidSchema,
   trackStock: z.boolean().optional(),
+  buyPrice: nonNegativeMoneySchema.optional(),
+  sellPrice: nonNegativeMoneySchema.optional(),
+  provider: z.enum(["FASTPAY", "PAYFAZZ", "BUKUWARUNG", "SHOPEEPAY", "LINKAJA", "CUSTOM"]).optional(),
+  providerSku: optionalString,
+  floatAccountId: optionalUuidSchema,
 });
 
 export const inventoryStockInSchema = z.object({
@@ -268,7 +273,9 @@ export const floatTransactionSchema = z.object({
 export const settingsSchema = z.object({ name: optionalString, npwpNumber: optionalString, address: optionalString, fiscalYearStart: z.coerce.number().int().min(1).max(12).optional(), settings: z.record(z.unknown()).optional() }).passthrough();
 export const fiscalPeriodSchema = z.object({ fiscalYear: z.number().int().min(1900).max(9999) }).passthrough();
 export const beginningBalancesSchema = z.object({ fiscalPeriodId: uuidSchema, lines: z.array(z.object({ accountId: uuidSchema, side: z.enum(["DEBIT", "CREDIT"]), amount: nonNegativeMoneySchema })).min(1) }).passthrough();
-export const selectBusinessSchema = z.object({ businessId: uuidSchema });
+// Business IDs are opaque database identifiers. Authorization is enforced by
+// selectActiveBusiness through the active BusinessMember record.
+export const selectBusinessSchema = z.object({ businessId: z.string().trim().min(1, "Business id is required") });
 export const dashboardRequestSchema = z.object({ startsOn: dateSchema, endsOn: dateSchema, lowStockThreshold: positiveQuantitySchema.optional(), lowFloatThreshold: nonNegativeMoneySchema.optional() });
 export const reportRequestSchema = z.object({ command: z.object({ startsOn: dateSchema.optional(), endsOn: dateSchema.optional(), asOf: dateSchema.optional() }).passthrough() });
 export const posCartAddSchema = z.object({
@@ -314,3 +321,98 @@ export const tenantRentalSchema = z.object({ attractionId: uuidSchema, tenantNam
 export const visitorTransactionSchema = z.object({ source: visitorSourceEnum, transactionDate: dateSchema, attractionId: uuidSchema, ticketTypeId: optionalUuidSchema, ticketPackageId: optionalUuidSchema, parkingServiceId: optionalUuidSchema, rentalServiceId: optionalUuidSchema, tenantRentalId: optionalUuidSchema, cashAccountId: uuidSchema, quantity: positiveIntSchema.optional(), visitorCount: positiveIntSchema.optional(), bookingReference: optionalString });
 export const validateTicketSchema = z.object({ validationCode: stringRequired });
 export const voidVisitorTransactionSchema = z.object({ visitorTransactionId: uuidSchema, reason: z.string().min(10, "Void reason must be at least 10 characters") });
+
+export const installmentPlanSchema = z.object({
+  customerId: uuidSchema,
+  description: stringRequired,
+  totalAmount: positiveMoneySchema,
+  downPayment: nonNegativeMoneySchema.optional(),
+  tenor: z.coerce.number().int().min(1).max(120),
+  startDate: dateSchema,
+  arAccountId: uuidSchema,
+  revenueAccountId: optionalUuidSchema,
+  dpCashAccountId: optionalUuidSchema,
+  salesOrderId: optionalUuidSchema,
+});
+
+export const installmentPaySchema = z.object({
+  scheduleId: uuidSchema,
+  cashAccountId: uuidSchema,
+  amount: positiveMoneySchema,
+  paymentDate: dateSchema,
+});
+
+const employeeRoleSchema = z.enum(["DOCTOR", "NURSE", "STAFF", "OTHER"]);
+// Payroll must support imported businesses whose account and employee IDs are legacy opaque strings.
+// Tenant-scoped repository lookups still enforce ownership before any journal is posted.
+const payrollIdSchema = z.string().trim().min(1, "Id wajib diisi");
+const optionalPayrollIdSchema = payrollIdSchema.optional();
+const payrollMoneySchema = z.preprocess((value) => typeof value === "string" && value.trim() === "" ? "0" : value, nonNegativeMoneySchema);
+const payrollItemSchema = z.object({
+  employeeId: payrollIdSchema,
+  salaryAmount: payrollMoneySchema,
+  incentiveAmount: payrollMoneySchema.optional(),
+  deductionAmount: payrollMoneySchema.optional(),
+  notes: optionalString,
+});
+
+export const payrollEmployeeSchema = z.object({ name: stringRequired, role: employeeRoleSchema });
+export const payrollEmployeeUpdateSchema = payrollEmployeeSchema.extend({ isActive: z.boolean() });
+export const payrollRunSchema = z.object({
+  period: dateSchema,
+  expenseAccountId: payrollIdSchema,
+  payableAccountId: payrollIdSchema,
+  deductionPayableAccountId: optionalPayrollIdSchema,
+  items: z.array(payrollItemSchema).min(1),
+});
+export const payrollApproveSchema = z.object({ approvedAt: dateSchema.optional() });
+export const payrollPaySchema = z.object({ paymentAccountId: payrollIdSchema, paidAt: dateSchema.optional() });
+export const payrollItemPaySchema = payrollPaySchema.extend({ amount: positiveMoneySchema });
+// ── Modul Keanggotaan Koperasi ───────────────────────────────────────────────
+export const memberSchema = z.object({
+  memberNumber: z.string().min(1).max(20),
+  name: stringRequired,
+  address: optionalString,
+  phone: optionalString,
+  joinedOn: dateSchema.optional(),
+  status: z.enum(["ACTIVE", "INACTIVE", "RESIGNED"]).optional(),
+  notes: optionalString,
+});
+
+export const memberUpdateSchema = z.object({
+  memberNumber: z.string().min(1).max(20).optional(),
+  name: stringRequired.optional(),
+  address: optionalString,
+  phone: optionalString,
+  joinedOn: dateSchema.optional(),
+  status: z.enum(["ACTIVE", "INACTIVE", "RESIGNED"]).optional(),
+  notes: optionalString,
+});
+
+export const memberSavingSchema = z.object({
+  type: z.enum(["POKOK", "WAJIB", "SUKARELA"]),
+  direction: z.enum(["DEPOSIT", "WITHDRAWAL"]),
+  savingsAccountId: uuidSchema,
+  cashAccountId: uuidSchema,
+  transactionDate: dateSchema,
+  amount: positiveMoneySchema,
+  referenceNumber: optionalString,
+  note: optionalString,
+});
+
+export const memberLoanSchema = z.object({
+  loanAccountId: uuidSchema,
+  cashAccountId: uuidSchema,
+  principal: positiveMoneySchema,
+  disbursedOn: dateSchema,
+  interestRateBps: z.number().int().min(0).max(10000).optional(),
+  termMonths: z.number().int().min(1).max(120).optional(),
+  note: optionalString,
+});
+
+export const memberInstallmentPaymentSchema = z.object({
+  installmentNo: z.number().int().min(1),
+  cashAccountId: uuidSchema,
+  interestIncomeAccountId: uuidSchema.optional(),
+  paidOn: dateSchema,
+});
