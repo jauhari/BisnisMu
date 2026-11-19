@@ -6,36 +6,45 @@ import { GlassPanel, GlassStatsCard } from "@/components/glass/glass-primitives"
 import { useSessionContext } from "@/components/layout/session-context";
 import { useBalanceSheetReport } from "@/presentation/query/dashboard-hooks";
 import { useReportRange, buildRequest } from "@/presentation/query/report-hooks";
-import { formatDateLong, formatRupiah } from "@/presentation/format/number";
+import { formatDateLong, formatNumber, formatRupiah } from "@/presentation/format/number";
 import { exportBalanceSheetPdf, exportBalanceSheetExcel } from "@/presentation/export/report-exports";
 
 const n = (v: any) => Number(v ?? 0);
 
 interface Line { name: string; amount: number }
 
-// Angka negatif (mis. akumulasi penyusutan) ditulis dalam kurung, konvensi laporan keuangan.
-const money = (v: number): string => (v < 0 ? `(${formatRupiah(-v)})` : formatRupiah(v));
+// Format akuntansi: "Rp" rata kiri, angka rata kanan dalam lebar tetap supaya
+// digit sejajar antarbaris; negatif (mis. akumulasi penyusutan) dalam kurung.
+function Money({ value, className = "" }: { value: number; className?: string }) {
+  const digits = formatNumber(Math.abs(Math.round(value)));
+  return (
+    <span className={`inline-flex w-36 shrink-0 sm:w-44 justify-between tabular-nums ${className}`}>
+      <span>Rp</span>
+      <span>{value < 0 ? `(${digits})` : `${digits}\u2007`}</span>
+    </span>
+  );
+}
 
 function StatementSection({ title, lines, total, totalLabel }: { title: string; lines: Line[]; total: number; totalLabel?: string }) {
   return (
-    <section className="px-5 py-4">
-      <h3 className="text-xs font-semibold uppercase tracking-wider text-muted">{title}</h3>
+    <section className="px-4 py-5 sm:px-6">
+      <h3 className="text-xs font-semibold uppercase tracking-wider text-accent">{title}</h3>
       {lines.length === 0 ? (
         <p className="mt-2 text-sm text-muted">Tidak ada saldo.</p>
       ) : (
-        <dl className="mt-2 grid gap-1.5">
+        <dl className="mt-3 divide-y divide-border/40">
           {lines.map((l) => (
-            <div key={l.name} className="flex items-baseline justify-between gap-4 text-sm">
-              <dt className="pl-3">{l.name}</dt>
-              <dd className={`whitespace-nowrap tabular-nums ${l.amount < 0 ? "text-muted" : ""}`}>{money(l.amount)}</dd>
+            <div key={l.name} className="flex items-baseline justify-between gap-3 py-2.5 text-sm sm:gap-6">
+              <dt className="pl-2 sm:pl-3">{l.name}</dt>
+              <dd><Money value={l.amount} className={l.amount < 0 ? "text-muted" : ""} /></dd>
             </div>
           ))}
         </dl>
       )}
       {totalLabel ? (
-        <div className="mt-3 flex items-baseline justify-between gap-4 border-t border-border/60 pt-2 text-sm font-semibold">
+        <div className="mt-1 flex items-baseline justify-between gap-6 border-t border-border pt-3 text-sm font-semibold">
           <span>{totalLabel}</span>
-          <span className="whitespace-nowrap tabular-nums">{money(total)}</span>
+          <Money value={total} />
         </div>
       ) : null}
     </section>
@@ -44,9 +53,9 @@ function StatementSection({ title, lines, total, totalLabel }: { title: string; 
 
 function GrandTotal({ label, amount }: { label: string; amount: number }) {
   return (
-    <div className="mt-auto flex items-baseline justify-between gap-4 border-t-2 border-foreground/80 bg-foreground/[0.03] px-5 py-3 font-semibold">
+    <div className="mt-auto flex items-baseline justify-between gap-6 border-t-2 border-foreground/80 bg-foreground/[0.03] px-4 py-4 font-semibold sm:px-6">
       <span>{label}</span>
-      <span className="whitespace-nowrap tabular-nums">{money(amount)}</span>
+      <Money value={amount} />
     </div>
   );
 }
@@ -106,7 +115,7 @@ export default function Page() {
 
       {/* Format neraca dua sisi (skontro): kiri harus sama dengan kanan. */}
       <GlassPanel className="p-0">
-        <div className="border-b border-border/60 px-5 py-3 text-sm text-muted">
+        <div className="border-b border-border/60 px-4 py-4 text-sm text-muted sm:px-6">
           Posisi keuangan per <span className="font-medium text-foreground">{formatDateLong(endsOn)}</span>
         </div>
         <div className="grid lg:grid-cols-2 lg:divide-x divide-border/60">
