@@ -8,7 +8,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "next lint",
     "dev": "next dev --port 3333",
-    "build": "prisma generate && next build",
+    "build": "node scripts/guard-next-build.mjs && prisma generate && next build",
     "start": "npm run prisma:migrations:check && next start",
     "prisma:migrate:dev": "prisma migrate dev --schema prisma/schema.prisma",
     "prisma:migrate:deploy": "prisma migrate deploy --schema prisma/schema.prisma",

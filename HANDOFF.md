@@ -1,15 +1,51 @@
 # BisnisMu — Handoff Document
 
-> **Entri terbaru ada di paling atas.** Lihat Phase 42 untuk sesi 2026-11-19.
+> **Entri terbaru ada di paling atas.** Lihat Phase 43 untuk sesi 2026-11-19.
 
 Date: 2026-08-09
 Session scope: Import data legacy ExAct VS / Google Sheets untuk PKU Ponjong, normalisasi CoA SAK EMKM, rekonsiliasi akuntansi, perbaikan pemilihan bisnis, dokumentasi, dan push git.
 
 ---
 
+## Phase 43: Migrasi Database ke us-east-1 (2026-11-19)
+
+### Masalah
+
+Vercel functions berjalan di `iad1` (Virginia, AS) sementara Neon database ada di `ap-southeast-1` (Singapore). Setiap query kena +250ms network overhead. `/api/health` yang isinya hanya `SELECT 1` butuh **1.426ms**.
+
+### Yang Dikerjakan
+
+1. Buat Neon project baru **`bisnismu-us`** (`red-silence-07151748`) di `aws-us-east-1`
+2. Dump data dari `TansiMu` (`broad-hall-71350003`, ap-southeast-1) via `pg_dump` v17 → 512KB
+3. Restore ke `bisnismu-us` via `pg_restore` — semua 80+ tabel, 42 users, 47 businesses, 355 journals
+4. Update `DATABASE_URL` + `DIRECT_URL` di Vercel project `bisnismu` → redeploy
+
+**Env vars baru (us-east-1):**
+
+- `DATABASE_URL`: pooled endpoint `ep-empty-dew-bc6zg30p-pooler.c-16.us-east-1.aws.neon.tech` + `pgbouncer=true&connection_limit=3&pool_timeout=20`
+- `DIRECT_URL`: direct endpoint `ep-empty-dew-bc6zg30p.c-16.us-east-1.aws.neon.tech`
+
+### Hasil
+
+| Route                       | Sebelum | Sesudah |
+| --------------------------- | ------: | ------: |
+| `/api/health` (median cold) | 1.426ms |  ~296ms |
+| `/api/health` (warm)        |       — |  ~200ms |
+
+Penurunan **~5–7x** pada warm request. Route authenticated (`/api/dashboard/overview`, dll.) tidak diukur ulang — estimasi hemat ~1–1.5 detik per request (6 query × 250ms yang hilang).
+
+### Catatan
+
+- Database lama `TansiMu` (ap-southeast-1) **tetap utuh** sebagai backup — belum dihapus.
+- Vercel MCP tidak punya akses baca/tulis env vars (403) — update dilakukan manual via Vercel dashboard.
+- Benchmark penuh (`bench-routes.mjs`) belum dijalankan untuk route authenticated.
+
+---
+
 ## Phase 42: Area Kerja Fluid, Tabel Bagan Akun, dan Batas Lebar Form (2026-11-19)
 
 ### Masalah
+
 Tiga keluhan berurutan dari pengguna, masing-masing dengan akar berbeda:
 
 1. **"UI Bagan Akun masih berantakan."** Baris `<li>` punya **5 anak** (nama, grup, saldo, status, aksi) tetapi grid hanya mendefinisikan **4 kolom** dan header hanya **4 label**. Akibatnya kolom aksi terdorong ke baris kedua dan menyisakan lubang kosong besar; tinggi baris 123 px padahal isinya sedikit.
@@ -21,25 +57,31 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 ### Perbaikan
 
 **Bagan Akun (`app/(app)/accounting/chart-of-accounts/page.tsx`, `app/globals.css`)**
+
 - Grid baris menjadi **5 kolom** dengan penempatan eksplisit per field lewat `.coa-field-main/group/balance/status` + `.coa-actions`; header diberi label **Aksi** (sebelumnya 4 label).
 - Mode sempit (< 760 px kontainer): satu kolom penuh, tiap field berlabel sendiri; mode lebar: 5 kolom sejajar.
 - Tombol Hapus jadi ikon (`Trash2`) dengan `aria-label`, menghemat lebar kolom aksi.
 
 **Rail sidebar (`components/layout/app-shell.tsx`)**
+
 - Rail desktop dipindah dari `xl:` (1280 px) ke `2xl:` (1536 px). Di bawah 1536 px sidebar menjadi overlay sehingga konten memakai lebar penuh — menghilangkan penurunan area konten pada 1280–1535 px.
 
 **Area kerja fluid (`components/layout/app-shell.tsx`, `app/(app)/payroll/page.tsx`)**
+
 - Hapus `max-w-[1680px]` + `mx-auto` dari wadah utama; hapus `max-w-[1440px]` dari halaman Payroll. Area kerja kini memakai lebar penuh di semua breakpoint.
 
 **Batas lebar form (`max-w-[560px]`, 5 halaman)**
+
 - Batas dipasang di **grid field tiap halaman**, bukan di wadah halaman, sehingga sisa lebar tetap diserap tabel dan panel detail tetap menempel (jarak 16 px) tanpa celah.
 - Halaman yang diubah: `accounting/chart-of-accounts`, `sales/customers`, `ar-ap/customers`, `ar-ap/vendors`, `inventory/categories`.
 - **12 halaman lain tidak disentuh** karena formnya sudah memakai grid multi-kolom (`fiscal-periods`, `ar-ap/invoices`, `ar-ap/bills`, `float/*`, `inventory/products`, `settings`, `cash/*`, `purchase/orders`) atau berada di dalam modal yang sudah punya batas lebar sendiri.
 
 **Alat verifikasi (`scripts/screenshot-widths.mjs`, baru)**
+
 - Menggerakkan Chrome headless lewat CDP dengan `Emulation.setDeviceMetricsOverride` untuk mengukur pada **lebar viewport nyata**. Selector baris memakai `li.coa-row` (bukan `li` polos, yang ikut menangkap item sidebar).
 
 ### Verifikasi
+
 - Pengukuran lebar nyata pada **390 / 768 / 1024 / 1280 / 1440 / 1600 / 1920 / 2560 px**: 390–768 px = 1 kolom berlabel; 1024–2560 px = 5 kolom sejajar; tinggi baris 67 px; **nol gulir horizontal** di semua lebar.
 - Input form maksimal **560 px** (dari ~970–1900 px); jarak form ke panel detail **16 px**.
 - Area kerja: `main` selebar viewport penuh (terukur 1093 px pada viewport 1093 px).
@@ -49,6 +91,7 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 - Terverifikasi di produksi `www.bisnismu.net` (region Vercel `sin1`) pada 1440/1920/2560 px: 5 kolom, input 560 px, tanpa gulir horizontal.
 
 ### Catatan
+
 - **`bisnismu.vercel.app` dan `www.bisnismu.net` adalah deployment yang sama.** DNS menunjukkan `bisnismu.vercel.app` adalah CNAME ke `bisnismu.net`; ETag dan chunk hash webpack kedua domain identik. Verifikasi di salah satu domain berlaku untuk keduanya.
 - **Penyebab tampilan lama di browser pengguna adalah cache HTTP**, bukan deploy tertinggal. Deployment sudah benar; tidak ada service worker / PWA di project ini. Solusi: hard reload (`Cmd + Shift + R`) atau mode incognito.
 - **Rail sidebar kini muncul di 1536 px, bukan 1280 px** — berlaku untuk **semua halaman**, bukan hanya Bagan Akun. Ini perubahan lintas-halaman yang disengaja; bila diinginkan rail kembali muncul dari 1280 px, cukup ubah `2xl:` kembali ke `xl:` di `app-shell.tsx`.
@@ -61,17 +104,20 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 ## Phase 41: Konsistensi dan Kontras Ikon Aksi Transaksi (2026-08-19)
 
 ### Masalah
+
 - Baris aksi di Transaksi Kas dan Transfer Dana Kas & Bank menampilkan 3-4 ikon (Detail, Edit, Posting, Hapus/Void) dengan bahasa visual yang tidak seragam: tiga ikon berupa outline nyaris transparan (`border-border text-muted`, tanpa latar sama sekali sampai di-hover), sedangkan tombol Posting berupa kotak solid `bg-foreground text-background` — bobot visualnya jauh berbeda dari yang lain.
 - Investigasi lebih lanjut menemukan bug nyata, bukan cuma soal selera: className tombol Posting digabung dari `${actionIconClass} ... text-background`, padahal `actionIconClass` sudah memuat `text-muted`. Tailwind men-generate stylesheet berdasarkan urutan warna di `tailwind.config.ts` (background, foreground, muted, ...), bukan urutan classname di kode — sehingga `.text-muted` (didefinisikan setelah `.text-background`) selalu menang di specificity yang sama. Ikon "Send" pada tombol Posting akhirnya render abu-abu di atas kotak gelap, bukan putih seperti maksud kode aslinya.
 - Diverifikasi dengan `getComputedStyle` pada halaman percobaan sementara (route Next.js, dihapus setelah dipakai) memakai token warna asli `app/globals.css`: kontras ikon-vs-latar tombol Posting hanya ~3.8:1 (mode terang) dan ~2.5:1 (mode gelap) — jauh di bawah ~18:1 yang seharusnya berlaku kalau `text-background` benar-benar menang.
 
 ### Perbaikan
+
 - `app/(app)/cash/transactions/page.tsx` dan `app/(app)/cash/transfers/page.tsx`: `actionIconClass`/`actionClass` dipecah jadi tiga konstanta independen (netral, `actionPostClass`, `actionDangerClass`), masing-masing string class lengkap berdiri sendiri — tidak lagi digabung dari base + override, sehingga bug urutan-CSS di atas tidak bisa terulang.
 - Tombol Posting sekarang memakai chip biru (`border-accent/40 bg-accent/15 text-accent`) alih-alih kotak solid `bg-foreground`, konsisten dengan warna accent yang sudah dipakai di hover state tombol lain.
 - Tombol Detail/Edit diberi latar tipis (`bg-white/60` terang, `bg-white/5` gelap) supaya tetap punya permukaan yang kelihatan saat idle, tidak transparan total seperti sebelumnya.
 - Tombol Hapus/Void diberi latar merah tipis (`bg-danger/10`) untuk konsisten dengan chip lain, bukan cuma outline.
 
 ### Verifikasi
+
 - `npm run typecheck` dan `npm test` (234 test, 36 file) lulus.
 - Class akhir diverifikasi lewat halaman preview Next.js sementara yang me-render kelas yang sama persis dengan token CSS asli (percobaan pertama pakai `public/*.html` + Tailwind CDN gagal karena CDN diblokir jaringan sandbox; beralih ke route Next.js asli), lalu dihapus lagi setelah verifikasi.
 - Belum diverifikasi visual di browser sungguhan — screenshot Browser pane tidak tersedia di sesi ini (pane tidak ter-display). Verifikasi mengandalkan angka kontras `getComputedStyle`, bukan pengecekan mata langsung.
@@ -81,10 +127,12 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 ## Phase 40: Usaha Default saat Login (2026-08-19)
 
 ### Masalah
+
 - Pengguna dengan beberapa usaha selalu diarahkan ke usaha dengan keanggotaan (`BusinessMember.joinedAt`) paling lama setiap login — tidak ada cara memilih usaha mana yang jadi default, baik dari sisi data (`User` tidak punya kolom preferensi) maupun UI.
 - Memilih usaha lain lewat halaman Pilih Usaha hanya mengubah `Session.activeBusinessId` (berlaku untuk sesi saat itu saja); login berikutnya kembali memakai urutan `joinedAt` lama.
 
 ### Perbaikan
+
 - `prisma/schema.prisma`: kolom baru `User.defaultBusinessId` (nullable, relasi ke `Business` dengan `onDelete: SetNull`, mengikuti pola `Business.organizationId`). Migration `202608180001_add_user_default_business`.
 - `src/presentation/auth/session.ts`: fungsi `setDefaultBusiness()` — mengecek keanggotaan aktif sebelum menyimpan `defaultBusinessId`, sama seperti `selectActiveBusiness()`.
 - `app/api/auth/default-business/route.ts` (baru): `POST` untuk menyimpan usaha default, memanggil `revalidateTag("businesses")` agar daftar usaha langsung mencerminkan perubahan.
@@ -93,12 +141,14 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 - `app/(auth)/select-business/page.tsx`: tombol "Jadikan default" per usaha, jadi badge "Default" setelah diklik.
 
 ### Verifikasi
+
 - `npm run typecheck` dan `npm test` (234 test) lulus.
 - `npm run prisma:migrate:status`: database sesuai riwayat migrasi, tidak ada drift.
 - Diverifikasi end-to-end di browser: dibuat user + 2 usaha percobaan sementara (email `verify-default-business-test@bisnismu.local`, dihapus setelah dipakai), lalu dikonfirmasi (a) tanpa default, login jatuh ke usaha `joinedAt` paling lama; (b) setelah "Jadikan default" diklik di UI, `bootstrap` dan `dev-login` sama-sama mengarah ke usaha yang di-default-kan; (c) data dan skrip percobaan dihapus lagi setelah verifikasi (`git status` bersih).
 - Catatan infra yang ditemukan saat migrasi (bukan bug fitur ini): migration `202606010001_repair_current_schema` gagal direplay di shadow database Prisma (`CREATE TYPE "BusinessMemberRole"` bentrok dengan `20260531150000_auth_business_member` yang sudah membuatnya lebih dulu) — `prisma migrate dev` akan selalu gagal P3006 sampai ini diperbaiki terpisah. Migration baru ini diterapkan lewat `prisma migrate deploy` (tidak butuh shadow DB) sebagai workaround.
 
 ### Catatan
+
 - Belum ada UI untuk menghapus/meng-unset usaha default selain memilih usaha lain sebagai default baru — tidak diminta di sesi ini.
 
 ---
@@ -106,19 +156,23 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 ## Phase 39: Rebuild Halaman Transfer Dana Kas & Bank (2026-08-19)
 
 ### Masalah
+
 - Halaman Transfer Dana sebelumnya berupa form sederhana dengan state manual (`useState` per field, `GlassDataSelect`/`GlassInput` langsung), tanpa preview jurnal, tanpa validasi Zod, dan tanpa aksi lanjutan (posting/hapus/void) pada baris riwayat transfer.
 - `POST`/`GET /api/cash/transfers` memakai jalur lama `serverServices.cashSession.transferCash` dan tabel `cashMovementRecord`, terpisah dari alur `cashManagement`/`cashTransaction` yang dipakai Transaksi Kas — sehingga transfer tidak konsisten dengan pola CRUD+posting halaman kas lainnya.
 
 ### Perbaikan
+
 - `app/(app)/cash/transfers/page.tsx`: dibangun ulang memakai `FormDrawer` + `ManagedForm` (Zod + React Hook Form), dengan pratinjau jurnal debit/kredit sebelum transfer disimpan, dan baris riwayat mendapat aksi ikon Detail/Posting/Hapus draft/Void sama seperti Transaksi Kas.
 - `app/api/cash/transfers/route.ts`: `POST` dipindahkan ke `serverServices.cashManagement.createDraft(...)` dengan `type: "TRANSFER"`; `GET` membaca dari `prisma.cashTransaction` (bukan `cashMovementRecord` lagi).
 - `tests/cash-management/cash-service.test.ts`: disesuaikan dengan alur `createDraft` untuk transfer.
 
 ### Verifikasi
+
 - `npm run typecheck` dan `npm test` (234 test) lulus sebagai bagian dari verifikasi gabungan sesi ini.
 - Belum diverifikasi manual end-to-end di browser (drawer buat-transfer, posting, delete draft, void) — di luar cakupan sesi dokumentasi ini; disarankan dicoba langsung sebelum rilis.
 
 ### Catatan
+
 - Perubahan ini sudah ada di working tree sebelum sesi dokumentasi ini dimulai (bukan hasil sesi Phase 39-41); dicatat dan di-commit di sini supaya riwayatnya tidak hilang dan tidak menumpuk sebagai uncommitted diff.
 
 ---
@@ -126,22 +180,26 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 ## Phase 38: Payroll di Riwayat Transaksi dan Perbaikan Tanggal (2026-08-14)
 
 ### Masalah
+
 - Halaman `/transactions` hanya menggabungkan Transaksi Kas, Sales Order, dan Penjualan Harian. Pembayaran gaji yang diproses lewat modul Payroll (`PayrollPayment`) tersimpan terpisah dan sama sekali tidak muncul di Riwayat Transaksi.
 - `isoDate()` di `src/presentation/transactions/history.ts` salah mendeteksi objek `Date` mentah dari Prisma: `String(date)` menghasilkan string seperti `"Wed Jul 15 2026 ... GMT+0700 ..."`, dan huruf "T" pada "GMT" lolos pengecekan `text.includes("T")`, sehingga hasil slice kehilangan tahun. `GlassTable` lalu mem-parse ulang string tanpa tahun tersebut dan V8 selalu jatuh ke tahun 2001 — inilah sumber tanggal "20 Mei 2001" dkk. yang tampil di semua baris (Kas, Sales Order, Daily Sale), bukan data import yang sengaja bertahun 2001.
 
 ### Perbaikan
+
 - `src/presentation/transactions/history.ts`: tambah `normalizePayrollPayment` dan source `PAYROLL_PAYMENT`, filter tipe baru `payroll`. `isoDate()` sekarang mengecek `value instanceof Date` lebih dulu dan memakai `toISOString().slice(0, 10)`, sebelum jatuh ke fallback string lama.
 - `app/api/transactions/history/route.ts`: query `prisma.payrollPayment.findMany` (field-level select, pola sama dengan tiga source lain) digabung ke `rows`.
 - `app/(app)/transactions/page.tsx`: opsi filter "Payroll" ditambahkan; baris `PAYROLL_PAYMENT` hanya menampilkan aksi Detail — Edit/Delete/Void disembunyikan karena belum ada endpoint pembalik pembayaran payroll yang sudah POSTED (mencegah tombol yang terlihat aktif tapi tidak melakukan apa-apa).
 - `app/(app)/payroll/page.tsx`: membaca query param `?runId=` (pola sama dengan `dailySaleId`/`salesOrderId`/`transactionId` di halaman lain) agar tautan Detail dari Riwayat Transaksi langsung membuka payroll run yang benar.
 
 ### Verifikasi
+
 - `npm run typecheck`: lulus.
 - Verifikasi data langsung ke Neon (skrip sementara, dihapus setelah dipakai): PKU Ponjong memiliki 49 `PayrollPayment`. Query select baru berhasil dieksekusi tanpa error Prisma.
 - Sebelum perbaikan `isoDate`, tanggal asli `2026-07-15` menghasilkan tampilan yang di-parse ulang `GlassTable` menjadi `"15 Juli 2001"`. Setelah perbaikan, tampilan menjadi `"15 Juli 2026"` — dikonfirmasi untuk baris Transaksi Kas maupun Payroll.
 - Belum diverifikasi visual di browser: tab preview tidak memiliki sesi login dan pengecekan ini tidak menangani kredensial pengguna.
 
 ### Catatan
+
 - Ditemukan indikasi double-entry: satu baris Transaksi Kas hasil import ("Gaji Dokter", Rp 3.462.000) memiliki nominal persis sama dengan satu `PayrollPayment` nyata. Belum diverifikasi lebih lanjut atau diubah — perlu dicek terpisah oleh pengguna.
 
 ---
@@ -149,11 +207,13 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 ## Phase 37: Performance and Stability Audit (2026-08-13)
 
 ### Scope and evidence
+
 - Priority paths audited: Dashboard, Payroll, Transaksi Kas, Riwayat Transaksi, and CoA.
 - The configured Neon database was used throughout. Baseline row counts: 166 cash transactions, 13 sales orders, 327 accounts, 618 journal lines, 25 payroll runs, and 54 payroll items.
 - `EXPLAIN ANALYZE` for representative history and CoA queries reported 0.09-1.59 ms at the database layer. No N+1 query was found on the priority paths. The major causes were runtime connection routing, duplicate Payroll requests, and oversized transaction-history payloads.
 
 ### Changes made
+
 - `src/presentation/api/prisma.ts`: routine API client uses `DATABASE_URL` (Neon PgBouncer); `prismaDirect` retains `DIRECT_URL` for atomic multi-write work.
 - `scripts/check-prisma-migrations.mjs` and `scripts/verify-prisma-migrations.mjs`: run the checked-in Prisma CLI using `process.execPath`, fixing Windows `spawnSync("npx")` startup failures.
 - `app/api/payroll/overview/route.ts`, Payroll service, and Payroll page: combined employee/runs/dashboard initial load. Employee and run reads are parallel; dashboard reuses the run result. Initial Payroll API requests are now 2 instead of 4.
@@ -162,12 +222,14 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 - `app/(app)/dashboard/page.tsx`: financial charts are lazy-loaded with stable skeletons.
 
 ### Measured results
+
 - Production startup: 1.878 s before the runtime connection fix was observed; the standard `npm run start` guard now completes and starts the server successfully.
 - `/api/health`: before `500` in 5,016-5,108 ms; after `200`, cold 627 ms, warm 163-189 ms.
 - Priority route unauthenticated middleware redirects after: Dashboard 15-16 ms warm; Payroll 14-15 ms; Transactions 13-14 ms; Cash 21-29 ms; CoA 12-13 ms. They return 307 until a valid session is supplied, so these are middleware/redirect timings, not authenticated page LCP.
 - Production build: 17.0 s compile; First Load JS Dashboard 277 kB, Payroll 183 kB, Cash 227 kB, Transactions 200 kB, CoA 204 kB, shared 103 kB.
 
 ### Verification
+
 - `npm run typecheck` passed.
 - `npm test` passed: 36 files, 234 tests.
 - `npm run build` passed. Existing unrelated React hook dependency warnings remain.
@@ -175,6 +237,7 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 - Local production server is running on `http://localhost:3344` for manual inspection.
 
 ### Residual risks / next priorities
+
 - P0: Set up Chrome DevTools MCP or a working browser runtime, then capture authenticated desktop/mobile CWV (LCP, INP, CLS), request waterfalls, and screenshots. Current environment lacked `agent-browser`, DevTools MCP, and a working Playwright module.
 - P1: Add cursor pagination and server-side filters to `/api/transactions/history` before tenant datasets grow beyond the current 500-row cap; no payload before/after byte comparison is available without an authenticated browser/session.
 - P1: Reduce Dashboard 277 kB aggregate bundle by extracting shared chart dependencies from dashboard subroutes; the lazy split improves evaluation priority but the build aggregate is unchanged.
@@ -185,22 +248,26 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 ## Phase 36: Riwayat Input Manual dan Import (2026-08-13)
 
 ### Masalah
+
 - Halaman `/transactions` terlihat hanya menampilkan transaksi hasil import ketika jumlah transaksi legacy sudah banyak.
 - Endpoint mengambil maksimal 100 transaksi kas dan tidak memiliki tie-breaker saat banyak row memiliki tanggal yang sama.
 - Setelah form Transaksi Kas menyimpan perubahan, cache query Riwayat Transaksi dapat tetap menampilkan snapshot lama sampai stale time berakhir.
 
 ### Temuan data Neon
+
 - PKU Ponjong memiliki 162 transaksi kas, seluruhnya berstatus `POSTED`.
 - 158 row adalah hasil import dengan tag `legacy-import`.
 - 4 row manual terbaru tetap tersimpan: `CASH-202607-00002` (Biaya Internet), `CASH-202607-00001` (Bulan April - Juni), `CASH-202606-00002` (Isi Pulsa Listrik), dan `CASH-202606-00001` (Biaya Internet).
 - Tidak ada row yang dihapus atau diubah pada database saat diagnosis.
 
 ### Perbaikan
+
 - `app/api/transactions/history/route.ts` mengambil hingga 500 transaksi kas, daily sale, dan sales order dengan urutan deterministik berdasarkan tanggal, `createdAt`, lalu ID.
 - `app/(app)/cash/transactions/page.tsx` meng-invalidasi cache Riwayat Transaksi setelah create/update/post/delete/void.
 - `app/(app)/sales/orders/page.tsx` meng-invalidasi cache Riwayat Transaksi setelah daily sale dibuat, diedit, dihapus, atau di-void.
 
 ### Verifikasi
+
 - Query read-only direct Neon berhasil mengonfirmasi 162 row transaksi kas dan 4 input manual terbaru.
 - `npm run typecheck` dan `npm test` perlu dijalankan setelah perubahan ini; `.pnpm-store/` tetap untracked dan tidak disentuh.
 
@@ -209,16 +276,19 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 ## Phase 35: Usable-Width Responsive Split (2026-08-12)
 
 ### Masalah
+
 - Breakpoint sebelumnya membaca lebar viewport browser. Pada desktop kecil, viewport terlihat lebar tetapi sidebar aplikasi mengurangi area kerja secara signifikan.
 - Akibatnya panel info tetap berada di kanan ketika area CRUD sebenarnya hanya sekitar 944 px, membuat tabel dan kolom aksi menyempit/terpotong.
 
 ### Perbaikan
+
 - `SplitWorkspace` sekarang memakai container query bernama `workspace`, bukan breakpoint viewport.
 - Panel informasi hanya diposisikan di kanan saat area konten aktual minimal 1760 px.
 - Pada area kerja yang lebih kecil, CRUD/main memakai satu kolom penuh dan panel informasi turun ke bawah.
 - Sidebar info tetap kembali menjadi satu kolom di sisi kanan ketika workspace benar-benar lebar.
 
 ### Verifikasi
+
 - Workspace lokal terukur 944 px: `grid-template-columns` satu kolom, main 944 px, panel info berada di bawah main.
 - Tidak ada horizontal overflow.
 - `npm run typecheck`: lulus.
@@ -230,11 +300,13 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 ## Phase 34: Mobile Information Panel Order (2026-08-12)
 
 ### Perbaikan
+
 - `SplitWorkspace` sekarang menetapkan area CRUD/main sebagai `order-1` dan panel informasi sebagai `order-2` pada layar kecil.
 - Pada breakpoint `2xl`, layout kembali menjadi dua kolom dengan panel informasi di sisi kanan.
 - `DetailPanel` memakai spacing yang lebih rapat di mobile agar keterangan tidak mengambil ruang berlebihan.
 
 ### Verifikasi
+
 - Struktur DOM dan class responsive terverifikasi: main `order-1`, aside `order-2`.
 - `npm run typecheck`: lulus.
 - `npm test`: lulus, 36 file dan 232 test.
@@ -245,12 +317,14 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 ## Phase 33: Compact Transaction Actions (2026-08-12)
 
 ### Perbaikan
+
 - Aksi Detail, Edit, Post, Hapus, dan Void pada Transaksi Kas diubah dari tombol teks bertumpuk menjadi tombol ikon 36×36 px.
 - Setiap ikon tetap memiliki `title` dan `aria-label`, sehingga tetap jelas saat hover, keyboard focus, dan screen reader.
 - Legenda aksi ditambahkan di bawah tabel untuk menjelaskan arti ikon tanpa membebani setiap baris.
 - Kolom aksi diperlebar secukupnya agar ikon tidak wrap/menumpuk; mode kartu mobile tetap menggunakan kontrol yang sama.
 
 ### Verifikasi
+
 - Tombol aksi terlihat dengan ukuran 36×36 px.
 - Legenda `Aksi: Detail, Edit, Post, Hapus, Void` tampil.
 - Tidak ada horizontal overflow pada halaman Transaksi Kas.
@@ -263,16 +337,19 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 ## Phase 32: Column Popover Overlay Fix (2026-08-12)
 
 ### Masalah
+
 - Menu `Kolom` dan `Ekspor` berada di dalam kartu tabel yang memakai `overflow-hidden`, sehingga dropdown tampak menumpuk/terpotong oleh header dan isi tabel.
 - Interaksi toggle kolom sulit digunakan karena layer tabel dapat menutup popover.
 
 ### Perbaikan
+
 - Popover sekarang dirender melalui portal ke `document.body` dengan posisi fixed yang dihitung dari tombol pemicu.
 - Posisi otomatis memilih area bawah atau atas tombol sesuai ruang viewport dan memperbarui posisi saat resize/scroll.
 - Popover memiliki z-index overlay, batas tinggi dengan scroll internal, target sentuh minimum, serta menutup saat klik di luar atau menekan Escape.
 - Toggle visibility tetap terhubung langsung ke state TanStack Table; menyembunyikan `Tipe` terverifikasi menghapus header/kolom dari tabel.
 
 ### Verifikasi
+
 - Popover `Kolom` ter-render tanpa clipping pada viewport lokal.
 - Toggle `Tipe` berhasil menghilangkan kolom `TIPE` dari tabel.
 - `npm run typecheck`: lulus.
@@ -284,11 +361,13 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 ## Phase 31: Cash List Identity and Search Filter (2026-08-12)
 
 ### Perbaikan
+
 - Nomor transaksi tidak lagi memakai kolom desktop tersendiri pada halaman Transaksi Kas. Nomor ditampilkan sebagai metadata kecil di bawah keterangan agar lebar tabel lebih efisien.
 - Nomor tetap menjadi bagian dari data pencarian, sehingga pencarian berdasarkan `CASH-...` tetap berfungsi.
 - Mode kartu mobile menjadikan Keterangan/identitas sebagai field utama, dengan tipe, tanggal, status, nominal, dan aksi sebagai detail.
 
 ### Verifikasi
+
 - Pencarian `CASH-202607` menghasilkan empty state karena tidak ada baris yang cocok.
 - Pencarian `CASH-202604` menampilkan dua transaksi yang cocok.
 - `npm run typecheck`: lulus.
@@ -300,10 +379,12 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 ## Phase 30: Mobile CRUD Workspace (2026-08-12)
 
 ### Masalah
+
 - CRUD Transaksi Kas pada layar kecil tetap memakai tabel desktop dengan banyak kolom. Pengguna harus menggeser horizontal untuk membaca nominal, status, dan aksi.
 - Tombol CRUD terlalu kecil dan tersebar, sedangkan drawer form memakai padding desktop sehingga area input/aksi terasa sempit di ponsel.
 
 ### Perbaikan
+
 - `components/tables/glass-table.tsx` kini otomatis memakai mode kartu pada breakpoint `< md`: satu kartu per record, field utama dan nominal diprioritaskan, detail ditata dalam grid dua kolom, dan aksi tetap berada di dalam kartu.
 - Mode tabel desktop tetap dipertahankan mulai breakpoint `md`, termasuk sorting, resize, drag kolom, virtualisasi, ekspor, dan menu kolom.
 - Seleksi baris tetap tersedia pada mode kartu dengan checkbox yang lebih mudah disentuh.
@@ -311,6 +392,7 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 - `components/layout/form-drawer.tsx` dipadatkan untuk mobile, menjaga judul tetap terbaca, close button tidak terdorong, serta menambahkan safe-area padding di bagian bawah layar.
 
 ### Verifikasi
+
 - `npm run typecheck`: lulus.
 - `npm test`: lulus, 36 file dan 232 test.
 - `git diff --check`: lulus.
@@ -321,6 +403,7 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 ## Phase 29: Neon Connection Stability, Cash Draft, dan Responsive Forms (2026-08-12)
 
 ### Masalah yang ditemukan
+
 - Login dan halaman `/cash/transactions` kadang menampilkan `Service temporarily unavailable`, lalu error server `PrismaClientKnownRequestError` / `P1001` pada `prisma.session.findUnique()`.
 - Error bukan disebabkan password atau data transaksi. Endpoint Neon dapat dijangkau, tetapi koneksi Prisma ke hostname `-pooler` dapat menjadi stale setelah proses Next.js idle. Pada kondisi tertentu pool juga penuh (`connection pool timeout`, limit 17).
 - Draft transaksi sebelumnya sempat gagal karena validator hanya menerima UUID/CUID, sedangkan data import PKU memakai ID legacy opaque; kontak sempat gagal serialisasi karena nilai `BigInt`.
@@ -328,6 +411,7 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 - Dashboard sempat gagal memuat chart karena dynamic loader memanggil modul chart yang tidak aman untuk runtime saat itu.
 
 ### Perbaikan database dan auth
+
 - `src/presentation/api/prisma.ts` sekarang memilih hostname direct Neon: `DIRECT_URL` jika tersedia, atau menurunkan hostname direct dari `DATABASE_URL` dengan menghapus suffix `-pooler`.
 - Prisma diberi `connection_limit=3`, `pool_timeout=20`, dan transaction timeout yang cukup untuk query remote. Ini mencegah server-rendered session bergantung pada socket PgBouncer yang stale.
 - `prismaDirect` sekarang selalu dibuat sebagai client dedicated menggunakan koneksi direct yang sama, sehingga operasi multi-write atomic tetap konsisten.
@@ -335,6 +419,7 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 - Tidak ada data database yang dihapus atau diubah selama diagnosis.
 
 ### Perbaikan transaksi kas dan kontak
+
 - `src/presentation/api/validation.ts` menerima ID legacy `pku...` dan `c-...` selain UUID/CUID.
 - `tests/presentation/api-validation.test.ts` menambah regresi untuk ID akun legacy pada draft transaksi kas.
 - `app/api/contacts/route.ts` menserialisasi `totalRevenue` BigInt menjadi string pada GET/POST, termasuk jalur cache.
@@ -344,11 +429,13 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 - Test cash service diperbarui untuk memastikan subtype `Bank` tetap lolos.
 
 ### Perbaikan payroll dan UI responsif
+
 - Tombol buat payroll memindahkan fokus/scroll ke form, termasuk pada layar kecil.
 - Form payroll dioptimalkan menjadi kartu responsif dan menyediakan kontrol hide/show untuk insentif serta potongan agar area gaji lebih usable.
 - Dynamic chart loader dashboard diperbaiki agar `RevenueTrendChart` dimuat dari named export secara stabil.
 
 ### Verifikasi terakhir
+
 - `npm run typecheck`: lulus.
 - `npm test`: lulus, 36 file dan 232 test.
 - `git diff --check`: lulus.
@@ -357,6 +444,7 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 - Endpoint API yang diuji setelah restart: `/api/auth/businesses`, `/api/cash/transactions`, `/api/accounting/chart-of-accounts`, `/api/contacts`, dan `/api/auth/me` semuanya `200`.
 
 ### Operasional lokal
+
 - Jalankan: `npm run dev -- --hostname 127.0.0.1`
 - Port tetap: `3333`
 - URL: `http://localhost:3333`
@@ -364,6 +452,7 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 - Jangan commit `.env.local` atau kredensial database. File `.pnpm-store/` lokal dibiarkan untracked.
 
 ### Commit/deploy
+
 - Perubahan fase ini didokumentasikan bersama perubahan working tree dan akan dipush ke `origin/main` setelah verifikasi.
 
 ---
@@ -371,6 +460,7 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 ## Phase 28: Payroll, CoA, Kontak, dan Dashboard (2026-08-12)
 
 ### Payroll baru
+
 - Modul lengkap `src/features/payroll/` ditambahkan dengan domain engine, service, repository Prisma, API, halaman `/payroll`, dan item navigasi Penggajian.
 - Master karyawan mendukung CRUD: tambah, edit nama/peran, aktif/nonaktif lewat switch eksplisit, dan hapus bila belum memiliki riwayat payroll. Status nonaktif tetap dipertahankan saat data karyawan diedit.
 - Payroll per periode memiliki alur `DRAFT -> APPROVED -> PAID`. Draft tidak membuat jurnal dan tidak mengubah saldo CoA.
@@ -382,11 +472,13 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 - Dashboard Payroll menampilkan kewajiban disetujui, nominal terbayar, sisa utang, draft, riwayat periode, saldo utang per karyawan, serta rincian pembayaran.
 
 ### Persistensi dan import data lama
+
 - Prisma menambah `Employee`, `PayrollRun`, `PayrollItem`, `PayrollPayment`, enum peran/status, serta tiga migration: payroll dasar, pembayaran item, dan unique journal payment.
 - Seluruh migration Payroll telah diterapkan pada Neon.
 - `scripts/import-pku-legacy-payroll.cjs` mengimpor 46 jurnal gaji posted PKU Ponjong secara idempoten menjadi 22 payroll run, 45 item payroll, dan 46 riwayat pembayaran. Import mereferensikan jurnal lama, tidak membuat jurnal akuntansi baru.
 
 ### Perbaikan pendukung
+
 - Dashboard server tidak lagi meneruskan `BigInt` ke React Server Component. Nilai dashboard diserialisasi ke string lalu dikonversi tepat saat format tampilan.
 - API dan form CoA menerima ID bisnis legacy yang opaque, memperbaiki pemilihan CoA pada PKU Ponjong. Seed chart juga menggunakan konteks tenant dari sesi.
 - Query kontak memiliki cache tag dan invalidasi mutasi yang benar sehingga kontak baru muncul di form transaksi kas tanpa perlu restart server.
@@ -397,6 +489,7 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 - Date picker global sekarang menghitung ruang viewport, membuka kalender ke atas bila area bawah tidak cukup, serta memperbarui posisi saat resize/scroll agar kalender tidak terpotong.
 
 ### Verifikasi
+
 - `npm run typecheck`: lulus.
 - `npm test`: lulus, 36 file dan 228 test.
 - Tes terfokus Payroll/API: lulus, 3 file dan 16 test.
@@ -405,6 +498,7 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 - UI Payroll memerlukan sesi pengguna aktif untuk verifikasi visual penuh. Browser pengujian terisolasi tidak memakai kredensial atau sesi pengguna.
 
 ### Suggested skills for follow-up
+
 - `ui-ux-pro-max` untuk audit responsif Payroll dan form transaksi kas.
 - `agent-browser` untuk uji end-to-end setelah sesi pengguna tersedia.
 - `systematic-debugging` bila ada kegagalan posting atau alokasi pembayaran.
@@ -414,18 +508,22 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 ## Phase 27: Quick-Add Contact from Cash Transaction Form (2026-08-10)
 
 ### Masalah
+
 - Field Kontak (Phase 26) baru bisa memilih kontak yang sudah ada — kalau daftar kontak kosong, dropdown cuma menampilkan "Tidak ada pilihan" tanpa jalan keluar selain pindah halaman ke Settings/Kontak, isi form lengkap, lalu kembali ke draft transaksi kas dan mulai ulang.
 - User melaporkan langsung dari screenshot: field belum bisa dipakai karena tidak ada opsi tambah kontak saat dropdown kosong.
 
 ### Perbaikan
+
 - `app/(app)/cash/transactions/page.tsx`: field Kontak sekarang punya toggle "+ Tambah kontak baru" yang membuka mini-form inline (Nama + Tipe: Pelanggan/Pemasok/Lainnya).
 - Submit mini-form memanggil `POST /api/contacts`, invalidate query `["list","contacts"]`, lalu `form.setValue("contactId", ...)` untuk langsung memilih kontak baru ke transaksi yang sedang diisi — tanpa keluar dari drawer.
 
 ### Verifikasi
+
 - `npm run typecheck` dan `npm run lint`: bersih.
 - Belum diverifikasi visual di form asli (kendala kredensial database live yang sama seperti Phase 26).
 
 ### Deploy
+
 - Commit `900bab8`, push ke `origin/main`.
 
 ---
@@ -433,19 +531,23 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 ## Phase 26: Cash Transaction Contact Field + Live Money Formatting (2026-08-10)
 
 ### Masalah
+
 - User ingin transaksi Kas bisa dikaitkan ke Kontak (Vendor, Pelanggan, Karyawan, Dokter, Perawat, dll) untuk keperluan laporan nanti.
 - User juga melaporkan input Nominal cuma memberi titik pemisah ribuan setelah pindah field (blur), tidak langsung saat mengetik.
 
 ### Perbaikan
+
 - **Kontak:** `contactId` ternyata sudah lengkap di skema Prisma, Zod (`cashTransactionSchema`), domain engine, dan `CashManagementService` — cuma belum pernah dimunculkan di form. Ditambahkan `RhfDataSelect` baru sumber dari `/api/contacts` (semua tipe, tidak difilter), disembunyikan untuk tipe Transfer.
 - **Nominal:** `MoneyField` di `components/forms/financial-inputs.tsx` ditulis ulang supaya format ribuan tampil langsung saat mengetik, bukan cuma saat blur. Posisi kursor dipertahankan manual (hitung jumlah digit sebelum kursor, cari posisi setara di string terformat, tulis langsung ke DOM node sebelum React commit) supaya penyisipan titik tidak melempar kursor ke akhir teks. Komponen ini dipakai di 9 halaman (Kas, Sales, POS, Installments, AR/AP), jadi semuanya ikut diperbaiki sekaligus.
 
 ### Verifikasi
+
 - `npm run typecheck` dan `npm run lint`: bersih.
 - Live-formatting diuji di halaman uji coba terpisah (vanilla JS, logika sama persis) via Browser pane — kasus ketik-di-akhir sukses terverifikasi (raw="1500000" → display="1.500.000", kursor di posisi benar). Kasus edit-di-tengah tidak sempat diverifikasi interaktif karena Browser pane sempat tidak ter-render; sudah ditelusuri manual dan konsisten.
 - Field Kontak belum diverifikasi visual di form asli (kendala kredensial database live).
 
 ### Deploy
+
 - Commit `0c8b7a0`, push ke `origin/main`.
 
 ---
@@ -453,18 +555,22 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 ## Phase 25: RBAC EDITOR Role Bug Fix (2026-08-10)
 
 ### Masalah
+
 - Saat menyamakan tabel role RBAC di CLAUDE.md dengan enum Prisma asli, ditemukan bahwa role `EDITOR` tidak pernah ada di `BusinessMemberRole` (`OWNER, ADMIN, ACCOUNTANT, CASHIER, VIEWER`), tapi masih ditawarkan di dua form dan diterima oleh whitelist validasi di dua endpoint API.
 - Dropdown "Role di Usaha Tersebut" (Admin → Tambah User) dan form undang anggota (Settings → Members) menampilkan EDITOR sebagai pilihan. Endpoint `POST /api/admin/users` dan `POST /api/settings/members` punya whitelist `validRoles` sendiri yang ikut menyertakan EDITOR dan menulis `role as any` ke Prisma — lolos validasi TypeScript maupun validasi aplikasi, tapi gagal saat Postgres menolak nilai enum yang tidak sah, sehingga user melihat error 500 yang membingungkan saat submit.
 
 ### Perbaikan
+
 - `"EDITOR"` dihapus dari daftar role di 4 file: `app/(app)/settings/members/page.tsx`, `app/(app)/admin/page.tsx`, `app/api/settings/members/route.ts`, `app/api/admin/users/route.ts`. Daftar role di keempat file sekarang identik dengan enum `BusinessMemberRole`.
 
 ### Verifikasi
+
 - `npm run typecheck`: bersih sebelum dan sesudah perubahan.
 - Dev server (`npm run dev`, port 3333): boot bersih, tanpa error console/server pada halaman login.
 - Tidak diverifikasi secara visual di Settings → Members / Admin panel — keduanya perlu login ke database Neon yang menyimpan data live PKU Ponjong, dan tidak ada kredensial tersedia. `scripts/seed-dev-owner.mjs` sengaja tidak dijalankan supaya tidak menulis akun SUPER_ADMIN baru ke database bersama tanpa diminta.
 
 ### Deploy
+
 - Commit `5d3ff7d`, push ke `origin/main`.
 
 ---
@@ -472,19 +578,23 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 ## Phase 24: CLAUDE.md Documentation Sync (2026-08-10)
 
 ### Masalah
+
 - CLAUDE.md tertinggal jauh dari kode aktual: versi tercatat `0.8.0` (package.json sudah `0.11.1`), modul Sales/Payment/POS/Cash Sessions masih ditandai "WIP — Prisma schema needed" padahal sudah production, modul Purchase ditandai deprecated padahal aktif (domain+application+infrastructure lengkap, 4 halaman, beberapa API route), dan klaim "Offline-capable (PWA)" tercantum sebagai fitur selesai padahal belum ada `manifest.json`/service worker/dependency PWA sama sekali.
 - Tabel role RBAC menyertakan `EDITOR` yang ternyata tidak ada di enum Prisma (lihat Phase 25).
 - Referensi dokumen di Appendix D memakai nama file (`PRD-BisnisMu-*`) dan folder (`docs/Architecture.md`, `docs/HANDOFF.md`) yang salah — nama file aktual `PRD-AkuntansiMu-*`, dan Architecture.md/HANDOFF.md ada di root, bukan di `docs/`.
 - Roadmap (§15) punya section "Phase 3" dan "Phase 7" yang muncul dua kali dengan isi saling bertentangan (mis. satu bilang frontend belum ada, bagian lain di dokumen yang sama bilang sudah selesai).
 
 ### Perbaikan
+
 - Header versi/tanggal, §3 tech stack (Next.js 15, Prisma 6, React 19, tambah baris Auth), §6 tabel modul (Sales/Payment/POS/Cash Sessions/Purchase → Production, tambah Organization/Installments/Dashboard), §8.2 daftar skema (semua item "gap" lama sudah ada di 68 model `schema.prisma`), §10.3 tabel role (hapus EDITOR), §15 roadmap (Phase 4 & 5 dari Planned → selesai, duplikat Phase 3/7 digabung), dan Appendix D (link diperbaiki) — semua disamakan dengan struktur folder, `package.json`, dan `schema.prisma` yang sebenarnya.
 - Angka-angka di §9.1 (Security Readiness 88%, dll) sengaja tidak diubah karena tidak ada cara memverifikasinya dari kode.
 
 ### Verifikasi
+
 - Review manual terhadap `src/features/*`, `prisma/schema.prisma` (grep `^model `), `app/api/**/route.ts`, `app/(app)/**/page.tsx`, dan `package.json`.
 
 ### Deploy
+
 - Commit `c9fb807`, push ke `origin/main`.
 
 ---
@@ -492,9 +602,11 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 ## Phase 23: Cash Transaction Date Picker (2026-08-10)
 
 ### Masalah
+
 - Form Tambah Draft Transaksi Kas menggunakan input teks untuk tanggal, memaksa pengguna mengetik format `YYYY-MM-DD` dan tidak konsisten dengan halaman jurnal manual.
 
 ### Perbaikan
+
 - Tambah `RhfDatePicker` pada form component bersama, yang menghubungkan `GlassDatePicker` dengan React Hook Form.
 - Form `/cash/transactions` sekarang memakai kontrol kalender untuk `transactionDate`; payload tetap mengirim format ISO `YYYY-MM-DD` yang divalidasi API.
 
@@ -503,16 +615,19 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 ## Phase 22: In-App Changelog Production Fix (2026-08-09)
 
 ### Masalah
+
 - `/admin/changelog` menampilkan error boundary di production karena halaman membaca `CHANGELOG.md` menggunakan filesystem pada runtime, sementara file Markdown tersebut tidak dijamin ikut dalam server bundle Vercel.
 - Sidebar masih menampilkan `Changelog v0.5.0` secara hard-coded meskipun versi paket sudah `0.11.1` dan changelog repository telah diperbarui.
 
 ### Perbaikan
+
 - `next.config.ts` menambahkan `outputFileTracingIncludes` untuk `/admin/changelog` dan `/admin/changelog/[version]`, sehingga `CHANGELOG.md` tersedia saat kedua halaman dirender di production.
 - Sidebar mengambil versi dari `package.json` agar label selalu selaras dengan rilis aplikasi.
 - UI changelog memberi label yang jelas untuk section `[Unreleased]`: `Perubahan terbaru` dan badge `Belum dirilis`.
 - Test parser menambahkan regresi untuk section `[Unreleased]`.
 
 ### Verifikasi
+
 - Test parser changelog: lulus, 3 test.
 - `npm run typecheck`: lulus.
 - ESLint untuk file yang diubah: lulus tanpa error.
@@ -523,10 +638,12 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 ## Phase 21: Dashboard Performance Path (2026-08-09)
 
 ### Temuan
+
 - Dashboard utama melakukan 17 query Prisma lintas modul, kemudian memanggil laporan laba-rugi secara berurutan. Untuk PKU Ponjong, query operasional kosong memakan sekitar 0,9 detik dan laporan laba-rugi menambah sekitar 1 detik.
 - Database Neon berada di `ap-southeast-1`, sedangkan aplikasi sebelumnya tidak menentukan region function.
 
 ### Perbaikan
+
 - Tambah `src/presentation/dashboard/dashboard-summary.ts`, ringkasan khusus layar dashboard dengan 8 query terpilih yang berjalan paralel.
 - KPI laba-rugi dan saldo kas dihitung dari jurnal posted tanpa membuat audit log report untuk setiap kunjungan dashboard; hasil PKU Ponjong tervalidasi sama dengan laporan: net profit `-Rp18.453.749`.
 - Dashboard utama memakai ringkasan ini dan cache `unstable_cache` 30 detik.
@@ -534,6 +651,7 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 - `getCachedDashboardOverview` tidak lagi diekspor dari App Route, memperbaiki batas export Next.js yang sebelumnya membuat `npm run typecheck` gagal.
 
 ### Verifikasi
+
 - Benchmark query ringkasan: sekitar 0,95 detik dari lingkungan lokal ke Neon sebelum cache; jalur lama memerlukan dua tahap sekitar 1,9 detik.
 - `npm test`: lulus, 32 file / 216 test.
 - `npm run typecheck`: lulus.
@@ -544,15 +662,18 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 ## Phase 20: Root Session Redirect (2026-08-09)
 
 ### Masalah
+
 - Root route `app/page.tsx` selalu mengarahkan setiap pengunjung ke `/login`, termasuk user yang masih memiliki session Better Auth valid.
 
 ### Perbaikan
+
 - Root route sekarang membaca cookie session server-side dan memvalidasinya terhadap database.
 - Session valid dengan bisnis aktif diarahkan ke `/dashboard`.
 - Session valid tanpa bisnis aktif diarahkan ke `/select-business`; session tidak ada atau kadaluarsa tetap ke `/login`.
 - Error infrastruktur tidak dimasking sebagai login redirect.
 
 ### Verifikasi
+
 - Test regresi baru `tests/presentation/root-redirect.test.ts` mencakup tiga skenario redirect.
 - `npm test`: lulus, 32 file / 216 test.
 - `npx eslint app/page.tsx tests/presentation/root-redirect.test.ts`: lulus.
@@ -562,14 +683,17 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 ## Phase 19: Business Switcher Performance (2026-08-09)
 
 ### Masalah
+
 - Setelah memilih usaha, UI menunggu `invalidateQueries()` tanpa filter. Semua query aktif direfetch secara sinkron sebelum `router.refresh()`, sehingga perpindahan terasa lambat dan nama usaha lama terlalu lama tampil.
 
 ### Perbaikan
+
 - `components/layout/app-shell.tsx` memperbarui cache daftar bisnis secara optimistis setelah server mengonfirmasi perubahan sesi.
 - Cache query tenant sebelumnya dibersihkan tanpa menunggu refetch massal; `router.refresh()` dijalankan dalam React transition untuk memuat data bisnis baru.
 - Kontrol switcher tetap dinonaktifkan selama request atau transition berjalan agar tidak ada request tumpang tindih.
 
 ### Verifikasi
+
 - `npm test`: lulus, 31 file / 213 test.
 - `npx eslint components/layout/app-shell.tsx`: lulus.
 - `npm run typecheck`: masih berhenti pada error lama export `getCachedDashboardOverview` dari route dashboard, tidak terkait perubahan ini.
@@ -579,13 +703,16 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 ## Phase 18: Business Switcher Legacy ID Fix (2026-08-09)
 
 ### Masalah
+
 - Pemilihan `PKU Ponjong` gagal dengan toast `Invalid request body` karena ID hasil import berformat `pku_...`, sedangkan `selectBusinessSchema` hanya menerima CUID atau UUID.
 
 ### Perbaikan
+
 - `src/presentation/api/request-schemas.ts`: `businessId` pada endpoint `/api/auth/select-business` kini divalidasi sebagai string nonkosong, karena ID bisnis bersifat opaque.
 - Keamanan tetap terjaga di `selectActiveBusiness`: sistem mencari `BusinessMember` aktif untuk user pada ID bisnis yang diminta sebelum memperbarui sesi.
 
 ### Verifikasi
+
 - `npm test`: lulus, 31 file / 213 test.
 
 ---
@@ -593,10 +720,12 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 ## Phase 17: Legacy ExAct VS Import - PKU Ponjong (2026-08-09)
 
 ### Tujuan
+
 - Memindahkan data akuntansi dari workbook ExAct VS / Google Sheets ke BisnisMu tanpa jurnal parsial atau ketidakseimbangan saldo.
 - Membuat bisnis `PKU Ponjong` dan mengaitkannya dengan `barookahjaya@gmail.com` sebagai `OWNER`.
 
 ### Implementasi
+
 - Utility baru `scripts/import-pku-ponjong.mjs`:
   - Wajib melalui dry-run sebelum `--apply`.
   - Memvalidasi kode akun, saldo awal, tanggal, nilai jurnal, akun posting, dan keseimbangan debit/kredit.
@@ -610,6 +739,7 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
   - Hierarki akun yang tidak lengkap pada sumber dipasang ke induk valid terdekat tanpa membuat akun fiktif.
 
 ### Hasil Import
+
 - Business ID: `pku_dc97ee4b3d8e4054b7cd595fe515db12`.
 - `barookahjaya@gmail.com` aktif sebagai `OWNER`.
 - 151 akun, 3 periode fiskal (2024-2026), 2 saldo awal, 159 jurnal, 318 baris jurnal, dan 315 audit log.
@@ -617,6 +747,7 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 - Metadata yang dipertahankan: 4 divisi, 4 proyek, 2 aset tetap.
 
 ### Verifikasi
+
 - `npm test`: lulus, 31 file / 213 test.
 - `npm run typecheck`: masih gagal pada isu yang telah ada di `app/api/dashboard/overview/route.ts`; route tersebut mengekspor `getCachedDashboardOverview`, sementara Next.js hanya mengizinkan export route handler dan konfigurasi route. Isu ini tidak disentuh dalam pekerjaan import.
 
@@ -625,10 +756,12 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 ## Phase 16: Legacy Argon2 Auth Fix + Password Reveal Toggle (2026-06-25)
 
 ### Masalah
+
 - Banyak akun (terutama yang dibuat via `seed-dev-owner` atau register lama) menggunakan password hash **argon2id**. Fungsi `verifyPassword` hanya me-return `false` untuk argon2 (dengan warning "cannot be verified"), sehingga login selalu gagal dengan pesan "Invalid email or password" meskipun password yang dimasukkan benar.
 - Tidak ada cara untuk melihat isi password field di form (UX buruk, khususnya di perangkat mobile atau saat mengetik password panjang).
 
 ### Perbaikan
+
 - **`src/presentation/auth/password.ts`**:
   - Implementasi penuh verifikasi argon2 menggunakan dynamic import (`await import("argon2")`).
   - Setelah verifikasi argon2 berhasil → otomatis menjalankan migrasi hash ke bcrypt (`prisma.authAccount.updateMany`) supaya akun selanjutnya bisa dipakai di semua environment.
@@ -647,6 +780,7 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 - `scripts/seed-dev-owner.mjs`: sekarang menggunakan `bcrypt.hash` (konsisten dengan production path).
 
 ### Hasil & Verifikasi
+
 - User argon2 (contoh: barookahjaya@gmail.com) sekarang **bisa login** di localhost:3333.
 - Login pertama secara otomatis mengubah hash argon2 → bcrypt di database.
 - Semua password input sekarang memiliki tombol reveal.
@@ -654,6 +788,7 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 - Dev server berjalan normal di port 3333.
 
 ### UI Refinement (same session)
+
 - Awal implementasi `GlassPasswordInput` membuat icon reveal (eye) terlihat "ngambang" di luar input box (jelek secara visual).
 - Di-refine: gunakan wrapper `relative w-full`, `GlassInput` dengan `pr-10 w-full`, dan icon di-absolute `right-3 top-1/2`.
 - Hasil: icon sekarang benar-benar di **dalam** rounded border input (sama seperti field email).
@@ -661,6 +796,7 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 - Login card padding & spacing disesuaikan.
 
 ### Performance & Speed Improvements (major, same session)
+
 - Root causes of "berat & kurang sat set": repeated auth/session DB lookups on every request (middleware + layouts), almost-everything "use client" + client-side Tanstack Query (large bundles + waterfalls), over-fetching in dashboard/reports (15+ Prisma calls), no skeletons/streaming, no caching.
 - `unstable_cache` + revalidate on dashboard overview + major reports + common lists (businesses, contacts, CoA, products, periods, etc.).
 - `React.cache` on auth context functions → dedup DB hits within one request.
@@ -674,6 +810,7 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 - Result: faster initial loads, snappier dashboard/reports, smaller bundles, less repeated work. App feels much more comfortable.
 
 ### Deploy
+
 - Perubahan didokumentasikan di `HANDOFF.md` dan `CHANGELOG.md` (v0.12.0).
 - Commit + push ke `origin/main`.
 
@@ -682,16 +819,19 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 ## Phase 15: Login Production Fix (v0.11.1 — 2026-06-20)
 
 ### Masalah
+
 - Form login memanggil `/api/auth/dev-login` yang diblokir di production (404 sejak v0.11.0).
 - Layout server membaca cookie `better-auth.session_token` mentah (`token.signature`) tanpa menormalisasi ke token DB → user ter-autentikasi lalu langsung di-redirect ke `/login`.
 
 ### Perbaikan
+
 - `components/auth/login-form.tsx` — alur resmi: `sign-in/email` → `bootstrap` → dashboard.
 - `src/presentation/auth/session.ts` — `normalizeSessionToken()`, `getServerSessionToken()`.
 - Layout terproteksi (`app/(app)`, admin reset, admin changelog) memakai helper sesi yang sama.
 - Test: `normalizeSessionToken` di `tests/presentation/auth-session.test.ts` (213 test total, semua lulus).
 
 ### Deploy
+
 - Versi `0.11.1`; commit & push ke `origin/main` → CI/CD Vercel otomatis deploy bila secrets tersedia.
 
 ---
@@ -699,6 +839,7 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 ## Phase 14: Security & Data-Integrity Hardening (v0.11.0 — 2026-06-14)
 
 ### Pondasi atomicity (baru)
+
 - `src/features/shared/tx.ts` — tipe `TxClient` untuk menyalurkan transaction client lintas layer tanpa kebocoran dependency Prisma ke domain.
 - `src/features/shared/transaction-runner.ts` — port `TransactionRunner` + `inlineTransactionRunner` (no-op default, dipakai test & non-DB).
 - `src/presentation/api/transaction-runner.ts` — `PrismaTransactionRunner` di koneksi **DIRECT_URL** (PgBouncer transaction-pooling tidak mendukung interactive transaction).
@@ -706,6 +847,7 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 - `JournalPostingService.post()` + `PrismaJournalRepository.createPostedJournal()` menerima `tx?` opsional → backward compatible (advisory lock + retry tetap jalan bila tx tidak diberikan).
 
 ### Critical (selesai)
+
 - **C-1 Secrets**: `.env` di-placeholder, panduan rotasi di README. **Nilai lama harus dirotasi manual oleh pemilik** (DB/Anthropic/auth secret).
 - **C-2 dev-login**: diblokir di production.
 - **C-3 Atomicity**: Revenue, Cash Management, AR/AP → posting jurnal + update status dalam satu `$transaction`. **Belum**: flow multi-service (sales→inventory→payment, POS checkout, purchase receipt, installment, tourism) — butuh integration test ke DB asli.
@@ -714,6 +856,7 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 - **C-6 Dockerfile**: deps lengkap saat build + `BUILD_STANDALONE=1`.
 
 ### High (selesai)
+
 - **H-1** seed owner: guard production + password acak.
 - **H-2/M-14** CI: `build needs test`, job `audit`; deploy gagal (bukan skip) tanpa `DIRECT_URL`.
 - **H-3** ESLint asli (`next lint`) + `.eslintrc.json` + threshold coverage Vitest. (Menemukan & memperbaiki bug conditional-hooks nyata di `cash/transactions/page.tsx`.)
@@ -727,17 +870,21 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 - **H-11** Audit-in-catch dibungkus try/catch.
 
 ### Medium (selesai)
+
 - M-1 subsidiary-ledger kolom benar; M-2 `new Date()` ke render (12 halaman); M-3 QueryClient defaults; M-4 debounce search; M-5 GlassTable lazy export + memo; M-6 default-customer via endpoint `?id=`; M-7 dialog a11y; M-8 aria-label; M-9 indikator non-warna; M-10 checkbox aksesibel; M-11 hapus `as any` (transactions); M-12 presisi average cost; M-13 komparator bigint.
 
 ### Status verifikasi
+
 - `tsc --noEmit` bersih, `next lint` 0 error, **212 test hijau**, coverage gate exit 0, `next build` exit 0, `prisma validate` valid.
 - Migration `20260614000000_add_performance_indexes` **applied ke production**; status "Database schema is up to date!".
 
 ### WAJIB dilakukan pemilik (tidak bisa dari kode)
+
 1. **Rotasi** password Neon, `ANTHROPIC_API_KEY`, `BETTER_AUTH_SECRET` (anggap kompromi).
 2. **Set `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`** di production — app sekarang fail-closed tanpa ini.
 
 ### Residual / kerja lanjutan
+
 - Selesaikan C-3 untuk flow multi-service + advisory lock nomor dokumen (sebaiknya dengan integration test ke Neon branch).
 - Rewrite dashboard ke `groupBy/aggregate`; ganti `xlsx` (advisory tanpa fix upstream); wiring CSP nonce via page middleware; pertimbangkan Postgres RLS.
 
@@ -746,6 +893,7 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 ## Phase 13: Multi-Unit Organization & Business Switcher (v0.8.0 — 2026-06-09)
 
 ### Multi-Unit Organization (Hierarki Organisasi → Unit Usaha)
+
 - Layer additive: `Organization` menaungi beberapa `Business`. Satu Business hanya milik satu Organization. Zero breaking change.
 - Schema: enum `OrgType`/`OrgRole`, model `Organization`/`OrgMember`, kolom nullable `Business.organizationId`. Migration `202606090001_add_organization_layer` (dibuat manual + `migrate deploy`, karena `migrate dev` gagal di shadow DB akibat migration lama `repair_current_schema` yang pre-existing bermasalah).
 - Domain: `organization-engine.ts` (validasi, permission OrgRole, cascade ke BusinessRole, agregasi P&L/Neraca pure, health score).
@@ -757,6 +905,7 @@ Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada view
 - Catatan: endpoint laporan org pakai POST `{ startsOn, endsOn }` (konsisten dengan `/api/reports/*` existing), bukan GET `?period`.
 
 ### Business Switcher Terintegrasi
+
 - Pemilih "Usaha aktif" di header jadi dropdown inline (`BusinessSwitcher` di `app-shell.tsx`), menggantikan navigasi ke `/select-business`.
 
 ---
@@ -771,6 +920,7 @@ Session scope: Reset Data God Mode (per bisnis, granular + dry-run), perbaikan t
 ## Phase 12: God Mode Reset Data, Scan Timeout Fix, Changelog UI (v0.7.0 — 2026-06-09)
 
 ### God Mode — Reset Data Bisnis
+
 - Menu baru `/admin/reset` (Admin → Reset Data), hanya `SUPER_ADMIN`.
 - Reset granular per kategori: data transaksi, reset loyalty kontak (non-hapus), dan master data (sampai Bagan Akun).
 - **Dry-run**: jalankan langkah hapus dalam transaksi lalu rollback → hitungan persis tanpa menghapus.
@@ -779,9 +929,11 @@ Session scope: Reset Data God Mode (per bisnis, granular + dry-run), perbaikan t
 - File: `src/presentation/admin/reset-data.ts`, `app/api/admin/reset/route.ts`, `app/(app)/admin/reset/{page,layout}.tsx`. Navigasi Admin diberi submenu.
 
 ### Fix — Scan Laporan Harian timeout
+
 - `POST /api/sales/daily`: update loyalty kontak diagregasi per kontak (kurangi round-trip), timeout transaksi dilonggarkan; default global `transactionOptions` ditambahkan di `prisma.ts` (Neon remote).
 
 ### Fix — Halaman changelog
+
 - Butir tidak lagi dipotong (`truncate` dihapus), font dinaikkan, badge kode membungkus normal.
 
 ---
@@ -804,12 +956,14 @@ BisnisMu telah ditransformasi dari codebase domain-only menjadi aplikasi full-st
 ## What Was Done (Chronological)
 
 ### Phase 1: Database Setup
+
 - Created `.env` with Neon PostgreSQL connection string
 - Created `.env.example` template
 - Created `.gitignore`
 - Replaced `prisma db push` workflow with Prisma migrations (`npm run prisma:migrate:dev` locally, `npm run prisma:migrate:deploy` in deployment).
 
 ### Phase 2: Purchase Module Persistence
+
 - Added `PurchaseOrderStatus` enum
 - Added Prisma models: `PurchaseOrder`, `PurchaseOrderItem`, `PurchaseReceipt`, `PurchaseReturn`
 - Created `src/features/purchase/infrastructure/prisma-purchase-repository.ts` (13 methods)
@@ -817,12 +971,14 @@ BisnisMu telah ditransformasi dari codebase domain-only menjadi aplikasi full-st
 - Replaced all stub purchase API routes with real service calls
 
 ### Phase 3: Cash Session Persistence
+
 - Added `CashSessionStatus`, `CashMovementType` enums
 - Added Prisma models: `CashDrawer`, `CashSessionRecord`, `CashMovementRecord`, `CashReconciliationRecord`
 - Created `src/features/cash/infrastructure/prisma-cash-session-repository.ts` (10 methods)
 - Wired `CashService` into `server-services.ts`
 
 ### Phase 4: POS Persistence
+
 - Added `PosSessionStatus`, `PosTransactionStatus` enums
 - Added Prisma models: `PosTerminal`, `PosSessionRecord`, `PosTransactionRecord`, `PosCartItem`, `PosReceiptRecord`
 - Created `src/features/pos/infrastructure/prisma-pos-repository.ts` (18 methods)
@@ -830,6 +986,7 @@ BisnisMu telah ditransformasi dari codebase domain-only menjadi aplikasi full-st
 - Created 10 new POS API routes (sessions, cart, checkout, payment, void, terminals, etc.)
 
 ### Phase 5: Hardcoded Data Removal
+
 - Replaced 22 API route files that returned hardcoded arrays
 - Replaced 2 UI pages that imported sample data
 - Deleted dead `sample-data.ts` and `transaction-sample-data.ts` files
@@ -837,11 +994,13 @@ BisnisMu telah ditransformasi dari codebase domain-only menjadi aplikasi full-st
 - All reporting routes now call `serverServices.reporting.*` with real DB data
 
 ### Phase 6: Dashboard Fix
+
 - Rewrote `/api/dashboard/overview` to fetch 17 Prisma queries server-side
 - Rewrote all 7 dashboard pages to send simple requests instead of hardcoded input objects
 - Dashboard now shows real KPIs from live database
 
 ### Phase 7: Bug Fixes (End-to-End Audit)
+
 1. **`{} as any` → `inventory`** in SalesService DI (critical runtime crash fix)
 2. **AR/AP `next()` always returning 00001** → now queries latest and increments
 3. **Date parsing** — fixed 12 route files that passed string dates to services
@@ -851,7 +1010,9 @@ BisnisMu telah ditransformasi dari codebase domain-only menjadi aplikasi full-st
 7. **Cash `transactionDate` not converted** — fixed `app/api/cash/transactions/route.ts`
 
 ### Phase 8: Missing CRUD Routes
+
 Created 11 new route files exposing existing service methods:
+
 - `POST /api/inventory/products` — createProduct
 - `POST /api/inventory/stock-in` — stockIn
 - `POST /api/sales/orders/confirm` — confirmSalesOrder
@@ -865,10 +1026,12 @@ Created 11 new route files exposing existing service methods:
 - `POST /api/cash/drawers` — create/list drawers
 
 ### Phase 9: Concurrency Hardening
+
 1. **Atomic Inventory Operations** — replaced read-compute-write with `INSERT ON CONFLICT DO UPDATE` SQL that atomically increments/decrements quantity and recalculates average cost
 2. **Journal Number Race Condition** — implemented `pg_advisory_xact_lock` + retry loop (up to 10 attempts with exponential backoff) to serialize journal number generation per business
 
 ### Phase 10: Favicons, Dashboard Upgrades & Cashier RBAC
+
 1. **App Favicons & Logo Creation**: Generated a 3D glassmorphic app icon and processed it using Python to create high-quality, transparent assets (`favicon.ico`, `icon.png`, `apple-icon.png`, `public/logo.png`).
 2. **Layout & Scrollbar Polishing**: Aligned the sidebar header height with the top header (`h-16`) to fix visual horizontal offset, and implemented modern thin scrollbars (5px width, rounded, floating, transparent track) globally in `globals.css`.
 3. **Dynamic Dashboard Date Ranges**: Replaced static monthly ranges on the dashboard with rolling range options (1 Week, 1 Month, 3 Months, 6 Months, 1 Year).
@@ -892,6 +1055,7 @@ Client → Next.js API Route → Service → Repository → Prisma → PostgreSQ
 ```
 
 ### Service Composition (`server-services.ts`)
+
 ```
 journal (JournalPostingService)
 business (BusinessService)
@@ -913,6 +1077,7 @@ pos (PosService → sales + payment + cashSession)
 ## Files Created/Modified
 
 ### New Infrastructure Files (5)
+
 - `src/features/purchase/infrastructure/prisma-purchase-repository.ts`
 - `src/features/cash/infrastructure/prisma-cash-session-repository.ts`
 - `src/features/pos/infrastructure/prisma-pos-repository.ts`
@@ -921,6 +1086,7 @@ pos (PosService → sales + payment + cashSession)
 - `.gitignore`
 
 ### New API Route Files (11)
+
 - `app/api/inventory/stock-in/route.ts`
 - `app/api/sales/orders/confirm/route.ts`
 - `app/api/sales/orders/payment/route.ts`
@@ -934,6 +1100,7 @@ pos (PosService → sales + payment + cashSession)
 - `app/api/pos/sessions/close/route.ts`
 
 ### Modified Files (Key)
+
 - `prisma/schema.prisma` — 9 new models, 4 new enums, 15+ new audit actions
 - `src/presentation/api/server-services.ts` — full DI composition
 - `src/presentation/api/route-handler.ts` — BigInt serialization
@@ -945,6 +1112,7 @@ pos (PosService → sales + payment + cashSession)
 - All 7 dashboard pages — replaced hardcoded data with live queries
 
 ### Deleted Files
+
 - `src/presentation/modules/sample-data.ts`
 - `src/presentation/modules/transaction-sample-data.ts`
 
@@ -952,37 +1120,41 @@ pos (PosService → sales + payment + cashSession)
 
 ## Current System Status
 
-| Metric | Score |
-|--------|:-----:|
-| Functional Completeness | 97% |
-| Data Integrity | 100% |
-| Concurrency Safety | 100% |
-| Security Readiness | 88% |
-| Production Readiness | 93% |
+| Metric                  | Score |
+| ----------------------- | :---: |
+| Functional Completeness |  97%  |
+| Data Integrity          | 100%  |
+| Concurrency Safety      | 100%  |
+| Security Readiness      |  88%  |
+| Production Readiness    |  93%  |
 
 ---
 
 ## Remaining Work (Not Done)
 
 ### ~~Critical (Must-have before production)~~ — Semua sudah selesai di v0.4.0
+
 ~~1. Authentication system (User model, sessions, password hashing)~~  
 ~~2. Authorization middleware (protect all API routes)~~  
 ~~3. RBAC (BusinessMember, roles, permission guards)~~  
 ~~4. API input validation (Zod at route layer)~~  
 ~~5. Rate limiting~~  
-~~6. Security headers~~  
+~~6. Security headers~~
 
 Semua item di atas sudah diimplementasi — lihat bagian **Phase 10** di bawah dan CHANGELOG v0.4.0.
 
 ### Important
+
 1. Seed scripts for demo/onboarding data
 2. 2FA untuk SUPER_ADMIN (ada di PRD, belum diimplementasi)
 
 ### Setup tinggal konfigurasi (infrastruktur sudah siap)
+
 3. ⚙️ Sentry — isi `SENTRY_DSN` + `NEXT_PUBLIC_SENTRY_DSN` di Vercel env vars
 4. ⚙️ GitHub Secrets — tambah `DIRECT_URL`, `SENTRY_AUTH_TOKEN` untuk CI/CD
 
 ### ~~Done di v0.5.0~~
+
 - ~~Connection pooling~~ ✅
 - ~~Error tracking setup~~ ✅
 - ~~CI/CD pipeline~~ ✅
@@ -996,13 +1168,16 @@ Semua item di atas sudah diimplementasi — lihat bagian **Phase 10** di bawah d
 ## Phase 11: UI, Export, Onboarding, Security, Ops (v0.5.0 — 2026-06-03)
 
 ### UI Compliance
+
 Semua 26 file frontend dibersihkan dari native browser elements:
+
 - **Baru:** `GlassDataSelect` (dropdown data-driven), `GlassCheckbox` (row selection di table)
 - **Refactor:** `GlassDatePicker`, `GlassDateTimePicker`, `GlassTimePicker` → controlled components dengan `value`/`onChange` string prop
 - **Diganti:** semua `<select>` → `GlassDataSelect`, semua `<input>` → `GlassInput`, semua `<input type="date/datetime-local">` → `GlassDatePicker`/`GlassDateTimePicker`, semua `confirm()` → inline dialog state
 - **Bug fix:** `GlassCalendar` header hari duplikat "Min" diperbaiki
 
 ### Export PDF + Excel
+
 - Library: `jspdf` + `jspdf-autotable` + `xlsx` (dynamic import on-demand)
 - `src/presentation/export/report-exports.ts` — 8 fungsi async export
 - `ExportDropdown` di `ReportWorkspace` — dropdown PDF/Excel dengan loading state
@@ -1010,34 +1185,40 @@ Semua 26 file frontend dibersihkan dari native browser elements:
 - Nama file otomatis berdasarkan periode (misal `laba-rugi-2026-06.pdf`)
 
 ### Onboarding Flow
+
 - Register form kini terima `businessType` (UMKM/BUMDes/CV/UD/Perorangan)
 - Setelah register → redirect ke `/onboarding` bukan `/dashboard`
 - `app/(auth)/onboarding/page.tsx`: wizard 3 step, step 1+2 auto-selesai, step 3 user buka fiscal period
 - Tanpa onboarding, user tidak bisa posting transaksi (tidak ada fiscal period terbuka)
 
 ### Session Revocation
+
 - `DELETE /api/auth/sessions` — logout semua perangkat lain (kecuali current), `?all=true` untuk semua
 - `DELETE /api/admin/users/[id]/sessions` — admin force logout, butuh SUPER_ADMIN/SUPPORT_AGENT
 - Settings page → "Keamanan Sesi" section
 - Admin panel → kolom "Aksi" dengan "Force logout" per user
 
 ### Error Tracking (Sentry — opt-in)
+
 - Installed `@sentry/nextjs`. Konfigurasi di `sentry.{client,server,edge}.config.ts`
 - `app/global-error.tsx` — Next.js global error boundary
 - `next.config.ts` — conditional `withSentryConfig` (hanya aktif jika `SENTRY_DSN` di-set)
 - **Untuk mengaktifkan:** set `SENTRY_DSN` dan `NEXT_PUBLIC_SENTRY_DSN` di Vercel env vars
 
 ### Connection Pooling (Neon PgBouncer)
+
 - `prisma/schema.prisma` → `directUrl = env("DIRECT_URL")`
 - `.env` → hapus `channel_binding=require`, tambah `pgbouncer=true&connection_limit=1`
 - `DIRECT_URL` = direct connection (tanpa `-pooler`) untuk migrations
 - `DATABASE_URL` = pooler connection untuk runtime queries
 
 ### CI/CD Improvements
+
 - `ci.yml` → `DIRECT_URL` di semua jobs, step `npm run lint`, `NEXT_PUBLIC_SENTRY_DSN: ""`
 - `deploy.yml` → job `check` (typecheck) before migrate, migrate pakai `DIRECT_URL`, `SENTRY_AUTH_TOKEN`
 
 ### New Files (Phase 11)
+
 - `components/forms/glass-form.tsx` → `GlassDataSelect` (tambah), `GlassCheckbox` (di glass-table)
 - `app/(auth)/onboarding/page.tsx` — onboarding wizard
 - `app/api/auth/sessions/route.ts` — session revocation
@@ -1051,38 +1232,45 @@ Semua 26 file frontend dibersihkan dari native browser elements:
 ## Phase 10: Authentication & Authorization (v0.4.0 — 2026-06-03)
 
 ### Auth System
+
 - Implemented `better-auth` dengan Prisma adapter di `src/presentation/auth/auth.ts`
 - Email/password auth dengan **argon2id** hashing (bukan bcrypt)
 - Cookie-based sessions (7-day expiry, 1-day update age)
 - Prisma models: `User`, `Session`, `AuthAccount`, `VerificationToken`
 
 ### Authorization Middleware
+
 - `middleware.ts` melindungi semua `/api/*` routes
 - Public paths diizinkan tanpa token: `/api/auth/*`, `/api/health`, dll
 - `businessId` dan `actorUserId` diambil dari `session.activeBusinessId` + `BusinessMember` — tidak lagi dari request body
 
 ### RBAC
+
 - `src/presentation/auth/permissions.ts` — permission matrix per role
 - `BusinessMemberRole`: OWNER, ADMIN, ACCOUNTANT, EDITOR, CASHIER, VIEWER
 - `ROUTE_PERMISSION_RULES` — mapping route → permission yang diperlukan
 - `requirePermissionForRoute()` dijalankan di middleware untuk setiap request
 
 ### Platform Roles (God Mode)
+
 - `PlatformRole` enum: USER, SUPER_ADMIN, SUPPORT_AGENT, FINANCE_ADMIN, DEVELOPER
 - `/api/admin/*` routes diproteksi `requireGodMode()`
 - Admin routes: `GET/POST /api/admin/users`, `PATCH /api/admin/users/[id]/platform-role`, `GET /api/admin/businesses`
 
 ### Rate Limiting
+
 - `src/presentation/auth/rate-limit.ts`
 - MemoryRateLimiter di development, UpstashRedis di production
 - Rules: auth login (5/min), register (3/min), API read (300/min), API write (100/min), reports (30/min)
 
 ### Security Headers
+
 - `src/presentation/security/security-headers.ts`
 - CSP, X-Frame-Options (DENY), HSTS, X-Content-Type-Options, Referrer-Policy, Permissions-Policy
 - Applied via `withSecurityHeaders()` wrapper pada semua responses di middleware
 
 ### New Files (Phase 10)
+
 - `src/presentation/auth/auth.ts` — better-auth config
 - `src/presentation/auth/session.ts` — session utilities, `getAuthenticatedUserContextByToken`
 - `src/presentation/auth/permissions.ts` — RBAC permission matrix + route rules
@@ -1145,12 +1333,14 @@ npx prisma generate
    - `DIRECT_URL` — Neon direct connection string
    - `DATABASE_URL` — Neon pooler connection string
    - `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID` — untuk deploy
+
 ## Phase 36: Cash Analytics Cache Serialization Fix
 
 - Fixed `POST /api/dashboard/overview` returning `DOMAIN_ERROR: Do not know how to serialize a BigInt`.
 - Root cause: `lowStockThreshold` and `lowFloatThreshold` were `BigInt` values passed into `unstable_cache`, which serializes its arguments for cache keys.
 - Cache boundary now receives string thresholds; the route converts them back to `BigInt` inside the cached calculation before creating the dashboard domain range.
 - Verified with `npm run typecheck` and an authenticated local smoke test against port 3333; endpoint returns HTTP 200.
+
 ## Phase 37: Legacy Cash/Bank Balance Classification
 
 - Fixed empty cash analytics for PKU Ponjong even though accounts and posted journal balances exist.
