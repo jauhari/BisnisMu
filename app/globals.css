@@ -6,35 +6,60 @@
   --font-sans: Inter, Geist, system-ui, sans-serif;
   --background: 210 40% 98%;
   --foreground: 222 47% 11%;
-  --muted: 215 16% 47%;
+  /* Kontras teks dinaikkan agar lolos WCAG AA di ukuran kecil:
+     muted 4.49 -> 6.40, accent 3.48 -> 5.18 (juga saat dipakai sebagai latar
+     dengan teks terang, mis. avatar), success 2.92 -> 5.15. */
+  --muted: 215 22% 38%;
   --border: 214 32% 91%;
-  --ring: 217 91% 60%;
+  --ring: 217 91% 48%;
   --surface: 0 0% 100%;
-  --accent: 217 91% 60%;
-  --success: 158 64% 40%;
-  --warning: 38 92% 50%;
-  --danger: 347 77% 50%;
+  --accent: 217 91% 48%;
+  --success: 158 70% 28%;
+  --warning: 30 92% 34%;
+  --danger: 347 80% 42%;
 }
 
 .dark {
   --background: 222 47% 7%;
   --foreground: 210 40% 98%;
-  --muted: 215 20% 65%;
+  /* Mode gelap: latar gelap, jadi token diarahkan ke versi terang secukupnya
+     agar teks tetap terbaca (kontras > 4.5 pada latar 222 47% 7%). */
+  --muted: 215 22% 72%;
   --border: 217 33% 18%;
-  --ring: 213 94% 68%;
+  --ring: 213 94% 72%;
   --surface: 222 47% 10%;
-  --accent: 213 94% 68%;
-  --success: 154 60% 50%;
+  --accent: 213 94% 72%;
+  --success: 154 70% 62%;
   --warning: 43 96% 56%;
   --danger: 351 83% 61%;
 }
 
-* { box-sizing: border-box; }
-html { min-height: 100%; background: hsl(var(--background)); color: hsl(var(--foreground)); }
-body { min-height: 100vh; margin: 0; font-family: var(--font-sans); letter-spacing: 0; }
-button, input, textarea { font: inherit; }
-:focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 2px; }
-::selection { background: hsl(var(--accent) / 0.22); }
+* {
+  box-sizing: border-box;
+}
+html {
+  min-height: 100%;
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+body {
+  min-height: 100vh;
+  margin: 0;
+  font-family: var(--font-sans);
+  letter-spacing: 0;
+}
+button,
+input,
+textarea {
+  font: inherit;
+}
+:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+::selection {
+  background: hsl(var(--accent) / 0.22);
+}
 
 /* Custom Premium & Thin Scrollbar Styles */
 ::-webkit-scrollbar {
@@ -68,14 +93,87 @@ button, input, textarea { font: inherit; }
 .workspace-split {
   container-type: inline-size;
   container-name: workspace;
+  /* Kolom eksplisit: tanpa ini kolom memakai `auto`, yang mengambil lebar
+     intrinsik anak terlebar (873px pada tabel Bagan Akun) dan memaksa gulir
+     horizontal di layar sempit. */
+  grid-template-columns: minmax(0, 1fr);
 }
 
-@container workspace (min-width: 1760px) {
+/* Grid item default `min-width: auto`, sehingga anak dengan konten lebar
+   (tabel/panel) menolak menyusut dan memaksa gulir horizontal di layar sempit.
+   Semua turunan .workspace-split dibuat boleh menyusut. */
+.workspace-split,
+.workspace-split > *,
+.workspace-split > * > *,
+.workspace-split > * > * > * {
+  min-width: 0;
+}
+
+/* Panel samping baru dipasang di samping kalau ruang benar-benar lega.
+   Di bawah ini panel turun ke bawah tabel, sehingga tabel dapat seluruh lebar
+   konten dan kolom status/aksi tidak pernah terpotong di laptop. */
+@container workspace (min-width: 1920px) {
   .workspace-split {
     grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
   }
 
-  .workspace-split > aside {
+  .workspace-split > div > aside {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Baris tabel Bagan Akun: reflow mengikuti lebar kontainer, bukan viewport.
+   Di layar sempit tiap field turun jadi satu baris penuh (label + nilai);
+   dari 640px kontainer baris berubah jadi kolom sejajar. */
+.coa-row {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.coa-head {
+  display: none;
+}
+
+.coa-label {
+  display: inline;
+}
+
+.coa-row > .coa-field,
+.coa-head > span {
+  grid-column: 1 / -1;
+}
+
+@container workspace (min-width: 640px) {
+  .coa-row {
+    grid-template-columns: minmax(0, 2.2fr) minmax(0, 0.85fr) minmax(
+        0,
+        0.85fr
+      ) minmax(0, 1.05fr);
+    column-gap: 0.75rem;
+  }
+
+  .coa-head {
+    grid-template-columns: minmax(0, 2.2fr) minmax(0, 0.85fr) minmax(
+        0,
+        0.85fr
+      ) minmax(0, 1.05fr);
+    column-gap: 0.75rem;
+  }
+
+  .coa-row > .coa-field {
+    grid-column: auto;
+    grid-row: 1;
+  }
+
+  .coa-head {
+    display: grid;
+  }
+
+  .coa-label {
+    display: none;
+  }
+
+  .coa-actions {
+    grid-column: 1 / -1;
+    grid-row: 2;
   }
 }
