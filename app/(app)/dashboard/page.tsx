@@ -1,10 +1,10 @@
 import { Suspense } from "react";
 import dynamic from "next/dynamic";
 import { notFound } from "next/navigation";
-import { DashboardGrid, DashboardExceptionPanel, KpiGrid, RealtimeStatus } from "@/components/charts/dashboard-layout";
+import Link from "next/link";
+import { DashboardGrid, DashboardExceptionPanel, KpiGrid } from "@/components/charts/dashboard-layout";
 import { GlassErrorState, GlassSkeleton } from "@/components/feedback/glass-feedback";
-import { GlassTable } from "@/components/tables/glass-table";
-import { formatMoney, formatNumber } from "@/presentation/format/number";
+import { formatMoney, formatNumber, formatPercent } from "@/presentation/format/number";
 import { getAuthenticatedUserContextByToken, getServerSessionToken } from "@/presentation/auth/session";
 import { getCachedDashboardSummary } from "@/presentation/dashboard/dashboard-summary";
 
@@ -16,6 +16,23 @@ const DashboardCharts = dynamic(
 );
 
 type FilterOption = "1w" | "1m" | "3m" | "6m" | "1y";
+
+const FILTER_BUTTON_LABELS: Record<FilterOption, string> = {
+  "1w": "1 Minggu",
+  "1m": "1 Bulan",
+  "3m": "3 Bulan",
+  "6m": "6 Bulan",
+  "1y": "1 Tahun",
+};
+
+// Dipakai di kalimat ("… dalam 1 bulan terakhir").
+const PERIOD_LABELS: Record<FilterOption, string> = {
+  "1w": "1 minggu",
+  "1m": "1 bulan",
+  "3m": "3 bulan",
+  "6m": "6 bulan",
+  "1y": "1 tahun",
+};
 
 function getDateRange(filter: FilterOption = "1m") {
   const endsOn = new Date();
@@ -48,61 +65,92 @@ async function DashboardContent({ filter }: { filter: FilterOption }) {
   const salesTrend = summary.salesTrend;
   const cashTrend = summary.cashTrend;
 
+  const periodLabel = PERIOD_LABELS[filter];
+  const lowStockCount = summary.lowStockCount;
+  const attentionItems: Array<{ label: string; value: string; href: string; action: string; ok: boolean }> = [
+    {
+      label: "Piutang lewat jatuh tempo",
+      value: formatMoney(BigInt(summary.overdueReceivable)),
+      href: "/ar-ap/receivables",
+      action: "Cek piutang",
+      ok: BigInt(summary.overdueReceivable) === 0n,
+    },
+    {
+      label: "Barang stok menipis",
+      value: `${formatNumber(lowStockCount)} barang`,
+      href: "/inventory/balances",
+      action: "Cek stok",
+      ok: lowStockCount === 0,
+    },
+    {
+      label: "Saldo rekanan menipis",
+      value: summary.lowFloatProvider ?? "Tidak ada",
+      href: "/float/top-up",
+      action: "Isi saldo",
+      ok: !summary.lowFloatProvider,
+    },
+  ];
+
   return (
     <DashboardGrid>
       <section className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-sm font-medium text-accent">Executive cockpit</p>
-          <h1 className="mt-2 text-3xl font-semibold">Dashboard</h1>
-          <p className="mt-2 text-sm text-muted">Realtime analytics backed by DashboardService projections.</p>
+          <p className="text-sm font-medium text-accent">Dashboard</p>
+          <h1 className="mt-2 text-3xl font-semibold">Ringkasan usaha</h1>
+          <p className="mt-2 text-sm text-muted">Penjualan, laba, kas, dan stok usaha Anda dalam {periodLabel} terakhir.</p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex rounded-lg bg-white/50 p-1 backdrop-blur-sm border border-border/40 dark:bg-white/5">
-            {(["1w", "1m", "3m", "6m", "1y"] as const).map((opt) => {
-              const labelMap: Record<FilterOption, string> = {
-                "1w": "1 Minggu",
-                "1m": "1 Bulan",
-                "3m": "3 Bulan",
-                "6m": "6 Bulan",
-                "1y": "1 Tahun"
-              };
-              const active = filter === opt;
-              const search = new URLSearchParams({ filter: opt });
-              return (
-                <a
-                  key={opt}
-                  href={`?${search}`}
-                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
-                    active ? "bg-accent text-background shadow-sm" : "text-muted hover:text-foreground"
-                  }`}
-                >
-                  {labelMap[opt]}
-                </a>
-              );
-            })}
-          </div>
-          <RealtimeStatus />
-        </div>
+        <nav aria-label="Pilih periode" className="flex rounded-lg border border-border/40 bg-white/50 p-1 backdrop-blur-sm dark:bg-white/5">
+          {(["1w", "1m", "3m", "6m", "1y"] as const).map((opt) => {
+            const active = filter === opt;
+            const search = new URLSearchParams({ filter: opt });
+            return (
+              <a
+                key={opt}
+                href={`?${search}`}
+                aria-current={active ? "page" : undefined}
+                className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                  active ? "bg-accent text-background shadow-sm" : "text-muted hover:text-foreground"
+                }`}
+              >
+                {FILTER_BUTTON_LABELS[opt]}
+              </a>
+            );
+          })}
+        </nav>
       </section>
 
       <KpiGrid items={[
-        { title: "Sales today", value: formatMoney(BigInt(summary.salesToday)), detail: "Live" },
-        { title: "Net profit", value: formatMoney(BigInt(summary.netProfit)), detail: `Margin ${summary.profitMargin}%` },
-        { title: "Cash + bank", value: formatMoney(BigInt(summary.cashOnHand) + BigInt(summary.bankBalance)), detail: "Available balance" },
-        { title: "Inventory value", value: formatMoney(BigInt(summary.inventoryValue)), detail: `${summary.lowStockCount} low stock alerts` }
+        { title: "Penjualan hari ini", value: formatMoney(BigInt(summary.salesToday)), detail: "Total penjualan tercatat hari ini" },
+        { title: "Laba bersih", value: formatMoney(BigInt(summary.netProfit)), detail: `Marjin ${formatPercent(summary.profitMargin)} · ${periodLabel} terakhir` },
+        { title: "Saldo kas & bank", value: formatMoney(BigInt(summary.cashOnHand) + BigInt(summary.bankBalance)), detail: `Kas ${formatMoney(BigInt(summary.cashOnHand))} · Bank ${formatMoney(BigInt(summary.bankBalance))}` },
+        { title: "Nilai persediaan", value: formatMoney(BigInt(summary.inventoryValue)), detail: lowStockCount > 0 ? `${formatNumber(lowStockCount)} barang stok menipis` : "Semua stok aman" }
       ]} />
 
-      <DashboardCharts salesTrend={salesTrend} cashTrend={cashTrend} />
+      <DashboardCharts salesTrend={salesTrend} cashTrend={cashTrend} periodLabel={periodLabel} />
 
       <DashboardExceptionPanel>
-        <GlassTable
-          columns={[{ key: "item", header: "Exception" }, { key: "value", header: "Value" }, { key: "action", header: "Action" }]}
-          rows={[
-            { item: "Overdue receivable", value: formatMoney(BigInt(summary.overdueReceivable)), action: "Review AR" },
-            { item: "Low stock", value: formatNumber(summary.lowStockCount), action: "Review inventory" },
-            { item: "Low float", value: summary.lowFloatProvider ?? "None", action: "Top up" }
-          ]}
-        />
+        <ul className="divide-y divide-border/60">
+          {attentionItems.map((item) => (
+            <li key={item.label} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+              <div className="flex items-center gap-3">
+                <span
+                  aria-hidden="true"
+                  className={`h-2.5 w-2.5 shrink-0 rounded-full ${item.ok ? "bg-success" : "bg-warning"}`}
+                />
+                <div>
+                  <p className="text-sm font-medium">{item.label}</p>
+                  <p className="text-sm text-muted tabular-nums">{item.value}</p>
+                </div>
+              </div>
+              <Link
+                href={item.href}
+                className="rounded-lg px-3 py-1.5 text-sm font-medium text-accent transition hover:bg-accent/10"
+              >
+                {item.action}
+              </Link>
+            </li>
+          ))}
+        </ul>
       </DashboardExceptionPanel>
     </DashboardGrid>
   );

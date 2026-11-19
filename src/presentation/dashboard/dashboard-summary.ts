@@ -42,8 +42,11 @@ function signedAmount(side: "DEBIT" | "CREDIT", amount: bigint, normalSide: "DEB
   return side === normalSide ? amount : -amount;
 }
 
+// Label sumbu grafik dashboard — singkatan bulan Indonesia agar tidak campur bahasa.
+const MONTHS_ID = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+
 function formatDay(date: Date): string {
-  return `${String(date.getUTCDate()).padStart(2, "0")} ${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][date.getUTCMonth()]}`;
+  return `${String(date.getUTCDate()).padStart(2, "0")} ${MONTHS_ID[date.getUTCMonth()]}`;
 }
 
 function trendPoints(startsOn: Date, endsOn: Date, items: TrendItem[]): Array<{ label: string; value: number }> {
@@ -57,7 +60,7 @@ function trendPoints(startsOn: Date, endsOn: Date, items: TrendItem[]): Array<{ 
     while (cursor <= endsOn) {
       const key = `${cursor.getUTCFullYear()}-${cursor.getUTCMonth()}`;
       byBucket.set(key, 0n);
-      labels.set(key, `${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][cursor.getUTCMonth()]} ${cursor.getUTCFullYear()}`);
+      labels.set(key, `${MONTHS_ID[cursor.getUTCMonth()]} ${cursor.getUTCFullYear()}`);
       cursor.setUTCMonth(cursor.getUTCMonth() + 1);
     }
     for (const item of items) {
@@ -70,7 +73,7 @@ function trendPoints(startsOn: Date, endsOn: Date, items: TrendItem[]): Array<{ 
       const bucketStart = new Date(startsOn.getTime() + offset * dayMs);
       const key = String(offset / bucketDays);
       byBucket.set(key, 0n);
-      labels.set(key, bucketDays === 1 ? formatDay(bucketStart) : `W${Number(key) + 1}`);
+      labels.set(key, bucketDays === 1 ? formatDay(bucketStart) : `Mg ${Number(key) + 1}`);
     }
     for (const item of items) {
       const offset = Math.floor((item.date.getTime() - startsOn.getTime()) / dayMs);
