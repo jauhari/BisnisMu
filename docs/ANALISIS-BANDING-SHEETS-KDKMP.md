@@ -191,21 +191,21 @@ Business baru berhasil dibuat di database:
 | Tipe | BUMDES (multi-usaha, terpisah dari bisnis lain) |
 | Pemilik | barookahjaya@gmail.com → OWNER |
 | Akun | 66 (65 dari workbook + 1 root HPP) |
-| Jurnal | 41 entri / 129 baris |
-| Total debit | Rp 410.711.853 |
-| Total kredit | Rp 410.711.853 |
+| Jurnal | 40 entri / 125 baris |
+| Total debit | Rp 402.768.333 |
+| Total kredit | Rp 402.768.333 |
 | Selisih | **Rp 0 — seimbang** |
 
 ### Verifikasi silang dengan workbook
 
 | Pembanding | Workbook | AkuntansiMu | Hasil |
 |---|---|---|---|
-| Total mutasi jurnal | Rp 410.711.853 | Rp 410.711.853 | ✅ identik |
-| SHU (laba) | Rp 21.573.147 | Rp 21.573.147 | ✅ identik |
+| Total mutasi jurnal | Rp 402.768.333 | Rp 402.768.333 | ✅ identik |
+| SHU (laba) | Rp 29.541.667 | Rp 29.541.667 | ✅ identik |
 | Selisih neraca | Rp 0 | Rp 0 | ✅ identik |
 
-Rincian P&L hasil import: Pendapatan Rp 91.355.000 − HPP Rp 46.700.000 − Beban Usaha Rp 4.863.333 − Beban Lain Rp 18.218.520 = **SHU Rp 21.573.147**.
-Neraca: Aset Rp 116.491.667 = Liabilitas Rp 60.718.520 + Ekuitas Rp 34.200.000 + SHU Rp 21.573.147.
+Rincian P&L hasil import: Pendapatan Rp 91.355.000 − HPP Rp 45.500.000 − Beban Usaha Rp 4.858.333 − Beban Lain Rp 11.455.000 = **SHU Rp 29.541.667**.
+Neraca: Aset Rp 117.691.667 = Liabilitas Rp 53.950.000 + Ekuitas Rp 34.200.000 + SHU Rp 29.541.667. Kas Rp 17.325.000, Bank Rp 26.075.000, Persediaan Rp 7.000.000 — semuanya cocok dengan tab NERACA workbook.
 
 ### Pemetaan kode akun
 
