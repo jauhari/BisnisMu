@@ -11,9 +11,13 @@ import { WorkspaceHeader, DetailPanel, SplitWorkspace } from "@/components/layou
 import { apiRequest } from "@/presentation/api/client";
 import { useListQuery } from "@/presentation/query/dashboard-hooks";
 import { filterTransactionHistoryRows, type TransactionHistoryRow, type TransactionHistoryTypeFilter } from "@/presentation/transactions/history";
+import { formatRupiah } from "@/presentation/format/number";
+import { ConfirmActionDialog, type ConfirmActionState } from "../cash/_components/confirm-action-dialog";
 
 type Role = "OWNER" | "ADMIN" | "ACCOUNTANT" | "CASHIER" | "VIEWER";
 type StatusFilter = "all" | "DRAFT" | "POSTED" | "CONFIRMED" | "PARTIALLY_PAID" | "PAID" | "VOID";
+
+const STATUS_LABEL: Record<string, string> = { DRAFT: "Draf", POSTED: "Diposting", CONFIRMED: "Dikonfirmasi", PARTIALLY_PAID: "Dibayar sebagian", PAID: "Lunas", VOID: "Dibatalkan" };
 
 function canMutate(role?: Role) { return role === "OWNER" || role === "ADMIN" || role === "CASHIER"; }
 function canDelete(role?: Role) { return role === "OWNER" || role === "ADMIN"; }
@@ -26,6 +30,7 @@ export default function Page() {
   const [type, setType] = useState<TransactionHistoryTypeFilter>("all");
   const [status, setStatus] = useState<StatusFilter>("all");
   const [query, setQuery] = useState("");
+  const [confirmState, setConfirmState] = useState<ConfirmActionState>(null);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
@@ -61,26 +66,38 @@ export default function Page() {
     }
   }
 
+  function askDelete(row: TransactionHistoryRow) {
+    setConfirmState({ title: "Hapus transaksi", message: "Hapus transaksi ini? Tindakan ini tidak bisa dibatalkan.", confirmLabel: "Ya, hapus", onConfirm: () => void action(row, "delete") });
+  }
+
+  function askVoid(row: TransactionHistoryRow) {
+    const message = row.source === "SALES_ORDER"
+      ? "Batalkan transaksi ini? Status transaksi akan berubah menjadi Dibatalkan."
+      : "Batalkan transaksi ini? Jurnal pembalik akan dibuat dan status berubah menjadi Dibatalkan.";
+    setConfirmState({ title: "Batalkan transaksi", message, confirmLabel: "Ya, batalkan", onConfirm: () => void action(row, "void") });
+  }
+
   if (loading) return <GlassSkeleton className="h-72" />;
 
   return <div className="grid gap-6">
     <WorkspaceHeader eyebrow="Operasional" title="Riwayat Transaksi" description="Lihat penjualan, sales order, dan transaksi kas dalam satu tempat. Aksi edit mengikuti role dan status." />
     <SplitWorkspace main={<div className="grid gap-4">
       <div className="grid min-w-0 grid-cols-1 gap-3 rounded-lg border border-border bg-white/45 p-3 sm:grid-cols-2 xl:grid-cols-[160px_180px_minmax(220px,1fr)_150px_150px] [&>*]:min-w-0 dark:bg-white/5">
-        <GlassDataSelect value={type} onChange={(v) => setType(v as TransactionHistoryTypeFilter)} options={[{ value: "all", label: "Semua tipe" }, { value: "sales", label: "Penjualan" }, { value: "cash", label: "Kas" }, { value: "payroll", label: "Payroll" }]} />
-        <GlassDataSelect value={status} onChange={(v) => setStatus(v as StatusFilter)} options={[{ value: "all", label: "Semua status" }, { value: "DRAFT", label: "Draft" }, { value: "POSTED", label: "Posted" }, { value: "CONFIRMED", label: "Confirmed" }, { value: "PARTIALLY_PAID", label: "Partial" }, { value: "PAID", label: "Paid" }, { value: "VOID", label: "Void" }]} />
-        <GlassInput value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Cari nomor, keterangan, nominal..." />
+        <GlassDataSelect value={type} onChange={(v) => setType(v as TransactionHistoryTypeFilter)} options={[{ value: "all", label: "Semua tipe" }, { value: "sales", label: "Penjualan" }, { value: "cash", label: "Kas" }, { value: "payroll", label: "Gaji" }]} />
+        <GlassDataSelect value={status} onChange={(v) => setStatus(v as StatusFilter)} options={[{ value: "all", label: "Semua status" }, { value: "DRAFT", label: "Draf" }, { value: "POSTED", label: "Diposting" }, { value: "CONFIRMED", label: "Dikonfirmasi" }, { value: "PARTIALLY_PAID", label: "Dibayar sebagian" }, { value: "PAID", label: "Lunas" }, { value: "VOID", label: "Dibatalkan" }]} />
+        <GlassInput aria-label="Cari transaksi" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Cari nomor, keterangan, nominal..." />
         <GlassDatePicker value={startDate} onChange={setStartDate} placeholder="Dari tanggal" />
         <GlassDatePicker value={endDate} onChange={setEndDate} placeholder="Sampai tanggal" />
       </div>
       <GlassTable selectable={false} tableId="transaction-history" columns={[
         { key: "date", header: "Tanggal" },
         { key: "kind", header: "Jenis" },
-        { key: "status", header: "Status" },
+        { key: "status", header: "Status", render: (row: TransactionHistoryRow) => STATUS_LABEL[row.status] ?? row.status },
         { key: "description", header: "Keterangan" },
-        { key: "amount", header: "Nominal", render: (row: any) => <span className={row.direction === "OUT" ? "font-medium text-danger" : row.direction === "IN" ? "font-medium text-success" : "font-medium"}>{row.direction === "OUT" ? "−" : row.direction === "IN" ? "+" : ""}{Number(row.amount).toLocaleString("id-ID")}</span> },
-        { key: "actions", header: "Aksi", render: (row: TransactionHistoryRow) => { const mutable = row.source !== "PAYROLL_PAYMENT"; return <div className="flex flex-wrap gap-1.5"><Link href={row.href} className="rounded border border-border px-2 py-1 text-xs"><FileText className="inline h-3 w-3" /> Detail</Link>{mutable && ((row.status === "DRAFT" && row.source !== "DAILY_SALE" && canMutate(role)) || (row.status !== "VOID" && canHardMutate(role, hardMutation))) ? <Link href={row.href} className="rounded border border-border px-2 py-1 text-xs"><Edit3 className="inline h-3 w-3" /> Edit</Link> : null}{row.status === "DRAFT" && row.source === "CASH_TRANSACTION" && canMutate(role) ? <button type="button" className="rounded bg-foreground px-2 py-1 text-xs text-background" onClick={() => void action(row, "post")}><Send className="inline h-3 w-3" /> Post</button> : null}{row.status === "DRAFT" && row.source === "SALES_ORDER" && canMutate(role) ? <button type="button" className="rounded bg-foreground px-2 py-1 text-xs text-background" onClick={() => void action(row, "confirm")}><Send className="inline h-3 w-3" /> Confirm</button> : null}{mutable && ((row.status === "DRAFT" && row.source !== "DAILY_SALE" && canDelete(role)) || (row.status !== "VOID" && canHardMutate(role, hardMutation))) ? <button type="button" className="rounded border border-danger/40 px-2 py-1 text-xs text-danger" onClick={() => void action(row, "delete")}><Trash2 className="inline h-3 w-3" /> Delete</button> : null}{mutable && row.status !== "DRAFT" && row.status !== "VOID" && canVoid(role) && !hardMutation ? <button type="button" className="rounded border border-danger/40 px-2 py-1 text-xs text-danger" onClick={() => void action(row, "void")}><Undo2 className="inline h-3 w-3" /> Void</button> : null}</div>; } },
+        { key: "amount", header: "Nominal", render: (row: any) => <span className={row.direction === "OUT" ? "font-medium text-danger" : row.direction === "IN" ? "font-medium text-success" : "font-medium"}>{row.direction === "OUT" ? "−" : row.direction === "IN" ? "+" : ""}{formatRupiah(row.amount)}</span> },
+        { key: "actions", header: "Aksi", render: (row: TransactionHistoryRow) => { const mutable = row.source !== "PAYROLL_PAYMENT"; return <div className="flex flex-wrap gap-1.5"><Link href={row.href} className="rounded border border-border px-2 py-1 text-xs"><FileText className="inline h-3 w-3" /> Detail</Link>{mutable && ((row.status === "DRAFT" && row.source !== "DAILY_SALE" && canMutate(role)) || (row.status !== "VOID" && canHardMutate(role, hardMutation))) ? <Link href={row.href} className="rounded border border-border px-2 py-1 text-xs"><Edit3 className="inline h-3 w-3" /> Edit</Link> : null}{row.status === "DRAFT" && row.source === "CASH_TRANSACTION" && canMutate(role) ? <button type="button" className="rounded bg-foreground px-2 py-1 text-xs text-background" onClick={() => void action(row, "post")}><Send className="inline h-3 w-3" /> Posting</button> : null}{row.status === "DRAFT" && row.source === "SALES_ORDER" && canMutate(role) ? <button type="button" className="rounded bg-foreground px-2 py-1 text-xs text-background" onClick={() => void action(row, "confirm")}><Send className="inline h-3 w-3" /> Konfirmasi</button> : null}{mutable && ((row.status === "DRAFT" && row.source !== "DAILY_SALE" && canDelete(role)) || (row.status !== "VOID" && canHardMutate(role, hardMutation))) ? <button type="button" className="rounded border border-danger/40 px-2 py-1 text-xs text-danger" onClick={() => askDelete(row)}><Trash2 className="inline h-3 w-3" /> Hapus</button> : null}{mutable && row.status !== "DRAFT" && row.status !== "VOID" && canVoid(role) && !hardMutation ? <button type="button" className="rounded border border-danger/40 px-2 py-1 text-xs text-danger" onClick={() => askVoid(row)}><Undo2 className="inline h-3 w-3" /> Batalkan</button> : null}</div>; } },
       ]} rows={filtered} empty="Belum ada transaksi yang cocok dengan filter." />
-    </div>} side={<><DetailPanel title="Cara edit">Transaksi berstatus DRAFT bisa diedit dari tombol Edit. Untuk Bisnis Hanyukupi, role di atas Kasir dapat edit data yang sudah posted/confirmed.</DetailPanel><DetailPanel title="Kalau salah input">{hardMutation ? "Bisnis Hanyukupi memakai edit/delete langsung untuk role di atas Kasir; perubahan tetap dicatat di audit." : "Gunakan Void untuk membalik transaksi yang sudah masuk jurnal, lalu buat transaksi baru yang benar."}</DetailPanel><DetailPanel title="Akses role">Kasir bisa input dan posting draft. Void dan delete draft hanya OWNER atau ADMIN. Khusus Hanyukupi, OWNER, ADMIN, ACCOUNTANT mendapat edit/delete langsung.</DetailPanel></>} />
+    </div>} side={<><DetailPanel title="Cara edit">Transaksi berstatus DRAFT bisa diedit dari tombol Edit. Untuk Bisnis Hanyukupi, role di atas Kasir dapat edit data yang sudah posted/confirmed.</DetailPanel><DetailPanel title="Kalau salah input">{hardMutation ? "Bisnis Hanyukupi memakai edit/delete langsung untuk role di atas Kasir; perubahan tetap dicatat di audit." : "Gunakan Batalkan untuk membalik transaksi yang sudah masuk jurnal, lalu buat transaksi baru yang benar."}</DetailPanel><DetailPanel title="Akses role">Kasir bisa input dan posting draft. Batalkan dan hapus draf hanya OWNER atau ADMIN. Khusus Hanyukupi, OWNER, ADMIN, ACCOUNTANT mendapat edit/delete langsung.</DetailPanel></>} />
+    <ConfirmActionDialog state={confirmState} onClose={() => setConfirmState(null)} />
   </div>;
 }

@@ -14,6 +14,10 @@ import { useSessionContext } from "@/components/layout/session-context";
 import { GlassSkeleton } from "@/components/feedback/glass-feedback";
 import { GlassTable } from "@/components/tables/glass-table";
 import { useListQuery } from "@/presentation/query/dashboard-hooks";
+import { formatRupiah } from "@/presentation/format/number";
+import { ConfirmActionDialog, type ConfirmActionState } from "../_components/confirm-action-dialog";
+
+const STATUS_LABEL: Record<string, string> = { DRAFT: "Draf", POSTED: "Diposting", VOID: "Dibatalkan" };
 
 const schema = z.object({
   type: z.enum(["CASH_IN", "CASH_OUT", "TRANSFER"]),
@@ -74,6 +78,7 @@ export default function Page() {
   const [newContactType, setNewContactType] = useState("CUSTOMER");
   const [savingContact, setSavingContact] = useState(false);
   const [seedingCoa, setSeedingCoa] = useState(false);
+  const [confirmState, setConfirmState] = useState<ConfirmActionState>(null);
 
   const role = sessionBusiness?.role as Role | undefined;
   const hardMutation = sessionHardMutation;
@@ -100,9 +105,9 @@ export default function Page() {
     try {
       const result = await requestJson("/api/accounting/chart-of-accounts/seed", "POST", {});
       await accounts.refetch?.();
-      toast.success(result.data?.created ? `${result.data.created} akun SAK EMKM siap dipakai.` : "CoA SAK EMKM sudah siap dipakai.");
+      toast.success(result.data?.created ? `${result.data.created} akun SAK EMKM siap dipakai.` : "Daftar akun standar sudah siap dipakai.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Gagal menyiapkan CoA.");
+      toast.error(error instanceof Error ? error.message : "Gagal menyiapkan daftar akun.");
     } finally {
       setSeedingCoa(false);
     }
@@ -151,14 +156,14 @@ export default function Page() {
     <button type="button" title="Lihat detail" aria-label="Lihat detail" className={actionIconClass} onClick={() => toast.info(`${row.number}: ${row.memo}`)}><FileText className="h-4 w-4" /></button>
     {((row.status === "DRAFT" && canMutate(role)) || (row.status !== "VOID" && canHardMutate(role, hardMutation))) ? <button type="button" title="Edit transaksi" aria-label="Edit transaksi" className={actionIconClass} onClick={() => openEdit(row)}><Edit3 className="h-4 w-4" /></button> : null}
     {row.status === "DRAFT" && canMutate(role) ? <button type="button" title="Posting transaksi" aria-label="Posting transaksi" disabled={busyId === row.id} className={actionPostClass} onClick={() => void action(row, "post")}><Send className="h-4 w-4" /></button> : null}
-    {((row.status === "DRAFT" && canDelete(role)) || (row.status !== "VOID" && canHardMutate(role, hardMutation))) ? <button type="button" title="Hapus draft" aria-label="Hapus draft" disabled={busyId === row.id} className={actionDangerClass} onClick={() => void action(row, "delete")}><Trash2 className="h-4 w-4" /></button> : null}
-    {row.status === "POSTED" && canVoid(role) && !hardMutation ? <button type="button" title="Void transaksi" aria-label="Void transaksi" disabled={busyId === row.id} className={actionDangerClass} onClick={() => void action(row, "void")}><Undo2 className="h-4 w-4" /></button> : null}
+    {((row.status === "DRAFT" && canDelete(role)) || (row.status !== "VOID" && canHardMutate(role, hardMutation))) ? <button type="button" title="Hapus transaksi" aria-label="Hapus transaksi" disabled={busyId === row.id} className={actionDangerClass} onClick={() => setConfirmState({ title: "Hapus transaksi", message: "Hapus transaksi ini? Tindakan ini tidak bisa dibatalkan.", confirmLabel: "Ya, hapus", onConfirm: () => void action(row, "delete") })}><Trash2 className="h-4 w-4" /></button> : null}
+    {row.status === "POSTED" && canVoid(role) && !hardMutation ? <button type="button" title="Batalkan transaksi" aria-label="Batalkan transaksi" disabled={busyId === row.id} className={actionDangerClass} onClick={() => setConfirmState({ title: "Batalkan transaksi", message: "Batalkan transaksi ini? Jurnal pembalik akan dibuat dan status berubah menjadi Dibatalkan.", confirmLabel: "Ya, batalkan", onConfirm: () => void action(row, "void") })}><Undo2 className="h-4 w-4" /></button> : null}
   </div>;
   const transactionColumns = [
     { key: "typeLabel", header: "Tipe" },
     { key: "date", header: "Tanggal" },
-    { key: "status", header: "Status" },
-    { key: "amountLabel", header: "Nominal", render: (row: any) => <span className={row.type === "CASH_OUT" ? "font-medium text-danger" : "font-medium text-success"}>{Number(row.amountLabel).toLocaleString("id-ID")}</span> },
+    { key: "status", header: "Status", render: (row: any) => STATUS_LABEL[row.status] ?? row.status },
+    { key: "amountLabel", header: "Nominal", render: (row: any) => <span className={row.type === "CASH_OUT" ? "font-medium text-danger" : "font-medium text-success"}>{formatRupiah(row.amountLabel)}</span> },
     { key: "memo", header: "Keterangan", render: (row: any) => <div className="min-w-0"><span className="block break-words">{row.memo}</span><span className="mt-1 block break-all text-[11px] font-medium text-muted">{row.number}</span></div> },
     { key: "actions", header: "Aksi", render: renderTransactionActions },
   ];
@@ -168,10 +173,10 @@ export default function Page() {
     <span className="inline-flex items-center gap-1.5"><Edit3 className="h-3.5 w-3.5" /> Edit</span>
     <span className="inline-flex items-center gap-1.5"><Send className="h-3.5 w-3.5" /> Post</span>
     <span className="inline-flex items-center gap-1.5"><Trash2 className="h-3.5 w-3.5 text-danger" /> Hapus</span>
-    <span className="inline-flex items-center gap-1.5"><Undo2 className="h-3.5 w-3.5 text-danger" /> Void</span>
+    <span className="inline-flex items-center gap-1.5"><Undo2 className="h-3.5 w-3.5 text-danger" /> Batalkan</span>
   </div>;
 
-  return <div className="grid gap-5 sm:gap-6"><WorkspaceHeader eyebrow="Kas & Bank" title="Transaksi Kas" description="Kelola draft, posting, dan void transaksi kas sesuai role pengguna." action={addButton} /><SplitWorkspace main={<><GlassTable selectable={false} tableId="cash-transactions" columns={transactionColumns} rows={rows} empty="Belum ada transaksi kas. Klik Tambah draft." />{actionLegend}</>} side={<><DetailPanel title="Aturan akses">Kasir bisa membuat, edit, dan posting draft. Void dan delete draft hanya untuk OWNER atau ADMIN. Khusus Hanyukupi, OWNER, ADMIN, ACCOUNTANT dapat edit/delete langsung.</DetailPanel><DetailPanel title="Jejak akuntansi">{hardMutation ? "Mode Hanyukupi aktif: edit posted mengganti jurnal sumber tanpa membuat void journal, dan aksinya tetap diaudit." : "Transaksi posted tidak diedit langsung. Gunakan void agar jurnal pembalik tetap tercatat."}</DetailPanel></>} />
+  return <div className="grid gap-5 sm:gap-6"><WorkspaceHeader eyebrow="Kas & Bank" title="Transaksi Kas" description="Kelola draf, posting, dan pembatalan transaksi kas sesuai role pengguna." action={addButton} /><SplitWorkspace main={<><GlassTable selectable={false} tableId="cash-transactions" columns={transactionColumns} rows={rows} empty="Belum ada transaksi kas. Klik Tambah draft." />{actionLegend}</>} side={<><DetailPanel title="Aturan akses">Kasir bisa membuat, edit, dan posting draft. Batalkan dan hapus draf hanya untuk OWNER atau ADMIN. Khusus Hanyukupi, OWNER, ADMIN, ACCOUNTANT dapat edit/delete langsung.</DetailPanel><DetailPanel title="Jejak akuntansi">{hardMutation ? "Mode Hanyukupi aktif: edit posted mengganti jurnal sumber tanpa membuat void journal, dan aksinya tetap diaudit." : "Transaksi posted tidak diedit langsung. Gunakan Batalkan agar jurnal pembalik tetap tercatat."}</DetailPanel></>} />
     <FormDrawer open={drawerOpen} onClose={() => { setDrawerOpen(false); setEditing(null); }} title={editing ? "Edit transaksi" : "Tambah draft transaksi"} subtitle={editing && editing.status !== "DRAFT" ? "Mode Hanyukupi: perubahan akan mengganti jurnal sumber tanpa void." : "Simpan sebagai draft dulu, lalu posting saat sudah benar."}>
       <ManagedForm<CashForm> key={editing?.id ?? "new-cash"} schema={schema} defaultValues={defaults} resetOnSuccess={false} onSubmit={submit}>{({ form, submitting }) => {
         const type = form.watch("type");
@@ -225,7 +230,7 @@ export default function Page() {
 
           <section className="grid gap-4 border-t border-border/70 pt-5">
             <div className="flex items-center gap-2 text-sm font-semibold text-foreground"><Landmark className="h-4 w-4 text-accent" />Akun transaksi</div>
-            {needsCoa ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-500/25 bg-amber-500/10 px-3 py-3 text-sm text-foreground"><p>CoA belum tersedia untuk bisnis ini.</p>{role === "OWNER" || role === "ADMIN" ? <button type="button" onClick={() => void seedChartOfAccounts()} disabled={seedingCoa} className="h-9 rounded-md bg-foreground px-3 text-xs font-semibold text-background disabled:opacity-50">{seedingCoa ? "Menyiapkan..." : "Siapkan CoA SAK EMKM"}</button> : <a href="/accounting/chart-of-accounts" className="text-xs font-semibold text-accent hover:text-accent/75">Buka bagan akun</a>}</div> : <div className="grid gap-4 sm:grid-cols-2">
+            {needsCoa ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-500/25 bg-amber-500/10 px-3 py-3 text-sm text-foreground"><p>Daftar akun belum disiapkan untuk bisnis ini.</p>{role === "OWNER" || role === "ADMIN" ? <button type="button" onClick={() => void seedChartOfAccounts()} disabled={seedingCoa} className="h-9 rounded-md bg-foreground px-3 text-xs font-semibold text-background disabled:opacity-50">{seedingCoa ? "Menyiapkan..." : "Siapkan daftar akun standar"}</button> : <a href="/accounting/chart-of-accounts" className="text-xs font-semibold text-accent hover:text-accent/75">Buka bagan akun</a>}</div> : <div className="grid gap-4 sm:grid-cols-2">
               <RhfDataSelect<CashForm> name="cashAccountId" label={type === "TRANSFER" ? "Dari kas/bank" : "Kas/bank"} options={cashOptions} placeholder="Cari kas atau bank" />
               {type === "TRANSFER" ? <RhfDataSelect<CashForm> name="destinationAccountId" label="Ke kas/bank" options={cashOptions} placeholder="Cari kas atau bank" /> : <RhfDataSelect<CashForm> name="categoryAccountId" label={type === "CASH_IN" ? "Kategori pendapatan" : "Kategori beban"} options={categoryOptions} placeholder="Cari akun kategori" />}
             </div>}
@@ -243,5 +248,6 @@ export default function Page() {
         </div>;
       }}</ManagedForm>
     </FormDrawer>
+    <ConfirmActionDialog state={confirmState} onClose={() => setConfirmState(null)} />
   </div>;
 }

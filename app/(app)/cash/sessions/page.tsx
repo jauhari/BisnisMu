@@ -57,13 +57,13 @@ export default function Page() {
   const openSessions = sessions.filter((s: any) => s.status === "OPEN");
 
   if (list.isLoading || drawers.isLoading || accounts.isLoading) return <GlassSkeleton className="h-72" />;
-  if (list.error) return <GlassErrorState title="Cash sessions unavailable" description="Unable to load cash sessions." />;
+  if (list.error) return <GlassErrorState title="Sesi kas belum bisa dimuat" description="Gagal memuat data sesi kas. Coba muat ulang halaman." />;
 
   const msg = (ok: boolean, text: string) => { setOkMsg(ok ? text : null); setError(ok ? null : text); };
 
   async function submitOpen() {
-    if (!drawerId) { msg(false, "Pilih cash drawer."); return; }
-    if (!equityAccountId) { msg(false, "Pilih akun equity/modal."); return; }
+    if (!drawerId) { msg(false, "Pilih laci kasir."); return; }
+    if (!equityAccountId) { msg(false, "Pilih akun modal."); return; }
     setBusy(true);
     try {
       await mutation.mutateAsync({ drawerId, openedAt, openingAmount: openingAmount || "0", equityAccountId, shiftCode: shiftCode || undefined });
@@ -84,12 +84,12 @@ export default function Page() {
   }
 
   async function createDrawer() {
-    if (!drawerName.trim()) { msg(false, "Nama drawer wajib diisi."); return; }
-    if (!drawerCashAccountId) { msg(false, "Pilih akun kas untuk drawer."); return; }
+    if (!drawerName.trim()) { msg(false, "Nama laci kasir wajib diisi."); return; }
+    if (!drawerCashAccountId) { msg(false, "Pilih akun kas untuk laci kasir."); return; }
     setBusy(true);
     try {
       await postJson("/api/cash/drawers", { name: drawerName.trim(), cashAccountId: drawerCashAccountId });
-      msg(true, `Drawer "${drawerName.trim()}" dibuat.`);
+      msg(true, `Laci kasir "${drawerName.trim()}" dibuat.`);
       setDrawerName(""); setDrawerCashAccountId("");
       void qc.invalidateQueries({ queryKey: ["list", "cash-drawers"] });
     } catch (e) { msg(false, e instanceof Error ? e.message : "Gagal."); }
@@ -98,7 +98,7 @@ export default function Page() {
 
   const rows = sessions.map((s: any) => ({
     drawer: drawerList.find((d) => d.id === s.drawerId)?.name ?? s.drawerId?.slice(-6) ?? "—",
-    status: s.status,
+    status: s.status === "OPEN" ? "Dibuka" : s.status === "CLOSED" ? "Ditutup" : s.status,
     opened: String(s.openedAt).slice(0, 16),
     closed: s.closedAt ? String(s.closedAt).slice(0, 16) : "—",
     opening: s.openingAmount != null ? formatRupiah(s.openingAmount) : "—",
@@ -109,23 +109,23 @@ export default function Page() {
 
   return (
     <div className="grid gap-6">
-      <WorkspaceHeader eyebrow="Cash Management" title="Cash Sessions" description="Buka dan tutup sesi kas untuk setiap cash drawer. Posting jurnal pembukaan/penutupan otomatis." />
+      <WorkspaceHeader eyebrow="Kas & Bank" title="Sesi Kas" description="Buka dan tutup sesi kas untuk setiap laci kasir. Posting jurnal pembukaan/penutupan otomatis." />
       <SplitWorkspace
-        main={<GlassTable columns={[{ key: "drawer", header: "Drawer" }, { key: "status", header: "Status" }, { key: "opened", header: "Dibuka" }, { key: "closed", header: "Ditutup" }, { key: "opening", header: "Modal Awal" }]} rows={rows} empty="Belum ada sesi kas." />}
+        main={<GlassTable columns={[{ key: "drawer", header: "Laci kasir" }, { key: "status", header: "Status" }, { key: "opened", header: "Dibuka" }, { key: "closed", header: "Ditutup" }, { key: "opening", header: "Modal Awal" }]} rows={rows} empty="Belum ada sesi kas." />}
         side={
           <GlassPanel className="grid gap-4">
             <div className="flex flex-wrap gap-2">
               {tabBtn("open", "Buka sesi")}
               {tabBtn("close", "Tutup sesi")}
-              {tabBtn("drawers", `Drawer (${drawerList.length})`)}
+              {tabBtn("drawers", `Laci kasir (${drawerList.length})`)}
             </div>
 
             {mode === "open" && (
               <div className="grid gap-3">
-                <label className="grid gap-1 text-xs">Cash drawer<GlassDataSelect value={drawerId} onChange={setDrawerId} placeholder={drawerList.length ? "Pilih drawer" : "Belum ada drawer"} options={drawerList.map((d: any) => ({ value: d.id, label: d.name }))} className="h-9" /></label>
+                <label className="grid gap-1 text-xs">Laci kasir<GlassDataSelect value={drawerId} onChange={setDrawerId} placeholder={drawerList.length ? "Pilih laci kasir" : "Belum ada laci kasir"} options={drawerList.map((d: any) => ({ value: d.id, label: d.name }))} className="h-9" /></label>
                 <label className="grid gap-1 text-xs">Dibuka pada<GlassDateTimePicker value={openedAt} onChange={setOpenedAt} className="h-9" /></label>
                 <label className="grid gap-1 text-xs">Modal awal<GlassInput value={openingAmount} onChange={(e) => setOpeningAmount(e.target.value)} placeholder="0" className="h-9" /></label>
-                <label className="grid gap-1 text-xs">Akun equity/modal<GlassDataSelect value={equityAccountId} onChange={setEquityAccountId} placeholder="Pilih akun" options={equityAccounts.map((a: any) => ({ value: a.id, label: `${a.code} ${a.name}` }))} className="h-9" /></label>
+                <label className="grid gap-1 text-xs">Akun modal<GlassDataSelect value={equityAccountId} onChange={setEquityAccountId} placeholder="Pilih akun" options={equityAccounts.map((a: any) => ({ value: a.id, label: `${a.code} ${a.name}` }))} className="h-9" /></label>
                 <label className="grid gap-1 text-xs">Kode shift (opsional)<GlassInput value={shiftCode} onChange={(e) => setShiftCode(e.target.value)} placeholder="PAGI" className="h-9" /></label>
                 <button type="button" disabled={busy || !drawerId} onClick={() => void submitOpen()} className="h-10 rounded-md bg-foreground text-sm font-medium text-background disabled:opacity-40">Buka sesi</button>
               </div>
@@ -153,16 +153,16 @@ export default function Page() {
                     ))}
                   </ul>
                 )}
-                <p className="text-xs font-medium text-muted">Buat drawer baru</p>
-                <label className="grid gap-1 text-xs">Nama drawer<GlassInput value={drawerName} onChange={(e) => setDrawerName(e.target.value)} placeholder="cth: Kasir Utama" className="h-9" /></label>
+                <p className="text-xs font-medium text-muted">Buat laci kasir baru</p>
+                <label className="grid gap-1 text-xs">Nama laci kasir<GlassInput value={drawerName} onChange={(e) => setDrawerName(e.target.value)} placeholder="cth: Kasir Utama" className="h-9" /></label>
                 <label className="grid gap-1 text-xs">Akun kas<GlassDataSelect value={drawerCashAccountId} onChange={setDrawerCashAccountId} placeholder="Pilih akun kas/bank" options={cashAccounts.map((a: any) => ({ value: a.id, label: `${a.code} ${a.name}` }))} className="h-9" /></label>
-                <button type="button" disabled={busy || !drawerName.trim() || !drawerCashAccountId} onClick={() => void createDrawer()} className="h-9 rounded-md border border-border text-sm font-medium disabled:opacity-40">Buat drawer</button>
+                <button type="button" disabled={busy || !drawerName.trim() || !drawerCashAccountId} onClick={() => void createDrawer()} className="h-9 rounded-md border border-border text-sm font-medium disabled:opacity-40">Buat laci kasir</button>
               </div>
             )}
 
             {error ? <p role="alert" className="text-sm text-danger">{error}</p> : null}
             {okMsg ? <p role="status" className="text-sm text-success">{okMsg}</p> : null}
-            <DetailPanel title="Jurnal otomatis">Buka sesi mendebit kas dari akun equity. Tutup sesi memposting selisih ke akun beban jika ada.</DetailPanel>
+            <DetailPanel title="Jurnal otomatis">Buka sesi mendebit kas dari akun modal. Tutup sesi memposting selisih ke akun beban jika ada.</DetailPanel>
           </GlassPanel>
         }
       />

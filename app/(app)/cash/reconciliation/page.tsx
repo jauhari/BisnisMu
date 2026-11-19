@@ -71,9 +71,9 @@ export default function Page() {
 
   return (
     <div className="grid gap-6">
-      <WorkspaceHeader eyebrow="Cash Management" title="Rekonsiliasi Kas" description="Cocokkan saldo kas aktual dengan ekspektasi setelah tutup sesi. Selisih otomatis diposting ke jurnal." />
+      <WorkspaceHeader eyebrow="Kas & Bank" title="Rekonsiliasi Kas" description="Cocokkan saldo kas aktual dengan saldo seharusnya setelah tutup sesi. Selisih otomatis diposting ke jurnal." />
       <SplitWorkspace
-        main={<GlassTable tableId="cash-reconciliation" columns={[{ key: "session", header: "Sesi" }, { key: "date", header: "Tanggal" }, { key: "expected", header: "Ekspektasi" }, { key: "counted", header: "Terhitung" }, { key: "difference", header: "Selisih" }, { key: "status", header: "Status" }]} rows={rows} empty="Belum ada rekonsiliasi." />}
+        main={<GlassTable tableId="cash-reconciliation" columns={[{ key: "session", header: "Sesi" }, { key: "date", header: "Tanggal" }, { key: "expected", header: "Seharusnya" }, { key: "counted", header: "Terhitung" }, { key: "difference", header: "Selisih" }, { key: "status", header: "Status" }]} rows={rows} empty="Belum ada rekonsiliasi." />}
         side={
           <GlassPanel className="grid gap-4">
             <h2 className="text-sm font-semibold">Rekonsiliasi baru</h2>
@@ -108,7 +108,7 @@ export default function Page() {
             <button type="button" disabled={busy || !sessionId || !differenceAccountId} onClick={() => void submit()} className="h-10 rounded-md bg-foreground text-sm font-medium text-background disabled:opacity-40">
               {busy ? "Memproses…" : "Rekonsiliasi"}
             </button>
-            <DetailPanel title="Cara kerja">Jika kas terhitung ≠ ekspektasi, selisih diposting sebagai jurnal debet/kredit ke akun yang dipilih.</DetailPanel>
+            <DetailPanel title="Cara kerja">Jika kas terhitung ≠ saldo seharusnya, selisih diposting sebagai jurnal debet/kredit ke akun yang dipilih.</DetailPanel>
           </GlassPanel>
         }
       />

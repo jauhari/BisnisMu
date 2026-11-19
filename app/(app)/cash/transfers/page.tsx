@@ -12,6 +12,8 @@ import { DetailPanel, SplitWorkspace, WorkspaceHeader } from "@/components/layou
 import { useSessionContext } from "@/components/layout/session-context";
 import { GlassTable } from "@/components/tables/glass-table";
 import { apiRequest } from "@/presentation/api/client";
+import { formatRupiah } from "@/presentation/format/number";
+import { ConfirmActionDialog, type ConfirmActionState } from "../_components/confirm-action-dialog";
 import { useListQuery } from "@/presentation/query/dashboard-hooks";
 
 const schema = z.object({
@@ -67,6 +69,7 @@ export default function Page() {
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [confirmState, setConfirmState] = useState<ConfirmActionState>(null);
 
   const role = sessionBusiness?.role as Role | undefined;
   const flatAccounts = useMemo(() => flattenAccounts(accounts.data?.data ?? []), [accounts.data]);
@@ -84,7 +87,7 @@ export default function Page() {
       transactionDate: transfer.transactionDate,
       fromAccount: source ? `${source.code} | ${source.name}` : "Akun tidak tersedia",
       toAccount: destination ? `${destination.code} | ${destination.name}` : "Akun tidak tersedia",
-      nominal: String(transfer.amount),
+      nominal: formatRupiah(transfer.amount),
       note: transfer.description,
     };
   }), [accountById, transfers.data]);
@@ -134,12 +137,12 @@ export default function Page() {
     { key: "fromAccount", header: "Dari" },
     { key: "toAccount", header: "Ke" },
     { key: "nominal", header: "Nominal" },
-    { key: "status", header: "Status", render: (row: any) => <span className={row.status === "POSTED" ? "font-medium text-success" : row.status === "VOID" ? "font-medium text-danger" : "font-medium text-amber-700 dark:text-amber-300"}>{row.status === "POSTED" ? "Diposting" : row.status === "VOID" ? "Dibatalkan" : "Draft"}</span> },
+    { key: "status", header: "Status", render: (row: any) => <span className={row.status === "POSTED" ? "font-medium text-success" : row.status === "VOID" ? "font-medium text-danger" : "font-medium text-amber-700 dark:text-amber-300"}>{row.status === "POSTED" ? "Diposting" : row.status === "VOID" ? "Dibatalkan" : "Draf"}</span> },
     { key: "actions", header: "Aksi", render: (row: any) => <div className="flex flex-wrap gap-1.5" aria-label={`Aksi ${row.number}`}>
       <button type="button" title="Lihat keterangan" aria-label="Lihat keterangan" className={actionClass} onClick={() => toast.info(row.note)}><FileText className="h-4 w-4" /></button>
       {row.status === "DRAFT" && canApprove(role) ? <button type="button" title="Posting transfer" aria-label="Posting transfer" disabled={busyId === row.id} className={actionPostClass} onClick={() => void runAction(row, "post")}><Send className="h-4 w-4" /></button> : null}
-      {row.status === "DRAFT" && canReverse(role) ? <button type="button" title="Hapus draft" aria-label="Hapus draft" disabled={busyId === row.id} className={actionDangerClass} onClick={() => void runAction(row, "delete")}><Trash2 className="h-4 w-4" /></button> : null}
-      {row.status === "POSTED" && canReverse(role) ? <button type="button" title="Void transfer" aria-label="Void transfer" disabled={busyId === row.id} className={actionDangerClass} onClick={() => void runAction(row, "void")}><Undo2 className="h-4 w-4" /></button> : null}
+      {row.status === "DRAFT" && canReverse(role) ? <button type="button" title="Hapus draft" aria-label="Hapus draft" disabled={busyId === row.id} className={actionDangerClass} onClick={() => setConfirmState({ title: "Hapus transfer", message: "Hapus draf transfer ini? Tindakan ini tidak bisa dibatalkan.", confirmLabel: "Ya, hapus", onConfirm: () => void runAction(row, "delete") })}><Trash2 className="h-4 w-4" /></button> : null}
+      {row.status === "POSTED" && canReverse(role) ? <button type="button" title="Batalkan transfer" aria-label="Batalkan transfer" disabled={busyId === row.id} className={actionDangerClass} onClick={() => setConfirmState({ title: "Batalkan transfer", message: "Batalkan transfer ini? Jurnal pembalik akan dibuat dan status berubah menjadi Dibatalkan.", confirmLabel: "Ya, batalkan", onConfirm: () => void runAction(row, "void") })}><Undo2 className="h-4 w-4" /></button> : null}
     </div> },
   ];
 
@@ -148,7 +151,7 @@ export default function Page() {
 
   return <div className="grid gap-5 sm:gap-6">
     <WorkspaceHeader eyebrow="Kas & Bank" title="Transfer Dana Kas & Bank" description="Pindahkan dana antar akun kas atau bank tanpa mencatat pendapatan maupun beban baru." action={canCreate(role) ? <button type="button" onClick={() => setDrawerOpen(true)} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-foreground px-4 text-sm font-semibold text-background shadow-sm transition hover:bg-foreground/90 sm:w-auto"><Plus className="h-4 w-4" />Buat transfer</button> : null} />
-    <SplitWorkspace main={<><GlassTable selectable={false} tableId="cash-transfers" columns={columns} rows={rows} empty="Belum ada transfer dana." /><div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-border/70 bg-white/45 px-3 py-2.5 text-xs text-muted dark:bg-white/5"><span className="font-medium text-foreground">Aksi:</span><span className="inline-flex items-center gap-1.5"><FileText className="h-3.5 w-3.5" />Detail</span><span className="inline-flex items-center gap-1.5"><Send className="h-3.5 w-3.5" />Posting</span><span className="inline-flex items-center gap-1.5"><Trash2 className="h-3.5 w-3.5 text-danger" />Hapus draft</span><span className="inline-flex items-center gap-1.5"><Undo2 className="h-3.5 w-3.5 text-danger" />Void</span></div></>} side={<><DetailPanel title="Alur Kas Masruri ke BRImo"><div className="grid gap-2"><p>1. Infaq atau sumbangan dicatat sebagai kas masuk ke Kas Masruri.</p><p>2. Saat dana disetor, buat transfer dari Kas Masruri ke BRImo.</p><p>3. Setelah diposting, jurnalnya Debit BRImo dan Kredit Kas Masruri.</p></div></DetailPanel><DetailPanel title="Aturan penting">Transfer tidak menambah pendapatan. Nominal infaq hanya dicatat saat penerimaan pertama kali, bukan saat uang dipindahkan ke rekening bank.</DetailPanel></>} />
+    <SplitWorkspace main={<><GlassTable selectable={false} tableId="cash-transfers" columns={columns} rows={rows} empty="Belum ada transfer dana." /><div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-border/70 bg-white/45 px-3 py-2.5 text-xs text-muted dark:bg-white/5"><span className="font-medium text-foreground">Aksi:</span><span className="inline-flex items-center gap-1.5"><FileText className="h-3.5 w-3.5" />Detail</span><span className="inline-flex items-center gap-1.5"><Send className="h-3.5 w-3.5" />Posting</span><span className="inline-flex items-center gap-1.5"><Trash2 className="h-3.5 w-3.5 text-danger" />Hapus draft</span><span className="inline-flex items-center gap-1.5"><Undo2 className="h-3.5 w-3.5 text-danger" />Batalkan</span></div></>} side={<><DetailPanel title="Alur transfer dana"><div className="grid gap-2"><p>1. Penerimaan dicatat lebih dulu sebagai kas masuk ke akun kas.</p><p>2. Saat dana disetor, buat transfer dari akun kas ke rekening bank.</p><p>3. Setelah diposting, jurnalnya Debit rekening bank dan Kredit akun kas.</p></div></DetailPanel><DetailPanel title="Aturan penting">Transfer tidak menambah pendapatan. Pendapatan hanya dicatat saat penerimaan pertama kali, bukan saat uang dipindahkan ke rekening bank.</DetailPanel></>} />
     <FormDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} title="Buat transfer dana" subtitle="Simpan sebagai draft terlebih dahulu. Saldo dan jurnal berubah setelah transfer diposting.">
       <ManagedForm<TransferForm> schema={schema} defaultValues={emptyForm()} onSubmit={createTransfer}>{({ form, submitting }) => {
         const sourceId = form.watch("cashAccountId");
@@ -164,5 +167,6 @@ export default function Page() {
         </div>;
       }}</ManagedForm>
     </FormDrawer>
+    <ConfirmActionDialog state={confirmState} onClose={() => setConfirmState(null)} />
   </div>;
 }
