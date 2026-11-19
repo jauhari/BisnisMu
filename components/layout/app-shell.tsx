@@ -422,7 +422,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           harus "di-shrink" sebesar lebar rail. Tanpa ini lebar konten tetap 100dvw
           dan tergeser 288px ke kanan → memicu gulir horizontal di semua halaman. */}
         <main className={`${mainPad} transition-[padding] duration-200`}>
-          <div className="mx-auto w-full max-w-[1680px] p-3 sm:p-4 2xl:p-8">
+          <div className="w-full p-3 sm:p-4 2xl:p-8">
             {children}
           </div>
         </main>

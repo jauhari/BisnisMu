@@ -250,7 +250,7 @@ export default function PayrollPage() {
     finally { setBusy(false); }
   }
 
-  return <div className="mx-auto grid w-full max-w-[1440px] min-w-0 gap-5 pb-8">
+  return <div className="grid w-full min-w-0 gap-5 pb-8">
     <WorkspaceHeader eyebrow="Keuangan" title="Penggajian" description="Tentukan kewajiban gaji bulanan, lalu selesaikan pembayaran per karyawan melalui kas atau bank." action={<button type="button" onClick={startRun} disabled={!activeEmployees.length} className="inline-flex h-11 items-center gap-2 rounded-md bg-foreground px-4 text-sm font-semibold text-background shadow-sm transition duration-200 hover:bg-foreground/90 active:translate-y-px disabled:cursor-not-allowed disabled:opacity-50"><Plus className="h-4 w-4" />Buat payroll</button>} />
 
     <GlassPanel className="overflow-hidden p-0">
