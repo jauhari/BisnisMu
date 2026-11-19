@@ -228,7 +228,7 @@ function CoaFormFields({
     });
   }, [editing, form, groupCode, parentCode, rows]);
   return (
-    <div className="grid gap-4">
+    <div className="grid max-w-[560px] gap-4">
       <label className="grid gap-2">
         <span className="text-xs font-medium uppercase tracking-wide text-muted">
           Kode akun
