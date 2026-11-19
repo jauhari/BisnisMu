@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   LayoutDashboard, ScanLine, ShoppingCart, Truck, Package, Wallet, Scale, ListChecks,
-  Smartphone, BookOpen, BarChart3, Settings, ChevronRight, ClipboardPen, BadgeDollarSign, type LucideIcon,
+  Smartphone, BookOpen, BarChart3, Settings, ChevronRight, ClipboardPen, BadgeDollarSign, Users, type LucideIcon,
 } from "lucide-react";
 import { navigation, NAV_GROUPS, type NavItem } from "@/presentation/navigation/navigation";
 
@@ -14,7 +14,7 @@ const OPEN_KEY = "bisnismu:sidebar-open";
 const ICONS: Record<string, LucideIcon> = {
   dashboard: LayoutDashboard, scan: ClipboardPen, transactions: ListChecks, pos: ScanLine, sales: ShoppingCart, purchase: Truck,
   inventory: Package, cash: Wallet, arap: Scale, float: Smartphone,
-  accounting: BookOpen, reports: BarChart3, settings: Settings, admin: Settings, payroll: BadgeDollarSign,
+  accounting: BookOpen, reports: BarChart3, settings: Settings, admin: Settings, payroll: BadgeDollarSign, contacts: Users,
 };
 
 function isHrefActive(pathname: string, href: string): boolean {
@@ -48,7 +48,7 @@ export function SidebarNav({ collapsed = false, onNavigate = () => {} }: { colla
           const Icon = ICONS[item.icon ?? ""] ?? LayoutDashboard;
           const active = isItemActive(pathname, item);
           return (
-            <Link key={item.href} href={item.href} onClick={onNavigate} title={item.title}
+            <Link key={item.href} href={item.href} onClick={onNavigate} title={item.title} aria-label={item.title} aria-current={active ? "page" : undefined}
               className={`relative flex items-center justify-center rounded-lg py-2.5 transition ${active ? "bg-accent/12 text-accent" : "text-muted hover:bg-white/70 hover:text-foreground dark:hover:bg-white/10"}`}>
               {active ? <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r bg-accent" /> : null}
               <Icon className="h-[18px] w-[18px]" />
@@ -66,7 +66,7 @@ export function SidebarNav({ collapsed = false, onNavigate = () => {} }: { colla
         if (items.length === 0) return null;
         return (
           <div key={group} className="grid gap-1">
-            <p className="px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted/70">{group}</p>
+            <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-muted">{group}</p>
             {items.map((item) => {
               const Icon = ICONS[item.icon ?? ""] ?? LayoutDashboard;
               const active = isItemActive(pathname, item);
@@ -76,7 +76,7 @@ export function SidebarNav({ collapsed = false, onNavigate = () => {} }: { colla
                 <div key={item.href}>
                   <div className={`group relative flex items-center rounded-lg transition ${active ? "bg-accent/12 text-accent" : "text-muted hover:bg-white/70 hover:text-foreground dark:hover:bg-white/10"}`}>
                     {active ? <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r bg-accent" /> : null}
-                    <Link href={item.href} onClick={onNavigate} className="flex flex-1 items-center gap-3 px-3 py-2 text-sm font-medium">
+                    <Link href={item.href} onClick={onNavigate} aria-current={active && !hasChildren ? "page" : undefined} className="flex flex-1 items-center gap-3 px-3 py-2 text-sm font-medium">
                       <Icon className={`h-[18px] w-[18px] shrink-0 ${active ? "text-accent" : "text-muted group-hover:text-foreground"}`} />
                       <span>{item.title}</span>
                     </Link>
@@ -91,7 +91,7 @@ export function SidebarNav({ collapsed = false, onNavigate = () => {} }: { colla
                       {item.children!.map((child) => {
                         const childActive = pathname === child.href;
                         return (
-                          <Link key={child.href} href={child.href} onClick={onNavigate} className={`rounded-md px-3 py-1.5 text-[13px] transition ${childActive ? "font-medium text-accent" : "text-muted hover:bg-white/60 hover:text-foreground dark:hover:bg-white/10"}`}>
+                          <Link key={child.href} href={child.href} onClick={onNavigate} aria-current={childActive ? "page" : undefined} className={`rounded-md px-3 py-1.5 text-[13px] transition ${childActive ? "font-medium text-accent" : "text-muted hover:bg-white/60 hover:text-foreground dark:hover:bg-white/10"}`}>
                             {child.title}
                           </Link>
                         );

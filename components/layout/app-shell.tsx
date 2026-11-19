@@ -132,11 +132,13 @@ function BusinessSwitcher({ businesses }: { businesses: SessionBusiness[] }) {
         type="button"
         onClick={toggle}
         title="Ganti usaha"
+        aria-haspopup="listbox"
+        aria-expanded={open}
         className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 transition hover:bg-white/60 dark:hover:bg-white/10"
       >
-        <div className="text-left">
+        <div className="min-w-0 text-left">
           <p className="text-xs text-muted">Usaha aktif</p>
-          <p className="text-sm font-medium">{activeName}</p>
+          <p className="max-w-[10rem] truncate text-sm font-medium sm:max-w-[16rem]">{activeName}</p>
         </div>
         <ChevronDown
           className={`h-3.5 w-3.5 text-muted transition-transform ${open ? "rotate-180" : ""}`}
@@ -274,6 +276,12 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,hsl(var(--accent)/0.10),transparent_32rem),hsl(var(--background))]">
+      <a
+        href="#konten"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-lg focus:bg-background focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:shadow-lg"
+      >
+        Lewati ke konten
+      </a>
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
@@ -316,23 +324,23 @@ export function AppShell({ children }: { children: ReactNode }) {
           >
             <Link
               href="/admin/changelog"
-              className={`block rounded-lg py-1.5 text-[11px] text-muted/50 hover:text-muted hover:bg-white/50 dark:hover:bg-white/5 transition duration-150 truncate`}
+              className={`block rounded-lg py-1.5 text-[11px] text-muted hover:text-foreground hover:bg-white/50 dark:hover:bg-white/5 transition duration-150 truncate`}
               title="Lihat riwayat perubahan"
             >
               {collapsed
                 ? `v${packageJson.version}`
-                : `Changelog v${packageJson.version}`}
+                : `Riwayat versi v${packageJson.version}`}
             </Link>
           </div>
         )}
 
         {/* Tombol Collapse/Expand (hanya desktop) */}
-        <div className="hidden border-t border-border/60 p-2 lg:block">
+        <div className="hidden border-t border-border/60 p-2 2xl:block">
           <button
             type="button"
             onClick={toggleCollapsed}
-            aria-label={collapsed ? "Perlebar sidebar" : "Perkecil sidebar"}
-            title={collapsed ? "Perlebar sidebar" : "Perkecil sidebar"}
+            aria-label={collapsed ? "Lebarkan menu" : "Ciutkan menu"}
+            title={collapsed ? "Lebarkan menu" : "Ciutkan menu"}
             className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted transition hover:bg-white/70 hover:text-foreground dark:hover:bg-white/10 ${collapsed ? "justify-center" : ""}`}
           >
             {collapsed ? (
@@ -340,7 +348,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             ) : (
               <>
                 <PanelLeftClose className="h-[18px] w-[18px]" />
-                <span>Perkecil</span>
+                <span>Ciutkan menu</span>
               </>
             )}
           </button>
@@ -351,9 +359,11 @@ export function AppShell({ children }: { children: ReactNode }) {
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border/70 bg-background/70 px-4 backdrop-blur-glass 2xl:px-8">
           <div className="flex items-center gap-4">
             <button
+              type="button"
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="2xl:hidden"
-              aria-label="Toggle sidebar"
+              className="rounded-lg p-1 2xl:hidden"
+              aria-label={sidebarOpen ? "Tutup menu" : "Buka menu"}
+              aria-expanded={sidebarOpen}
             >
               {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
@@ -365,7 +375,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 aria-label="Pencarian cepat"
                 className="w-80 px-4 py-2 text-sm text-muted"
               >
-                Command palette / search
+                Cari menu atau halaman…
               </GlassCommandPalette>
             </div>
 
@@ -374,6 +384,9 @@ export function AppShell({ children }: { children: ReactNode }) {
               <button
                 type="button"
                 onClick={() => setUserMenuOpen((o) => !o)}
+                aria-label="Menu akun"
+                aria-haspopup="menu"
+                aria-expanded={userMenuOpen}
                 className="flex items-center gap-2 rounded-lg px-2 py-1.5 transition hover:bg-white/60 dark:hover:bg-white/10"
               >
                 <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent text-xs font-bold text-background">
@@ -404,7 +417,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     }}
                     className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-white/60 dark:hover:bg-white/8"
                   >
-                    <Pencil className="h-4 w-4 text-muted" /> Edit Profil
+                    <Pencil className="h-4 w-4 text-muted" /> Ubah Profil
                   </button>
                   <button
                     type="button"
@@ -421,7 +434,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         {/* Padding rail sudah dipasang di wrapper header+main di atas. Jangan
           ulangi di <main>: padding ganda menggeser konten 256px dari sidebar
           di ≥2xl (terlihat sebagai ruang kosong besar di kiri dashboard). */}
-        <main>
+        <main id="konten" tabIndex={-1} className="outline-none">
           <div className="w-full p-3 sm:p-4 2xl:p-8">
             {children}
           </div>
