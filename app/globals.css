@@ -144,28 +144,25 @@ textarea {
 
 @container workspace (min-width: 640px) {
   .coa-row {
-    grid-template-columns: minmax(0, 2.2fr) minmax(0, 0.85fr) minmax(
-        0,
-        0.85fr
-      ) minmax(0, 1.05fr);
+    grid-template-columns:
+      minmax(0, 2.2fr) minmax(0, 0.85fr) minmax(0, 0.85fr)
+      minmax(0, 1.05fr);
     column-gap: 0.75rem;
   }
 
-  .coa-head {
-    grid-template-columns: minmax(0, 2.2fr) minmax(0, 0.85fr) minmax(
-        0,
-        0.85fr
-      ) minmax(0, 1.05fr);
-    column-gap: 0.75rem;
-  }
-
-  .coa-row > .coa-field {
+  .coa-row > .coa-field,
+  .coa-head > span {
     grid-column: auto;
     grid-row: 1;
   }
 
   .coa-head {
     display: grid;
+    grid-template-columns: minmax(0, 2.2fr) minmax(0, 0.85fr) minmax(
+        0,
+        0.85fr
+      ) minmax(0, 1.05fr);
+    column-gap: 0.75rem;
   }
 
   .coa-label {
