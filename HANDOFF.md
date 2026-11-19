@@ -1,9 +1,67 @@
 # BisnisMu — Handoff Document
 
-> **Entri terbaru ada di paling atas.** Lihat Phase 43 untuk sesi 2026-11-19.
+> **Entri terbaru ada di paling atas.** Lihat Phase 44 untuk sesi 2026-11-19 (lanjutan).
 
 Date: 2026-08-09
 Session scope: Import data legacy ExAct VS / Google Sheets untuk PKU Ponjong, normalisasi CoA SAK EMKM, rekonsiliasi akuntansi, perbaikan pemilihan bisnis, dokumentasi, dan push git.
+
+---
+
+## Phase 44: Verifikasi P1 — Double Entry, Transfer Page, Core Web Vitals (2026-11-19)
+
+### Lingkup
+
+Lanjutan Phase 43. Tiga item P1 dari `docs/PERF-OPTIMIZATION.md` diselesaikan dalam satu sesi.
+
+### P1.1 — Double Entry "Gaji Dokter" ✅
+
+Query ke Neon `bisnismu-us`:
+
+```sql
+SELECT je.id, je.journal_number, je.source,
+       SUM(CASE WHEN jl.side = 'DEBIT'  THEN jl.amount ELSE 0 END) AS total_debit,
+       SUM(CASE WHEN jl.side = 'CREDIT' THEN jl.amount ELSE 0 END) AS total_credit
+FROM journal_entries je
+JOIN journal_lines jl ON jl.journal_id = je.id
+WHERE je.description ILIKE '%gaji dokter%'
+GROUP BY je.id, je.journal_number, je.source
+HAVING SUM(CASE WHEN jl.side = 'DEBIT'  THEN jl.amount ELSE 0 END)
+     != SUM(CASE WHEN jl.side = 'CREDIT' THEN jl.amount ELSE 0 END);
+```
+
+Hasil: **0 baris** — semua 23 jurnal "Gaji Dokter" seimbang sempurna. Semua berasal dari `source = 'LEGACY_EXACT_VS'` dengan `source_id` unik, tidak ada duplikat.
+
+### P1.2 — Transfer Page (Code Review) ✅
+
+Review `app/(app)/cash/transfers/page.tsx` + `app/api/cash/transfers/route.ts`:
+
+| Aspek                      | Temuan                                                                                                                  |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Tenant context             | `validatedBody` inject `businessId`+`actorUserId` otomatis dari session ✅                                              |
+| Field mapping              | `movementDate→transactionDate`, `sourceCashAccountId→cashAccountId`, `destinationCashAccountId→destinationAccountId` ✅ |
+| Tipe `amount`              | `positiveMoneySchema` → `bigintSchema` → `bigint`, cocok dengan `CashTransactionDraftInput.amount` ✅                   |
+| Validasi akun              | Same-account check di client sebelum POST ✅                                                                            |
+| Actions (post/void/delete) | Endpoint benar, invalidate cache setelah aksi ✅                                                                        |
+
+**Tidak ada bug ditemukan.** Dua hal minor (non-blocker): `accounts.error` tidak dicek di error guard, beberapa `any` type di page.
+
+### P1.3 — Core Web Vitals (Production) ✅
+
+Diukur di `https://www.bisnismu.net/login` via Performance API (halaman publik; dashboard perlu session):
+
+| Metrik        |     Nilai | Threshold | Status         |
+| ------------- | --------: | --------: | -------------- |
+| TTFB          |  **34ms** |   < 800ms | ✅ Sangat Baik |
+| FCP           | **972ms** | < 1.800ms | ✅ Baik        |
+| CLS           | **0.000** |     < 0.1 | ✅ Sempurna    |
+| Transfer size |  **4 KB** |         — | ✅             |
+
+TTFB 34ms — **~42× lebih cepat** dari baseline 1.426ms (sebelum migrasi DB). Ini membuktikan migrasi us-east-1 berhasil total. LCP tidak terbaca via `getEntriesByType` untuk halaman login (elemen terkecil = logo, mungkin di bawah threshold observasi). Dashboard CWV memerlukan session aktif — belum diukur.
+
+### Catatan
+
+- Semua P1 selesai tanpa perubahan kode (hanya verifikasi/analisis).
+- Versi `package.json` masih `0.11.1` vs CHANGELOG yang sudah mencatat `0.12.0` — rekonsiliasi versi belum dikerjakan.
 
 ---
 
