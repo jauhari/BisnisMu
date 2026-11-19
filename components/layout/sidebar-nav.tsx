@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   LayoutDashboard, ScanLine, ShoppingCart, Truck, Package, Wallet, Scale, ListChecks,
   Smartphone, BookOpen, BarChart3, Settings, ChevronRight, ClipboardPen, BadgeDollarSign, Users, type LucideIcon,
@@ -27,18 +27,19 @@ function isItemActive(pathname: string, item: NavItem): boolean {
 
 export function SidebarNav({ collapsed = false, onNavigate = () => {} }: { collapsed?: boolean; onNavigate?: () => void }) {
   const pathname = usePathname() ?? "";
-  const [open, setOpen] = useState<Record<string, boolean>>({});
+  // Akordeon: hanya satu submenu terbuka. undefined = ikuti menu aktif;
+  // string/null = pilihan manual pengguna, direset setiap pindah halaman
+  // supaya sidebar kembali ringkas.
+  const [openHref, setOpenHref] = useState<string | null | undefined>(undefined);
+  const activeRef = useRef<HTMLDivElement | null>(null);
 
-  // Pulihkan submenu yang sebelumnya dibuka (persisten antar reload/navigasi).
   useEffect(() => {
-    try { const raw = localStorage.getItem(OPEN_KEY); if (raw) setOpen(JSON.parse(raw)); } catch { /* ignore */ }
-  }, []);
+    setOpenHref(undefined);
+    try { localStorage.removeItem(OPEN_KEY); } catch { /* ignore */ }
+    activeRef.current?.scrollIntoView({ block: "nearest" });
+  }, [pathname]);
 
-  const toggle = (href: string, currentlyOpen: boolean) => setOpen((prev) => {
-    const next = { ...prev, [href]: !currentlyOpen };
-    try { localStorage.setItem(OPEN_KEY, JSON.stringify(next)); } catch { /* ignore */ }
-    return next;
-  });
+  const toggle = (href: string, currentlyOpen: boolean) => setOpenHref(currentlyOpen ? null : href);
 
   // Mode rail (collapsed): ikon saja, tanpa grup/submenu.
   if (collapsed) {
@@ -71,9 +72,9 @@ export function SidebarNav({ collapsed = false, onNavigate = () => {} }: { colla
               const Icon = ICONS[item.icon ?? ""] ?? LayoutDashboard;
               const active = isItemActive(pathname, item);
               const hasChildren = (item.children?.length ?? 0) > 0;
-              const expanded = open[item.href] ?? active;
+              const expanded = openHref === undefined ? active : openHref === item.href;
               return (
-                <div key={item.href}>
+                <div key={item.href} ref={active ? activeRef : undefined}>
                   <div className={`group relative flex items-center rounded-lg transition ${active ? "bg-accent/12 text-accent" : "text-muted hover:bg-white/70 hover:text-foreground dark:hover:bg-white/10"}`}>
                     {active ? <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r bg-accent" /> : null}
                     <Link href={item.href} onClick={onNavigate} aria-current={active && !hasChildren ? "page" : undefined} className="flex flex-1 items-center gap-3 px-3 py-2 text-sm font-medium">
