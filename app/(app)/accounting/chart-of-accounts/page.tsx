@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
-import { ChevronDown, ChevronRight, Search } from "lucide-react";
+import { ChevronDown, ChevronRight, Search, Trash2 } from "lucide-react";
 
 import {
   WorkspaceHeader,
@@ -299,7 +299,7 @@ function CoaFormFields({
 const BADGE =
   "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium whitespace-nowrap";
 const ACTION =
-  "inline-flex h-10 flex-1 items-center justify-center rounded-md border border-border px-3 text-xs transition hover:bg-white/60 sm:flex-none sm:min-w-[104px] dark:hover:bg-white/10";
+  "inline-flex h-9 shrink-0 items-center justify-center rounded-md border border-border px-2 text-xs transition hover:bg-white/60 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-white/10";
 
 export default function Page() {
   const mutation = usePostMutation("/api/accounting/chart-of-accounts");
@@ -475,10 +475,11 @@ export default function Page() {
             <div className="max-h-[min(70vh,660px)] overflow-y-auto">
               {/* Header kolom hanya muncul di layar lebar; di layar sempit tiap baris menjelaskan dirinya sendiri. */}
               <div className="coa-head border-b border-border/70 bg-slate-50/95 px-5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-muted dark:bg-slate-950/95">
-                <span>Akun</span>
-                <span>Grup</span>
-                <span>Saldo normal</span>
-                <span>Status</span>
+                <span className="coa-field-main">Akun</span>
+                <span className="coa-field-group">Grup</span>
+                <span className="coa-field-balance">Saldo</span>
+                <span className="coa-field-status">Status</span>
+                <span className="coa-actions text-right">Aksi</span>
               </div>
 
               {rows.length === 0 ? (
@@ -505,7 +506,7 @@ export default function Page() {
                         )}
                       >
                         <div
-                          className="coa-field flex min-w-0 items-start gap-2"
+                          className="coa-field coa-field-main flex min-w-0 items-start gap-2"
                           style={indentation}
                         >
                           {account.childCount > 0 ? (
@@ -555,8 +556,8 @@ export default function Page() {
                           </div>
                         </div>
 
-                        <div className="coa-field flex flex-wrap items-center gap-1.5 self-start sm:pt-1">
-                          <span className="text-[11px] font-medium uppercase tracking-wide text-muted coa-label">
+                        <div className="coa-field coa-field-group flex flex-wrap items-center gap-1.5">
+                          <span className="text-[11px] font-medium uppercase tracking-wide text-muted coa-inline-label">
                             Grup
                           </span>
                           <span
@@ -570,8 +571,8 @@ export default function Page() {
                           </span>
                         </div>
 
-                        <div className="coa-field flex flex-wrap items-center gap-1.5 self-start sm:pt-1">
-                          <span className="text-[11px] font-medium uppercase tracking-wide text-muted coa-label">
+                        <div className="coa-field coa-field-balance flex flex-wrap items-center gap-1.5">
+                          <span className="text-[11px] font-medium uppercase tracking-wide text-muted coa-inline-label">
                             Saldo normal
                           </span>
                           <span
@@ -587,8 +588,8 @@ export default function Page() {
                           </span>
                         </div>
 
-                        <div className="coa-field flex flex-wrap items-center gap-1.5 self-start sm:pt-1">
-                          <span className="text-[11px] font-medium uppercase tracking-wide text-muted coa-label">
+                        <div className="coa-field coa-field-status flex flex-wrap items-center gap-1.5">
+                          <span className="text-[11px] font-medium uppercase tracking-wide text-muted coa-inline-label">
                             Status
                           </span>
                           <span
@@ -613,7 +614,7 @@ export default function Page() {
                           </span>
                         </div>
 
-                        <div className="coa-actions mt-1 flex flex-wrap gap-1.5 md:mt-2 md:justify-start">
+                        <div className="coa-actions coa-field mt-1 flex flex-wrap gap-1.5">
                           <button
                             type="button"
                             onClick={() =>
@@ -626,7 +627,7 @@ export default function Page() {
                                 childCount: account.childCount,
                               })
                             }
-                            className={ACTION}
+                            className={cn(ACTION, "coa-action-btn")}
                           >
                             Edit
                           </button>
@@ -642,7 +643,7 @@ export default function Page() {
                             }
                             className={cn(
                               ACTION,
-                              "text-muted disabled:cursor-not-allowed disabled:opacity-40",
+                              "coa-action-btn coa-action-btn-wide whitespace-nowrap text-muted",
                             )}
                           >
                             {account.isActive ? "Nonaktifkan" : "Aktifkan"}
@@ -656,12 +657,10 @@ export default function Page() {
                                 "DELETE",
                               )
                             }
-                            className={cn(
-                              ACTION,
-                              "border-danger/40 text-danger hover:bg-danger/5 disabled:cursor-not-allowed disabled:opacity-40",
-                            )}
+                            aria-label={`Hapus ${account.name}`}
+                            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-danger/40 text-danger transition hover:bg-danger/5 disabled:cursor-not-allowed disabled:opacity-40"
                           >
-                            Hapus
+                            <Trash2 className="h-4 w-4" aria-hidden />
                           </button>
                         </div>
                       </li>

@@ -122,10 +122,12 @@ textarea {
   }
 }
 
-/* Baris tabel Bagan Akun: reflow mengikuti lebar kontainer, bukan viewport.
-   Di layar sempit tiap field turun jadi satu baris penuh (label + nilai);
-   dari 640px kontainer baris berubah jadi kolom sejajar. */
-.coa-row {
+/* ── Tabel Bagan Akun: reflow mengikuti lebar KONTAINER ──────────────────────
+   Breakpoint viewport tidak cukup di sini: sidebar 256px + panel 360px membuat
+   ruang tabel jauh lebih kecil dari viewport, sehingga `lg:` berbohong.
+   Sempit: tiap field satu baris penuh, berlabel. Lebar: 5 kolom sejajar. */
+.coa-row,
+.coa-head {
   grid-template-columns: minmax(0, 1fr);
 }
 
@@ -133,44 +135,68 @@ textarea {
   display: none;
 }
 
-.coa-label {
-  display: inline;
-}
-
-.coa-row > .coa-field,
-.coa-head > span {
+/* Sempit: setiap field memakai seluruh lebar baris. */
+.coa-row > * {
   grid-column: 1 / -1;
 }
 
-@container workspace (min-width: 640px) {
-  .coa-row {
-    grid-template-columns:
-      minmax(0, 2.2fr) minmax(0, 0.85fr) minmax(0, 0.85fr)
-      minmax(0, 1.05fr);
-    column-gap: 0.75rem;
-  }
+.coa-inline-label {
+  display: inline;
+}
 
-  .coa-row > .coa-field,
-  .coa-head > span {
-    grid-column: auto;
-    grid-row: 1;
+.coa-action-btn {
+  width: auto;
+}
+
+@container workspace (min-width: 760px) {
+  .coa-row,
+  .coa-head {
+    /* nama | grup | saldo | status | aksi */
+    grid-template-columns: minmax(0, 1fr) 104px 92px 168px 236px;
+    column-gap: 0.75rem;
+    row-gap: 0;
   }
 
   .coa-head {
     display: grid;
-    grid-template-columns: minmax(0, 2.2fr) minmax(0, 0.85fr) minmax(
-        0,
-        0.85fr
-      ) minmax(0, 1.05fr);
-    column-gap: 0.75rem;
   }
 
-  .coa-label {
-    display: none;
+  .coa-row > * {
+    grid-column: auto;
+    grid-row: 1;
+  }
+
+  .coa-field-main {
+    grid-column: 1;
+  }
+
+  .coa-field-group {
+    grid-column: 2;
+  }
+
+  .coa-field-balance {
+    grid-column: 3;
+  }
+
+  .coa-field-status {
+    grid-column: 4;
   }
 
   .coa-actions {
-    grid-column: 1 / -1;
-    grid-row: 2;
+    grid-column: 5;
+    justify-content: flex-end;
+    flex-wrap: nowrap;
+  }
+
+  .coa-inline-label {
+    display: none;
+  }
+
+  .coa-action-btn {
+    width: 4.5rem;
+  }
+
+  .coa-action-btn-wide {
+    width: 6.25rem;
   }
 }

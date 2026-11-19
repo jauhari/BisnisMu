@@ -264,37 +264,39 @@ export function AppShell({ children }: { children: ReactNode }) {
       return next;
     });
 
-  // Sidebar desktop baru aktif di xl. Di bawah itu sidebar jadi overlay,
-  // supaya tabel lebar (mis. Bagan Akun) tidak pernah berhadapan dengan rail
-  // 288px di layar laptop.
-  const railWidth = collapsed ? "xl:w-[76px]" : "xl:w-64";
-  const mainPad = collapsed ? "xl:pl-[76px]" : "xl:pl-64";
+  // Rail desktop baru aktif di 2xl (1536px). Pada 1280-1535px rail 256px
+  // membuat area konten menyusut drastis — terukur area tabel jatuh dari
+  // 1197px (viewport 1279) ke 670px (viewport 1280) — sehingga tabel lebar
+  // seperti Bagan Akun justru rusak tepat setelah melewati breakpoint xl.
+  // Di bawah 2xl sidebar jadi overlay agar konten memakai lebar penuh.
+  const railWidth = collapsed ? "2xl:w-[76px]" : "2xl:w-64";
+  const mainPad = collapsed ? "2xl:pl-[76px]" : "2xl:pl-64";
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,hsl(var(--accent)/0.10),transparent_32rem),hsl(var(--background))]">
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/50 xl:hidden"
+          className="fixed inset-0 z-40 bg-black/50 2xl:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
       {/* Sidebar (mobile selalu lebar penuh; desktop bisa di-collapse jadi rail ikon) */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-border/70 bg-white/60 backdrop-blur-glass transition-[transform,width] duration-200 dark:bg-white/6 xl:z-0 xl:translate-x-0 ${railWidth} ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-border/70 bg-white/60 backdrop-blur-glass transition-[transform,width] duration-200 dark:bg-white/6 2xl:z-0 2xl:translate-x-0 ${railWidth} ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        } xl:translate-x-0`}
+        } 2xl:translate-x-0`}
       >
         <div
-          className={`flex h-16 items-center gap-3 border-b border-border/60 ${collapsed ? "xl:justify-center xl:px-0 px-5" : "px-5"}`}
+          className={`flex h-16 items-center gap-3 border-b border-border/60 ${collapsed ? "2xl:justify-center 2xl:px-0 px-5" : "px-5"}`}
         >
           <img
             src="/logo.png"
             alt="Logo BisnisMu"
             className="h-9 w-9 shrink-0 object-contain"
           />
-          <div className={`leading-tight ${collapsed ? "xl:hidden" : ""}`}>
+          <div className={`leading-tight ${collapsed ? "2xl:hidden" : ""}`}>
             <p className="text-base font-semibold">BisnisMu</p>
             <p className="text-[11px] text-muted">Akuntansi UMKM</p>
           </div>
@@ -346,11 +348,11 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       <div className={mainPad}>
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border/70 bg-background/70 px-4 backdrop-blur-glass xl:px-6 2xl:px-8">
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border/70 bg-background/70 px-4 backdrop-blur-glass 2xl:px-8">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="xl:hidden"
+              className="2xl:hidden"
               aria-label="Toggle sidebar"
             >
               {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
@@ -420,7 +422,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           harus "di-shrink" sebesar lebar rail. Tanpa ini lebar konten tetap 100dvw
           dan tergeser 288px ke kanan → memicu gulir horizontal di semua halaman. */}
         <main className={`${mainPad} transition-[padding] duration-200`}>
-          <div className="mx-auto w-full max-w-[1680px] p-3 sm:p-4 xl:p-6 2xl:p-8">
+          <div className="mx-auto w-full max-w-[1680px] p-3 sm:p-4 2xl:p-8">
             {children}
           </div>
         </main>
