@@ -347,7 +347,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <div className={mainPad}>
+      <div className={`${mainPad} transition-[padding] duration-200`}>
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border/70 bg-background/70 px-4 backdrop-blur-glass 2xl:px-8">
           <div className="flex items-center gap-4">
             <button
@@ -418,10 +418,10 @@ export function AppShell({ children }: { children: ReactNode }) {
             </div>
           </div>
         </header>
-        {/* Sidebar bersifat fixed dan konten dibungkus padding, sehingga wadah utama
-          harus "di-shrink" sebesar lebar rail. Tanpa ini lebar konten tetap 100dvw
-          dan tergeser 288px ke kanan → memicu gulir horizontal di semua halaman. */}
-        <main className={`${mainPad} transition-[padding] duration-200`}>
+        {/* Padding rail sudah dipasang di wrapper header+main di atas. Jangan
+          ulangi di <main>: padding ganda menggeser konten 256px dari sidebar
+          di ≥2xl (terlihat sebagai ruang kosong besar di kiri dashboard). */}
+        <main>
           <div className="w-full p-3 sm:p-4 2xl:p-8">
             {children}
           </div>
