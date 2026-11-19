@@ -99,7 +99,7 @@ async function DashboardContent({ filter }: { filter: FilterOption }) {
           <h1 className="mt-2 text-3xl font-semibold">Ringkasan usaha</h1>
           <p className="mt-2 text-sm text-muted">Penjualan, laba, kas, dan stok usaha Anda dalam {periodLabel} terakhir.</p>
         </div>
-        <nav aria-label="Pilih periode" className="flex rounded-lg border border-border/40 bg-white/50 p-1 backdrop-blur-sm dark:bg-white/5">
+        <nav aria-label="Pilih periode" className="flex shrink-0 overflow-x-auto rounded-lg border border-border/40 bg-white/50 p-1 backdrop-blur-sm dark:bg-white/5">
           {(["1w", "1m", "3m", "6m", "1y"] as const).map((opt) => {
             const active = filter === opt;
             const search = new URLSearchParams({ filter: opt });
@@ -108,7 +108,7 @@ async function DashboardContent({ filter }: { filter: FilterOption }) {
                 key={opt}
                 href={`?${search}`}
                 aria-current={active ? "page" : undefined}
-                className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
+                className={`whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium transition ${
                   active ? "bg-accent text-background shadow-sm" : "text-muted hover:text-foreground"
                 }`}
               >
