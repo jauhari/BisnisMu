@@ -1,7 +1,60 @@
 # BisnisMu — Handoff Document
 
+> **Entri terbaru ada di paling atas.** Lihat Phase 42 untuk sesi 2026-11-19.
+
 Date: 2026-08-09
 Session scope: Import data legacy ExAct VS / Google Sheets untuk PKU Ponjong, normalisasi CoA SAK EMKM, rekonsiliasi akuntansi, perbaikan pemilihan bisnis, dokumentasi, dan push git.
+
+---
+
+## Phase 42: Area Kerja Fluid, Tabel Bagan Akun, dan Batas Lebar Form (2026-11-19)
+
+### Masalah
+Tiga keluhan berurutan dari pengguna, masing-masing dengan akar berbeda:
+
+1. **"UI Bagan Akun masih berantakan."** Baris `<li>` punya **5 anak** (nama, grup, saldo, status, aksi) tetapi grid hanya mendefinisikan **4 kolom** dan header hanya **4 label**. Akibatnya kolom aksi terdorong ke baris kedua dan menyisakan lubang kosong besar; tinggi baris 123 px padahal isinya sedikit.
+2. **"Area kerja masih ada ruang kosong."** Wadah konten di `app-shell.tsx` dibatasi `max-w-[1680px]` **dan** di-center (`mx-auto`). Di layar ≥1920 px konten berhenti melebar di 1680 px sehingga tersisa pita kosong besar di kanan; tabel Bagan Akun ikut berhenti melebar padahal ruangnya ada.
+3. **Setelah area kerja dibuat fluid, form jadi terlalu lebar.** Input mencapai ~970 px pada 1920 px dan ~1900 px pada 2560 px. Pedoman keterbacaan menyarankan baris ≤ 75 karakter, sehingga field sepanjang itu sulit dipindai.
+
+Ada pula **bug tersembunyi** yang ditemukan saat verifikasi masalah 1: pada viewport **1280 px** (breakpoint `xl`) sidebar berubah menjadi rail tetap 256 px, sehingga area konten justru **menyusut** saat jendela diperbesar — terukur area tabel jatuh dari **1197 px** (viewport 1279) menjadi **670 px** (viewport 1280). Karena tabel beralih ke satu kolom di bawah 760 px kontainer, tabel justru rusak tepat setelah melewati breakpoint `xl`.
+
+### Perbaikan
+
+**Bagan Akun (`app/(app)/accounting/chart-of-accounts/page.tsx`, `app/globals.css`)**
+- Grid baris menjadi **5 kolom** dengan penempatan eksplisit per field lewat `.coa-field-main/group/balance/status` + `.coa-actions`; header diberi label **Aksi** (sebelumnya 4 label).
+- Mode sempit (< 760 px kontainer): satu kolom penuh, tiap field berlabel sendiri; mode lebar: 5 kolom sejajar.
+- Tombol Hapus jadi ikon (`Trash2`) dengan `aria-label`, menghemat lebar kolom aksi.
+
+**Rail sidebar (`components/layout/app-shell.tsx`)**
+- Rail desktop dipindah dari `xl:` (1280 px) ke `2xl:` (1536 px). Di bawah 1536 px sidebar menjadi overlay sehingga konten memakai lebar penuh — menghilangkan penurunan area konten pada 1280–1535 px.
+
+**Area kerja fluid (`components/layout/app-shell.tsx`, `app/(app)/payroll/page.tsx`)**
+- Hapus `max-w-[1680px]` + `mx-auto` dari wadah utama; hapus `max-w-[1440px]` dari halaman Payroll. Area kerja kini memakai lebar penuh di semua breakpoint.
+
+**Batas lebar form (`max-w-[560px]`, 5 halaman)**
+- Batas dipasang di **grid field tiap halaman**, bukan di wadah halaman, sehingga sisa lebar tetap diserap tabel dan panel detail tetap menempel (jarak 16 px) tanpa celah.
+- Halaman yang diubah: `accounting/chart-of-accounts`, `sales/customers`, `ar-ap/customers`, `ar-ap/vendors`, `inventory/categories`.
+- **12 halaman lain tidak disentuh** karena formnya sudah memakai grid multi-kolom (`fiscal-periods`, `ar-ap/invoices`, `ar-ap/bills`, `float/*`, `inventory/products`, `settings`, `cash/*`, `purchase/orders`) atau berada di dalam modal yang sudah punya batas lebar sendiri.
+
+**Alat verifikasi (`scripts/screenshot-widths.mjs`, baru)**
+- Menggerakkan Chrome headless lewat CDP dengan `Emulation.setDeviceMetricsOverride` untuk mengukur pada **lebar viewport nyata**. Selector baris memakai `li.coa-row` (bukan `li` polos, yang ikut menangkap item sidebar).
+
+### Verifikasi
+- Pengukuran lebar nyata pada **390 / 768 / 1024 / 1280 / 1440 / 1600 / 1920 / 2560 px**: 390–768 px = 1 kolom berlabel; 1024–2560 px = 5 kolom sejajar; tinggi baris 67 px; **nol gulir horizontal** di semua lebar.
+- Input form maksimal **560 px** (dari ~970–1900 px); jarak form ke panel detail **16 px**.
+- Area kerja: `main` selebar viewport penuh (terukur 1093 px pada viewport 1093 px).
+- Regresi 1280 px hilang: area konten kini tumbuh monoton sampai rail muncul di 1536 px (974 px, masih di atas ambang 760 px).
+- `npm run typecheck` bersih; `npm test` **270 test / 40 file** lulus; `next build` sukses.
+- Lighthouse pada halaman Bagan Akun dan Sales Customers: **accessibility / best-practices / SEO = 1.00**, tanpa audit gagal.
+- Terverifikasi di produksi `www.bisnismu.net` (region Vercel `sin1`) pada 1440/1920/2560 px: 5 kolom, input 560 px, tanpa gulir horizontal.
+
+### Catatan
+- **`bisnismu.vercel.app` dan `www.bisnismu.net` adalah deployment yang sama.** DNS menunjukkan `bisnismu.vercel.app` adalah CNAME ke `bisnismu.net`; ETag dan chunk hash webpack kedua domain identik. Verifikasi di salah satu domain berlaku untuk keduanya.
+- **Penyebab tampilan lama di browser pengguna adalah cache HTTP**, bukan deploy tertinggal. Deployment sudah benar; tidak ada service worker / PWA di project ini. Solusi: hard reload (`Cmd + Shift + R`) atau mode incognito.
+- **Rail sidebar kini muncul di 1536 px, bukan 1280 px** — berlaku untuk **semua halaman**, bukan hanya Bagan Akun. Ini perubahan lintas-halaman yang disengaja; bila diinginkan rail kembali muncul dari 1280 px, cukup ubah `2xl:` kembali ke `xl:` di `app-shell.tsx`.
+- **Pembatas lebar hanya untuk form, bukan tabel.** Tabel tetap fluid penuh karena tabel makin baik makin lebar; form dibatasi karena baris teks yang terlalu panjang sulit dipindai.
+- **Kesalahan proses yang tercatat sebagai pelajaran:** (a) verifikasi lebar memakai DOM yang di-clone ke `<div>` sempit **tidak valid** — breakpoint CSS tetap membaca lebar viewport, bukan lebar wadah, sehingga beberapa kesimpulan awal salah; gunakan `scripts/screenshot-widths.mjs`. (b) Probe yang menghitung `Math.max` dari **semua** `input` sempat melaporkan form customers masih 1031 px padahal itu kotak pencarian tabel — ukur khusus input di dalam form. (c) Verifikasi awal dilakukan di `bisnismu.vercel.app` sementara pengguna memakai `bisnismu.net`; idealnya tanyakan domain produksi lebih dulu.
+- Menjalankan `npm run build` **bersamaan** dengan `npm run dev` merusak `.next` (`Cannot find module './NNNN.js'`). Hentikan dev server atau hapus `.next` sebelum build.
 
 ---
 
