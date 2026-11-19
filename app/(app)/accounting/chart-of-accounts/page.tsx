@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
+import { toast } from "sonner";
 import { ChevronDown, ChevronRight, Search, Trash2 } from "lucide-react";
 
 import {
@@ -66,13 +67,13 @@ type EditingAccount = Pick<
 type GroupCode = CoaForm["groupCode"];
 
 const GROUP_OPTIONS: SelectOption[] = [
-  { value: "ASSET", label: "1 - Aset (DEBIT)" },
-  { value: "LIABILITY", label: "2 - Liabilitas (CREDIT)" },
-  { value: "EQUITY", label: "3 - Ekuitas (CREDIT)" },
-  { value: "REVENUE", label: "4 - Pendapatan (CREDIT)" },
-  { value: "COGS", label: "5 - HPP (DEBIT)" },
-  { value: "EXPENSE", label: "6 - Beban (DEBIT)" },
-  { value: "OTHER_EXPENSE", label: "7 - Beban lain (DEBIT)" },
+  { value: "ASSET", label: "1 - Aset (Debit)" },
+  { value: "LIABILITY", label: "2 - Liabilitas (Kredit)" },
+  { value: "EQUITY", label: "3 - Ekuitas (Kredit)" },
+  { value: "REVENUE", label: "4 - Pendapatan (Kredit)" },
+  { value: "COGS", label: "5 - HPP (Debit)" },
+  { value: "EXPENSE", label: "6 - Beban (Debit)" },
+  { value: "OTHER_EXPENSE", label: "7 - Beban lain (Debit)" },
 ];
 const GROUP_LABELS: Record<string, string> = {
   "1": "Aset",
@@ -108,6 +109,9 @@ const GROUP_DIGIT: Record<GroupCode, string> = {
   EXPENSE: "6",
   OTHER_EXPENSE: "7",
 };
+/** Label tampilan saja; nilai yang disimpan tetap DEBIT/CREDIT. */
+const NORMAL_BALANCE_LABEL: Record<string, string> = { DEBIT: "Debit", CREDIT: "Kredit" };
+
 const GROUP_NORMAL: Record<GroupCode, "DEBIT" | "CREDIT"> = {
   ASSET: "DEBIT",
   LIABILITY: "CREDIT",
@@ -273,11 +277,11 @@ function CoaFormFields({
           Saldo normal
         </span>
         <div className="rounded-md border border-border bg-slate-950/5 px-3 py-2.5 text-sm font-medium text-muted dark:bg-white/8">
-          {form.watch("normalBalance")}
+          {NORMAL_BALANCE_LABEL[form.watch("normalBalance")] ?? form.watch("normalBalance")}
         </div>
         <p className="text-xs leading-5 text-muted">
-          Otomatis dari grup akun. Aset/Beban normalnya DEBIT;
-          Liabilitas/Ekuitas/Pendapatan normalnya CREDIT.
+          Otomatis dari grup akun. Aset/Beban normalnya Debit;
+          Liabilitas/Ekuitas/Pendapatan normalnya Kredit.
         </p>
       </div>
       <p className="text-xs leading-5 text-muted">
@@ -308,6 +312,7 @@ export default function Page() {
   const [query, setQuery] = useState("");
   const [groupFilter, setGroupFilter] = useState<string>("ALL");
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; name: string } | null>(null);
   const accountsQuery = useListQuery<AccountNode[]>(
     "/api/accounting/chart-of-accounts",
     ["list", "accounting-coa"],
@@ -584,7 +589,7 @@ export default function Page() {
                               "lg:justify-self-start",
                             )}
                           >
-                            {account.normalBalance}
+                            {NORMAL_BALANCE_LABEL[account.normalBalance] ?? account.normalBalance}
                           </span>
                         </div>
 
@@ -652,10 +657,7 @@ export default function Page() {
                             type="button"
                             disabled={account.isSystem}
                             onClick={() =>
-                              void requestAccount(
-                                `/api/accounting/chart-of-accounts/${account.id}`,
-                                "DELETE",
-                              )
+                              setPendingDelete({ id: account.id, name: account.name })
                             }
                             aria-label={`Hapus ${account.name}`}
                             className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-danger/40 text-danger transition hover:bg-danger/5 disabled:cursor-not-allowed disabled:opacity-40"
@@ -663,6 +665,31 @@ export default function Page() {
                             <Trash2 className="h-4 w-4" aria-hidden />
                           </button>
                         </div>
+                        {pendingDelete?.id === account.id ? (
+                          <div role="alertdialog" aria-label={`Konfirmasi hapus ${account.name}`} className="coa-field mt-2 grid gap-2 rounded-md border border-danger/30 bg-danger/5 p-3">
+                            <p className="text-sm">
+                              Hapus akun {account.code} {account.name}? Akun yang dihapus tidak bisa dikembalikan. Bila akun sudah dipakai di jurnal, pilih Nonaktifkan saja.
+                            </p>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const target = pendingDelete;
+                                  setPendingDelete(null);
+                                  requestAccount(`/api/accounting/chart-of-accounts/${target.id}`, "DELETE")
+                                    .then(() => toast.success(`Akun ${target.name} dihapus.`))
+                                    .catch((e: unknown) => toast.error(e instanceof Error ? e.message : "Gagal menghapus akun."));
+                                }}
+                                className="h-9 rounded-md bg-danger px-4 text-sm font-medium text-white"
+                              >
+                                Ya, hapus
+                              </button>
+                              <button type="button" onClick={() => setPendingDelete(null)} className="h-9 rounded-md border border-border px-4 text-sm">
+                                Batal
+                              </button>
+                            </div>
+                          </div>
+                        ) : null}
                       </li>
                     );
                   })}

@@ -25,7 +25,7 @@ const PRESETS: { key: PresetKey; label: string }[] = [
   { key: "3m",     label: "3 Bulan"    },
   { key: "6m",     label: "6 Bulan"    },
   { key: "year",   label: "Tahun Ini"  },
-  { key: "custom", label: "Custom"     },
+  { key: "custom", label: "Pilih tanggal" },
 ];
 
 function computePreset(key: PresetKey): { startsOn: Date; endsOn: Date } | null {
@@ -98,21 +98,23 @@ function ExportDropdown({ onExportPdf, onExportExcel }: ExportActions) {
         type="button"
         onClick={() => setOpen((v) => !v)}
         disabled={!!exporting}
+        aria-haspopup="menu"
+        aria-expanded={open}
         className="flex h-9 items-center gap-2 rounded-md bg-foreground px-4 text-sm font-medium text-background disabled:opacity-60"
       >
-        <FileDown className="h-4 w-4" />
-        {exporting ? (exporting === "pdf" ? "Membuat PDF…" : "Membuat Excel…") : "Export"}
+        <FileDown className="h-4 w-4" aria-hidden />
+        {exporting ? (exporting === "pdf" ? "Membuat PDF…" : "Membuat Excel…") : "Unduh"}
       </button>
       {open && (
-        <div className="absolute right-0 z-30 mt-1 w-40 rounded-lg border border-border bg-white/90 py-1 shadow-lg backdrop-blur dark:bg-slate-950/90">
+        <div role="menu" className="absolute right-0 z-30 mt-1 w-40 rounded-lg border border-border bg-white/90 py-1 shadow-lg backdrop-blur dark:bg-slate-950/90">
           {onExportPdf && (
-            <button type="button" onClick={() => handle("pdf")} className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-white/60 dark:hover:bg-white/10">
-              <span>📄</span> PDF
+            <button type="button" role="menuitem" onClick={() => handle("pdf")} className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-white/60 dark:hover:bg-white/10">
+              <span aria-hidden="true">📄</span> PDF
             </button>
           )}
           {onExportExcel && (
-            <button type="button" onClick={() => handle("xlsx")} className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-white/60 dark:hover:bg-white/10">
-              <span>📊</span> Excel (.xlsx)
+            <button type="button" role="menuitem" onClick={() => handle("xlsx")} className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-white/60 dark:hover:bg-white/10">
+              <span aria-hidden="true">📊</span> Excel (.xlsx)
             </button>
           )}
         </div>
@@ -157,6 +159,7 @@ export function ReportFilterBar({ title, startsOn, endsOn, onStartsOnChange, onE
               key={p.key}
               type="button"
               onClick={() => selectPreset(p.key)}
+              aria-pressed={activePreset === p.key}
               className={`h-8 rounded-lg px-3 text-sm transition ${
                 activePreset === p.key
                   ? "bg-accent text-white font-medium shadow-sm"
@@ -199,5 +202,5 @@ export function ReportFilterBar({ title, startsOn, endsOn, onStartsOnChange, onE
 }
 
 export function ReportDrilldownSurface({ children }: { children: ReactNode }) {
-  return <GlassPanel><h2 className="text-base font-semibold">Drilldown</h2><div className="mt-4">{children}</div></GlassPanel>;
+  return <GlassPanel><h2 className="text-base font-semibold">Rincian</h2><div className="mt-4">{children}</div></GlassPanel>;
 }

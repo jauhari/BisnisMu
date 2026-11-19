@@ -35,7 +35,7 @@ export default function Page() {
   const [confirmDialog, setConfirmDialog] = useState<{ msg: string; onOk: () => void } | null>(null);
 
   if (isLoading) return <GlassSkeleton className="h-72" />;
-  if (error || !data) return <GlassErrorState title="Fiscal periods tidak tersedia" description="Tidak dapat memuat periode fiskal." />;
+  if (error || !data) return <GlassErrorState title="Periode pembukuan belum bisa dimuat" description="Coba muat ulang halaman ini beberapa saat lagi." />;
 
   const periods: any[] = data.data ?? [];
   const refresh = () => qc.invalidateQueries({ queryKey: ["list", "accounting-periods"] });
@@ -94,7 +94,7 @@ export default function Page() {
 
   return (
     <div className="grid gap-6">
-      <WorkspaceHeader eyebrow="Accounting" title="Fiscal Periods" description="Buka, tutup, dan buka kembali periode fiskal melalui BusinessService." />
+      <WorkspaceHeader eyebrow="Akuntansi" title="Periode Pembukuan" description="Buka, tutup, dan buka kembali periode pembukuan." />
       <SplitWorkspace
         main={
           <>
@@ -163,7 +163,7 @@ export default function Page() {
         side={
           <>
             <DetailPanel title="Buka periode">Tanggal periode dihitung dari bulan awal tahun fiskal yang dikonfigurasi di pengaturan usaha.</DetailPanel>
-            <DetailPanel title="Tutup + Transfer Laba">Menutup periode dan memposting jurnal penutup otomatis — mentransfer saldo akun pendapatan/beban ke Saldo Laba (retained earnings).</DetailPanel>
+            <DetailPanel title="Tutup + Transfer Laba">Menutup periode dan memposting jurnal penutup otomatis — mentransfer saldo akun pendapatan/beban ke Saldo Laba.</DetailPanel>
             <DetailPanel title="Tutup saja">Menutup periode tanpa memposting jurnal penutup. Gunakan bila transfer laba sudah dilakukan manual.</DetailPanel>
             <DetailPanel title="Buka ulang periode">Memerlukan alasan audit dan tercatat di audit log.</DetailPanel>
           </>

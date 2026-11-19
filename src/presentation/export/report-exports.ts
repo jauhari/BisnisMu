@@ -1,10 +1,12 @@
 "use client";
 
+import { formatMoney } from "@/presentation/format/number";
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
+// Nilai kosong dicetak "Rp 0" (bukan "-") supaya kolom angka di PDF/Excel tetap rapi.
 function fmt(amount: number | string | bigint | undefined | null): string {
-  const n = Number(amount ?? 0);
-  return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n);
+  return formatMoney(Number(amount ?? 0));
 }
 
 function periodLabel(startsOn?: Date, endsOn?: Date): string {
@@ -52,7 +54,7 @@ export async function exportProfitLossPdf(report: any, bizName: string, startsOn
 
   autoTable(doc, {
     startY: 42,
-    head: [["Keterangan", "Jumlah (Rp)"]],
+    head: [["Keterangan", "Jumlah"]],
     body: rows,
     columnStyles: { 1: { halign: "right" } },
     headStyles: { fillColor: [30, 30, 30] },
@@ -88,7 +90,7 @@ export async function exportBalanceSheetPdf(report: any, bizName: string, starts
 
   autoTable(doc, {
     startY: 42,
-    head: [["Kelompok", "Akun", "Jumlah (Rp)"]],
+    head: [["Kelompok", "Akun", "Jumlah"]],
     body: rows,
     columnStyles: { 2: { halign: "right" } },
     headStyles: { fillColor: [30, 30, 30] },
@@ -139,7 +141,7 @@ export async function exportTrialBalancePdf(report: any, bizName: string, starts
 
   autoTable(doc, {
     startY: 42,
-    head: [["Akun", "Debit (Rp)", "Kredit (Rp)"]],
+    head: [["Akun", "Debit", "Kredit"]],
     body: rows,
     columnStyles: { 1: { halign: "right" }, 2: { halign: "right" } },
     headStyles: { fillColor: [30, 30, 30] },

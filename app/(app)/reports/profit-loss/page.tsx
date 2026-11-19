@@ -8,7 +8,7 @@ import { useSessionContext } from "@/components/layout/session-context";
 import { GlassTable } from "@/components/tables/glass-table";
 import { useProfitLossReport } from "@/presentation/query/dashboard-hooks";
 import { useReportRange, buildRequest } from "@/presentation/query/report-hooks";
-import { formatRupiah } from "@/presentation/format/number";
+import { formatPercent, formatRupiah } from "@/presentation/format/number";
 import { exportProfitLossPdf, exportProfitLossExcel } from "@/presentation/export/report-exports";
 
 const RevenueTrendChart = dynamic(
@@ -20,7 +20,7 @@ const n = (v: any) => Number(v ?? 0);
 
 function pct(part: number, total: number): string {
   if (total === 0) return "—";
-  return `${((part / total) * 100).toFixed(1)}%`;
+  return formatPercent((part / total) * 100);
 }
 
 export default function Page() {
@@ -121,7 +121,7 @@ export default function Page() {
         tableId="report-profit-loss"
         columns={[
           { key: "section", header: "Keterangan" },
-          { key: "amount", header: "Jumlah (Rp)" },
+          { key: "amount", header: "Jumlah" },
           { key: "margin", header: "% Pendapatan" },
         ]}
         rows={rows}

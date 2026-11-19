@@ -78,13 +78,13 @@ export default function Page() {
         columns={[
           { key: "account", header: "Akun" },
           {
-            key: "debit", header: "Debit (Rp)",
+            key: "debit", header: "Debit",
             render: (row: any) => row.debit > 0
               ? <span className="tabular-nums font-medium">{formatRupiah(row.debit)}</span>
               : <span className="text-muted/40">—</span>,
           },
           {
-            key: "credit", header: "Kredit (Rp)",
+            key: "credit", header: "Kredit",
             render: (row: any) => row.credit > 0
               ? <span className="tabular-nums font-medium">{formatRupiah(row.credit)}</span>
               : <span className="text-muted/40">—</span>,

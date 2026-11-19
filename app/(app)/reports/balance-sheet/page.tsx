@@ -80,7 +80,7 @@ export default function Page() {
         columns={[
           { key: "section", header: "Kelompok" },
           { key: "account", header: "Akun" },
-          { key: "amount", header: "Jumlah (Rp)" },
+          { key: "amount", header: "Jumlah" },
         ]}
         rows={rows}
         empty="Tidak ada data neraca."
